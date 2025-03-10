@@ -11,6 +11,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/rental_tracker
+      - PYTHONPATH=/app
     depends_on:
       db:
         condition: service_healthy
@@ -24,6 +25,8 @@ services:
           echo 'Waiting for database...'
           sleep 1
         done
+        cd /app
+        export PYTHONPATH=/app
         alembic upgrade head
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "

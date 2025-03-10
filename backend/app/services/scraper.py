@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
-from app.models.listing import Listing, PriceHistory
+from app.models.apartment import Apartment, Plan, PlanPriceHistory, PropertyType
 from app.core.config import settings
 import logging
 import json
@@ -30,205 +30,225 @@ class RentalScraper:
         except Exception as e:
             logger.error(f"Error fetching {url}: {str(e)}")
             return None
-
+    
     async def parse_listing(self, html: str) -> List[Dict]:
-        """
-        Parse the HTML content and extract listing information.
-        This is a sample implementation - adjust based on target website structure.
-        """
-        listings = []
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Example parsing - adjust selectors based on target website
-        for item in soup.select('.listing-item'):  # Example selector
-            try:
-                listing = {
-                    'external_id': item.get('data-id', ''),
-                    'title': item.select_one('.title').text.strip(),
-                    'description': item.select_one('.description').text.strip(),
-                    'location': item.select_one('.location').text.strip(),
-                    'price': float(item.select_one('.price').text.replace('$', '').replace(',', '')),
-                    'bedrooms': int(item.select_one('.beds').text.strip()),
-                    'bathrooms': float(item.select_one('.baths').text.strip()),
-                    'area_sqft': float(item.select_one('.sqft').text.replace(',', '')),
-                }
-                listings.append(listing)
-            except Exception as e:
-                logger.error(f"Error parsing listing: {str(e)}")
-                continue
-        
-        return listings
-
+        # This is a generic parser that should be overridden by specific scrapers
+        pass
+    
     def save_listing(self, listing_data: Dict):
-        """Save or update listing and its price history"""
+        """
+        Save listing data to the database using the new Apartment model
+        """
         try:
-            existing_listing = self.db.query(Listing).filter_by(
-                external_id=listing_data['external_id']
+            # Check if apartment already exists by external_id
+            existing_apartment = self.db.query(Apartment).filter(
+                Apartment.external_id == listing_data["external_id"]
             ).first()
             
-            if existing_listing:
-                # Update existing listing
-                for key, value in listing_data.items():
-                    if key != 'price':
-                        setattr(existing_listing, key, value)
-                
-                # Add new price point if changed
-                latest_price = existing_listing.price_history[-1].price if existing_listing.price_history else None
-                if latest_price != listing_data['price']:
-                    price_history = PriceHistory(
-                        listing_id=existing_listing.id,
-                        price=listing_data['price']
-                    )
-                    self.db.add(price_history)
-            else:
-                # Create new listing
-                new_listing = Listing(
-                    **{k: v for k, v in listing_data.items() if k != 'price'}
-                )
-                self.db.add(new_listing)
-                self.db.flush()  # Get the ID of the new listing
-                
-                # Add initial price history
-                price_history = PriceHistory(
-                    listing_id=new_listing.id,
-                    price=listing_data['price']
-                )
-                self.db.add(price_history)
+            # Extract location data
+            location_parts = listing_data.get("location", "").split(",")
+            city = location_parts[0].strip() if location_parts else ""
+            state = "CA"  # Default to California
+            zipcode = "00000"  # Default zipcode
             
-            self.db.commit()
+            # Try to extract zipcode if available
+            if len(location_parts) > 1:
+                zip_match = re.search(r'\b\d{5}\b', location_parts[-1])
+                if zip_match:
+                    zipcode = zip_match.group(0)
+            
+            # Extract or set property type
+            property_type = "apartment"
+            if "condo" in listing_data.get("title", "").lower():
+                property_type = "condo"
+            elif "townhouse" in listing_data.get("title", "").lower():
+                property_type = "townhouse"
+            elif "studio" in listing_data.get("title", "").lower() or listing_data.get("bedrooms", 0) == 0:
+                property_type = "studio"
+            
+            if existing_apartment:
+                # Update existing apartment
+                existing_apartment.title = listing_data["title"]
+                existing_apartment.description = listing_data.get("description", "")
+                existing_apartment.updated_at = datetime.now()
+                
+                # Check if there's an existing plan with these specs
+                existing_plan = None
+                for plan in existing_apartment.plans:
+                    if (plan.bedrooms == listing_data["bedrooms"] and 
+                        plan.bathrooms == listing_data["bathrooms"] and
+                        plan.area_sqft == listing_data.get("area_sqft", 0)):
+                        existing_plan = plan
+                        break
+                
+                # Update or create plan
+                if existing_plan:
+                    # Check if price has changed
+                    current_price = listing_data.get("price")
+                    if current_price and current_price != existing_plan.price:
+                        existing_plan.price = current_price
+                        # Add price history entry
+                        price_history = PlanPriceHistory(
+                            plan_id=existing_plan.id,
+                            price=current_price
+                        )
+                        self.db.add(price_history)
+                else:
+                    # Create new plan
+                    new_plan = Plan(
+                        apartment_id=existing_apartment.id,
+                        name=f"Plan {len(existing_apartment.plans) + 1}",
+                        bedrooms=listing_data["bedrooms"],
+                        bathrooms=listing_data["bathrooms"],
+                        area_sqft=listing_data.get("area_sqft", 0),
+                        price=listing_data.get("price", 0)
+                    )
+                    
+                    # Add price history
+                    if listing_data.get("price"):
+                        price_history = PlanPriceHistory(price=listing_data["price"])
+                        new_plan.price_history = [price_history]
+                    
+                    self.db.add(new_plan)
+                
+                self.db.commit()
+                logger.info(f"Updated apartment: {existing_apartment.title}")
+            else:
+                # Create new apartment
+                new_apartment = Apartment(
+                    external_id=listing_data["external_id"],
+                    title=listing_data["title"],
+                    description=listing_data.get("description", ""),
+                    city=city,
+                    state=state,
+                    zipcode=zipcode,
+                    property_type=property_type,
+                    source_url=listing_data.get("url", "")
+                )
+                
+                self.db.add(new_apartment)
+                self.db.flush()  # Get the ID without committing
+                
+                # Create plan
+                new_plan = Plan(
+                    apartment_id=new_apartment.id,
+                    name="Default Plan",
+                    bedrooms=listing_data["bedrooms"],
+                    bathrooms=listing_data["bathrooms"],
+                    area_sqft=listing_data.get("area_sqft", 0),
+                    price=listing_data.get("price", 0)
+                )
+                
+                # Add price history if price is available
+                if listing_data.get("price"):
+                    price_history = PlanPriceHistory(price=listing_data["price"])
+                    new_plan.price_history = [price_history]
+                
+                self.db.add(new_plan)
+                self.db.commit()
+                logger.info(f"Added new apartment: {new_apartment.title}")
+        
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error saving listing: {str(e)}")
-            raise
-
+    
     async def scrape_listings(self, urls: List[str]):
-        """Scrape multiple URLs for listings"""
         for url in urls:
             html = await self.fetch_page(url)
             if html:
                 listings = await self.parse_listing(html)
-                for listing_data in listings:
-                    self.save_listing(listing_data)
+                for listing in listings:
+                    self.save_listing(listing)
 
-class IrvineApartmentsScraper:
+class IrvineApartmentsScraper(RentalScraper):
     def __init__(self, db: Session):
-        self.db = db
+        super().__init__(db)
+        self.data = None
+        self.base_url = "https://www.irvinecompanyapartments.com"
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        self.base_url = "https://www.irvinecompanyapartments.com/locations/northern-california/santa-clara/santa-clara-square/availability.html"
-        
+    
     async def fetch_data(self) -> Optional[Dict]:
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(self.base_url, headers=self.headers) as response:
+                url = f"{self.base_url}/api/v1/apartments"
+                async with session.get(url, headers=self.headers) as response:
                     if response.status == 200:
-                        html = await response.text()
-                        # Extract the JSON data from the script tag
-                        soup = BeautifulSoup(html, 'html.parser')
-                        script_tag = soup.find('script', string=re.compile('window.availabilityData'))
-                        if script_tag:
-                            json_str = re.search(r'window\.availabilityData\s*=\s*({.*?});', script_tag.string, re.DOTALL)
-                            if json_str:
-                                return json.loads(json_str.group(1))
+                        data = await response.json()
+                        self.data = data
+                        return data
+                    logger.error(f"Failed to fetch data: Status {response.status}")
                     return None
         except Exception as e:
-            print(f"Error fetching data: {str(e)}")
+            logger.error(f"Error fetching data: {str(e)}")
             return None
-
+    
     async def parse_listings(self) -> List[Dict]:
-        data = await self.fetch_data()
-        if not data:
-            return []
-
+        if not self.data:
+            await self.fetch_data()
+            if not self.data:
+                return []
+        
         listings = []
-        try:
-            for unit_type in data.get('floorPlans', []):
-                base_info = {
-                    'floor_plan_name': unit_type.get('name'),
-                    'bedrooms': unit_type.get('beds'),
-                    'bathrooms': unit_type.get('baths'),
-                    'sq_ft': unit_type.get('sqft'),
-                }
-
-                for unit in unit_type.get('units', []):
-                    listing = {
-                        **base_info,
-                        'unit_number': unit.get('unitNumber'),
-                        'price': unit.get('price'),
-                        'available_date': unit.get('availableDate'),
-                        'floor': unit.get('floor'),
-                        'building': unit.get('building')
-                    }
-                    listings.append(listing)
-
-        except Exception as e:
-            print(f"Error parsing listings: {str(e)}")
-
-        return listings
-
-    async def scrape_listings(self, urls: List[str]) -> None:
-        """Scrape listings and save to database"""
-        try:
-            listings = await self.parse_listings()
-            for listing_data in listings:
-                # Convert the data to our model format
+        for item in self.data.get('apartments', []):
+            try:
+                external_id = item.get('id')
+                title = item.get('name', '')
+                description = item.get('description', '')
+                location = f"{item.get('city', '')}, {item.get('state', '')} {item.get('zip', '')}"
+                
+                # Parse bedrooms and bathrooms
+                bedrooms = float(item.get('bedrooms', 0))
+                bathrooms = float(item.get('bathrooms', 0))
+                
+                # Parse area
+                area_sqft = float(item.get('squareFeet', 0))
+                
+                # Parse price
+                price = float(item.get('price', 0))
+                
+                # Create listing object
                 listing = {
-                    'external_id': f"irvine-{listing_data['unit_number']}",
-                    'title': f"{listing_data['floor_plan_name']} - Unit {listing_data['unit_number']}",
-                    'description': f"Floor {listing_data['floor']} in Building {listing_data['building']}",
-                    'location': 'Santa Clara Square',
-                    'bedrooms': listing_data['bedrooms'],
-                    'bathrooms': listing_data['bathrooms'],
-                    'area_sqft': listing_data['sq_ft'],
+                    'external_id': external_id,
+                    'title': title,
+                    'description': description,
+                    'location': location,
+                    'bedrooms': bedrooms,
+                    'bathrooms': bathrooms,
+                    'area_sqft': area_sqft,
+                    'price': price,
+                    'url': f"{self.base_url}/apartments/{external_id}"
                 }
-                
-                # Check if listing exists
-                existing = self.db.query(Listing).filter_by(external_id=listing['external_id']).first()
-                
-                if existing:
-                    # Update existing listing
-                    for key, value in listing.items():
-                        setattr(existing, key, value)
-                    
-                    # Add new price point if changed
-                    latest_price = existing.price_history[-1].price if existing.price_history else None
-                    if latest_price != listing_data['price']:
-                        price_history = PriceHistory(
-                            listing_id=existing.id,
-                            price=listing_data['price']
-                        )
-                        self.db.add(price_history)
-                else:
-                    # Create new listing
-                    new_listing = Listing(**listing)
-                    self.db.add(new_listing)
-                    self.db.flush()  # Get the ID
-                    
-                    # Add initial price history
-                    price_history = PriceHistory(
-                        listing_id=new_listing.id,
-                        price=listing_data['price']
-                    )
-                    self.db.add(price_history)
-                
-                self.db.commit()
-                
+                listings.append(listing)
+            except Exception as e:
+                logger.error(f"Error parsing listing: {str(e)}")
+        
+        return listings
+    
+    async def scrape_listings(self, urls: List[str]) -> None:
+        try:
+            # For Irvine Apartments, we don't need the URLs, we use the API
+            await self.fetch_data()
+            listings = await self.parse_listings()
+            
+            for listing in listings:
+                self.save_listing(listing)
+            
+            logger.info(f"Scraped {len(listings)} listings from Irvine Apartments")
         except Exception as e:
-            self.db.rollback()
-            logger.error(f"Error saving listings: {str(e)}")
-            raise
+            logger.error(f"Error in scrape_listings: {str(e)}")
 
 async def main():
-    scraper = IrvineApartmentsScraper()
-    listings = await scraper.parse_listings()
+    # This is for testing purposes
+    from app.db.session import SessionLocal
     
-    # Print results in a formatted way
-    for listing in listings:
-        print("\n=== Apartment Listing ===")
-        for key, value in listing.items():
-            print(f"{key}: {value}")
+    db = SessionLocal()
+    try:
+        scraper = IrvineApartmentsScraper(db)
+        await scraper.scrape_listings([])
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     asyncio.run(main()) 
