@@ -11,6 +11,7 @@ AptTrack is a comprehensive apartment rental tracking system that helps users fi
 - **Neighborhood Information**: Get details about neighborhoods including walkability scores
 - **Statistics & Analytics**: View market trends and price comparisons
 - **Image Management**: Store and manage apartment images
+- **Google Maps Integration**: Import apartment data from Google Maps based on location
 
 ## Tech Stack
 
@@ -20,6 +21,7 @@ AptTrack is a comprehensive apartment rental tracking system that helps users fi
 - **ORM**: SQLAlchemy
 - **Migrations**: Alembic
 - **Data Scraping**: BeautifulSoup, aiohttp
+- **External APIs**: Google Maps Places API
 
 ### Frontend
 - **Framework**: React
@@ -88,6 +90,7 @@ Contains information about neighborhoods including walkability scores and safety
 - `GET /api/v1/apartments/{id}` - Get a specific apartment
 - `PUT /api/v1/apartments/{id}` - Update an apartment
 - `DELETE /api/v1/apartments/{id}` - Delete an apartment
+- `POST /api/v1/apartments/import/google-maps` - Import apartments from Google Maps
 
 ### Plans
 - `GET /api/v1/apartments/{id}/plans` - List all plans for an apartment
@@ -126,6 +129,7 @@ Contains information about neighborhoods including walkability scores and safety
 ### Prerequisites
 - Docker and Docker Compose
 - Git
+- Google Maps API key (for importing apartment data)
 
 ### Installation
 
@@ -135,12 +139,18 @@ Contains information about neighborhoods including walkability scores and safety
    cd AptTrack
    ```
 
-2. Start the application using Docker Compose:
+2. Set up environment variables:
+   ```bash
+   # Create a .env file in the backend directory
+   echo "GOOGLE_MAPS_API_KEY=your_api_key_here" > backend/.env
+   ```
+
+3. Start the application using Docker Compose:
    ```bash
    docker compose up -d
    ```
 
-3. Access the application:
+4. Access the application:
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
@@ -164,7 +174,24 @@ npm install
 npm start
 ```
 
-## Data Scraping
+## Data Import
+
+AptTrack provides multiple ways to import apartment data:
+
+### Google Maps Import
+
+You can import apartment data from Google Maps by providing a location (city or zipcode):
+
+```bash
+# Using the API
+curl -X POST "http://localhost:8000/api/v1/apartments/import/google-maps" \
+  -H "Content-Type: application/json" \
+  -d '{"location": "Santa Clara, CA", "api_key": "your_api_key_here"}'
+```
+
+Or use the Swagger UI at http://localhost:8000/docs to trigger the import.
+
+### Web Scraping
 
 AptTrack includes a scraper service that can collect apartment data from various sources. Currently, it supports:
 

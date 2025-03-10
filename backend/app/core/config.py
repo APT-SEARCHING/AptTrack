@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Scraping
     SCRAPE_INTERVAL_MINUTES: int = 60
     
+    # Google Maps API
+    GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    
     class Config:
         case_sensitive = True
         env_file = ".env"
