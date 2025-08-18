@@ -1,0 +1,470 @@
+[
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,555",
+    "Available": "09/26/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,940",
+    "Available": "08/25/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,565",
+    "Available": "09/27/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,675",
+    "Available": "09/24/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,790",
+    "Available": "10/05/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,895",
+    "Available": "08/29/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,895",
+    "Available": "09/20/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 03",
+    "Price": "$3,865",
+    "Available": "09/08/2025",
+    "Size": "752 - 768"
+  },
+  {
+    "Plan": "PLAN 03",
+    "Price": "$4,065",
+    "Available": "09/03/2025",
+    "Size": "752 - 768"
+  },
+  {
+    "Plan": "PLAN 05",
+    "Price": "$4,000",
+    "Available": "09/10/2025",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 08",
+    "Price": "$4,195",
+    "Available": "08/16/2025",
+    "Size": "934"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,760",
+    "Available": "09/16/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/05/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,850",
+    "Available": "10/03/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/07/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/28/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,910",
+    "Available": "10/07/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,940",
+    "Available": "10/27/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,965",
+    "Available": "09/18/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,885",
+    "Available": "09/24/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,910",
+    "Available": "09/15/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,895",
+    "Available": "09/19/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 11",
+    "Price": "$3,875",
+    "Available": "09/13/2025",
+    "Size": "772 - 808"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,865",
+    "Available": "09/23/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$4,630",
+    "Available": "08/16/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,915",
+    "Available": "09/03/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,980",
+    "Available": "09/07/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 15",
+    "Price": "$4,210",
+    "Available": "08/16/2025",
+    "Size": "962"
+  },
+  {
+    "Plan": "PLAN 20",
+    "Price": "$4,325",
+    "Available": "08/16/2025",
+    "Size": "1,030"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,150",
+    "Available": "09/10/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,165",
+    "Available": "08/16/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,180",
+    "Available": "08/16/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,190",
+    "Available": "08/16/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,190",
+    "Available": "09/10/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,205",
+    "Available": "09/09/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 22",
+    "Price": "$5,560",
+    "Available": "08/16/2025",
+    "Size": "1,143"
+  },
+  {
+    "Plan": "PLAN 22",
+    "Price": "$5,980",
+    "Available": "08/31/2025",
+    "Size": "1,143"
+  },
+  {
+    "Plan": "PLAN 25",
+    "Price": "$4,825",
+    "Available": "09/19/2025",
+    "Size": "1,067 - 1,123"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$4,820",
+    "Available": "09/02/2025",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$5,215",
+    "Available": "08/16/2025",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$5,045",
+    "Available": "09/18/2025",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 27",
+    "Price": "$4,915",
+    "Available": "08/16/2025",
+    "Size": "1,123"
+  },
+  {
+    "Plan": "PLAN 27",
+    "Price": "$5,050",
+    "Available": "09/02/2025",
+    "Size": "1,123"
+  },
+  {
+    "Plan": "PLAN 28",
+    "Price": "$5,200",
+    "Available": "11/09/2025",
+    "Size": "1,243"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,750",
+    "Available": "09/03/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,850",
+    "Available": "08/16/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,785",
+    "Available": "08/30/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,870",
+    "Available": "08/16/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,875",
+    "Available": "10/01/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$5,265",
+    "Available": "10/04/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$5,415",
+    "Available": "08/16/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$4,895",
+    "Available": "09/06/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$5,175",
+    "Available": "09/06/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$4,945",
+    "Available": "09/27/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,215",
+    "Available": "09/26/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,335",
+    "Available": "08/16/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,265",
+    "Available": "08/25/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,345",
+    "Available": "08/31/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 33",
+    "Price": "$6,355",
+    "Available": "08/16/2025",
+    "Size": "1,444"
+  },
+  {
+    "Plan": "PLAN 38",
+    "Price": "$5,735",
+    "Available": "08/16/2025",
+    "Size": "1,206"
+  },
+  {
+    "Plan": "PLAN 39",
+    "Price": "$5,475",
+    "Available": "08/16/2025",
+    "Size": "1,194"
+  },
+  {
+    "Plan": "PLAN 39",
+    "Price": "$5,535",
+    "Available": "08/16/2025",
+    "Size": "1,194"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$7,665",
+    "Available": "08/30/2025",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$7,740",
+    "Available": "08/16/2025",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$8,005",
+    "Available": "09/18/2025",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 46",
+    "Price": "$4,140",
+    "Available": "08/16/2025",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 47",
+    "Price": "$4,075",
+    "Available": "08/16/2025",
+    "Size": "872"
+  },
+  {
+    "Plan": "PLAN 49",
+    "Price": "$4,270",
+    "Available": "08/16/2025",
+    "Size": "913"
+  },
+  {
+    "Plan": "PLAN 53",
+    "Price": "$3,920",
+    "Available": "09/23/2025",
+    "Size": "759 - 796"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$3,985",
+    "Available": "09/17/2025",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$4,085",
+    "Available": "08/16/2025",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$4,075",
+    "Available": "10/07/2025",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 58",
+    "Price": "$5,475",
+    "Available": "08/16/2025",
+    "Size": "1,113"
+  },
+  {
+    "Plan": "PLAN 61",
+    "Price": "$4,640",
+    "Available": "08/16/2025",
+    "Size": "1,061 - 1,089"
+  },
+  {
+    "Plan": "PLAN 61",
+    "Price": "$4,720",
+    "Available": "08/16/2025",
+    "Size": "1,061 - 1,089"
+  },
+  {
+    "Plan": "PLAN 63",
+    "Price": "$4,715",
+    "Available": "08/16/2025",
+    "Size": "1,116"
+  },
+  {
+    "Plan": "PLAN 64",
+    "Price": "$5,380",
+    "Available": "09/11/2025",
+    "Size": "1,243"
+  },
+  {
+    "Plan": "PLAN 71",
+    "Price": "$5,480",
+    "Available": "08/16/2025",
+    "Size": "1,434"
+  }
+]

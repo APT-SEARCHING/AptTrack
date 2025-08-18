@@ -1,0 +1,59 @@
+import json
+import re
+
+def extract_apartment_info(text):
+    import re
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    plan_header_re = re.compile(r'(?m)^(PLAN\s*\d+)\b', re.IGNORECASE)
+    matches = list(plan_header_re.finditer(text))
+    sections = []
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        sections.append((m.group(1).strip(), text[start:end]))
+    results = []
+    price_line_re = re.compile(r'(?m)^\s*(\$\s*[\d,]+)\s*$')
+    unit_block_re = re.compile(
+        r'(?m)^\s*(\d{1,2}\s+\d{1,4})\s*\n\s*(.*?)\n\s*(\$\s*[\d,]+)\s*\n\s*(\d{1,2}/\d{1,2}/\d{4}|Today)\b',
+        re.MULTILINE | re.DOTALL
+    )
+    size_guess_re = re.compile(r'^\s*[\d]{2,4}\s*(?:-\s*[\d]{2,4})?\s*$', re.MULTILINE)
+    for plan_name, section in sections:
+        plan_price_match = price_line_re.search(section)
+        plan_size = ''
+        if plan_price_match:
+            after_price_pos = plan_price_match.end()
+            rest = section[after_price_pos:]
+            for line in rest.splitlines():
+                s = line.strip()
+                if s:
+                    if re.search(r'\d', s):
+                        plan_size = s
+                        break
+        if not plan_size:
+            sg = size_guess_re.search(section)
+            if sg:
+                plan_size = sg.group(0).strip()
+        for um in unit_block_re.finditer(section):
+            price = um.group(3).strip()
+            available = um.group(4).strip()
+            results.append({
+                "Plan": plan_name,
+                "Price": price,
+                "Available": available,
+                "Size": plan_size
+            })
+    return results
+
+if __name__ == "__main__":
+    with open("output.txt", "r") as f:
+        raw_text = f.read()
+
+    # Extract information from the provided text
+    apartments_data = extract_apartment_info(raw_text)
+    print(apartments_data)
+
+    # Convert the data to JSON format
+    # apartments_json = convert_to_json(apartments_data)
+    with open("parser_output_byllm.txt", "w", encoding="utf-8") as f:
+        f.write(json.dumps(apartments_data, indent=2))

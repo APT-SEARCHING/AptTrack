@@ -1,0 +1,17 @@
+import json
+import re
+
+$$function$$
+
+if __name__ == "__main__":
+    with open("output.txt", "r") as f:
+        raw_text = f.read()
+
+    # Extract information from the provided text
+    apartments_data = extract_apartment_info(raw_text)
+    print(apartments_data)
+
+    # Convert the data to JSON format
+    # apartments_json = convert_to_json(apartments_data)
+    with open("parser_output_byllm.txt", "w", encoding="utf-8") as f:
+        f.write(json.dumps(apartments_data, indent=2))
