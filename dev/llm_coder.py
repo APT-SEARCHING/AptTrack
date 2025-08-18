@@ -1,8 +1,18 @@
-mykey = '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'
+import sys
+import os
 from openai import OpenAI
+
+# Get input and output filenames from command line arguments or use defaults
+input_file = sys.argv[1] if len(sys.argv) > 1 else "output_vista_99.txt"
+output_file = sys.argv[2] if len(sys.argv) > 2 else "llm_code_script_vista_99.txt"
+
+mykey = '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'
 client = OpenAI(api_key = mykey)
 
-with open("output_1.txt", "r") as f:
+print(f"Reading from: {input_file}")
+print(f"Writing to: {output_file}")
+
+with open(input_file, "r") as f:
     raw_text = f.read()
 
 response = client.chat.completions.create(
@@ -20,7 +30,7 @@ Requirements:
 - Do not include explanations, comments, or additional functions in the output.  
 - Output only valid Python code.
 """}, 
-        {"role": "user", "content": f"raw website text: {raw_text}"}
+        {"role": "user", "content": f"raw website text: {raw_text[:4000]}"}
     ]
 )
 
@@ -28,5 +38,7 @@ script = response.choices[0].message.content
 
 print(script)
 
-with open("llm_code_script.txt", "w", encoding="utf-8") as f:
+with open(output_file, "w", encoding="utf-8") as f:
     f.write(script)
+
+print(f"Script saved to: {output_file}")

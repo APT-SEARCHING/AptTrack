@@ -1,0 +1,410 @@
+[
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,117",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,117+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,765+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$4,284+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$1,883+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Shared",
+    "Price": "$1,883",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3117",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$4670",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$0",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,155",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,155",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,160",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,160",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,186",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,186",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,200",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,200",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,297",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,297",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,470",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,470",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,765",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$0",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,818",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,818",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,823",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,823",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,891",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,891",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,983",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,983",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$3,984",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,984",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,031",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$4,031",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,056",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$4,056",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$4,284",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$4,359",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$75",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,409",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,409",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$0",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,437",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,437",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,440",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,440",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,620",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,620",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "Contact the property for details.",
+    "Price": "$4,670",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,670",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,200+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,855+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,200",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,855",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$2,997+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,537+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$4,279+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$2,997",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,279",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$2,807+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,658+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$2,807",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$3,658",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$2,680+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,385+",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$2,680",
+    "Available": "View Availability",
+    "Size": "740"
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$3,385",
+    "Available": "View Availability",
+    "Size": "740"
+  }
+]
