@@ -6,7 +6,7 @@ apt_name = sys.argv[1] if len(sys.argv) > 1 else "vista_99"
 with open("template.txt", "r") as f:
     template = f.read()
 
-with open("llm_code_script_vista_99.txt", "r") as f:
+with open(f"llm_code_script_{apt_name}.txt", "r") as f:
     llm_code_script = f.read()
 
 
