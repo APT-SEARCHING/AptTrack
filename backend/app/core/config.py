@@ -1,6 +1,4 @@
-from pydantic import BaseSettings
-from typing import List
-import os
+from pydantic import BaseSettings, validator
 from pathlib import Path
 
 class Settings(BaseSettings):
@@ -8,33 +6,57 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "db")
-    DATABASE_PORT: str = os.getenv("DATABASE_PORT", "5432")
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "rental_tracker")
-    DATABASE_USER: str = os.getenv("DATABASE_USER", "user")
-    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "password")
+    DATABASE_URL: str = ""
+    DATABASE_HOST: str = "db"
+    DATABASE_PORT: str = "5432"
+    DATABASE_NAME: str = "rental_tracker"
+    DATABASE_USER: str = "user"
+    DATABASE_PASSWORD: str = "password"
     
     # Backend
-    BACKEND_HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
-    BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
-    BACKEND_RELOAD: bool = os.getenv("BACKEND_RELOAD", "true").lower() == "true"
+    BACKEND_HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8000
+    BACKEND_RELOAD: bool = True
     
-    # CORS
-    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
+    # CORS - handle as string and split manually
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
     
     # Scraping
-    SCRAPE_INTERVAL_MINUTES: int = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "60"))
+    SCRAPE_INTERVAL_MINUTES: int = 60
     
     # Google Maps API
-    GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    GOOGLE_MAPS_API_KEY: str = ""
     
     # API
-    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
-    API_VERSION: str = os.getenv("API_VERSION", "v1")
+    API_BASE_URL: str = "http://localhost:8000/api/v1"
+    API_VERSION: str = "v1"
     
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL: str = "INFO"
+    
+    @validator('CORS_ORIGINS')
+    def parse_cors_origins(cls, v):
+        """Convert comma-separated string to list"""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+    
+    @validator('BACKEND_PORT', pre=True)
+    def parse_backend_port(cls, v):
+        """Convert string to int"""
+        return int(v) if isinstance(v, str) else v
+    
+    @validator('BACKEND_RELOAD', pre=True)
+    def parse_backend_reload(cls, v):
+        """Convert string to bool"""
+        if isinstance(v, str):
+            return v.lower() == "true"
+        return v
+    
+    @validator('SCRAPE_INTERVAL_MINUTES', pre=True)
+    def parse_scrape_interval(cls, v):
+        """Convert string to int"""
+        return int(v) if isinstance(v, str) else v
     
     class Config:
         case_sensitive = True
