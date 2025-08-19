@@ -42,19 +42,67 @@ class GoogleMapsService:
             if not self.api_key:
                 return {}, "No Google Maps API key provided. Please provide a valid API key."
                 
-            # First, use Places API to search for apartments
-            places, error = await self._search_places(location, "apartment")
-            if error:
-                return {}, error
+            # Use multiple search queries to get more comprehensive results
+            search_queries = [
+                "apartment",
+                "apartment complex", 
+                "apartments for rent",
+                "residential complex",
+                "housing complex",
+                "rental apartments",
+                "apartment homes", 
+                "luxury apartments",
+                "affordable housing",
+                "student housing",
+                "senior housing",
+                "condos for rent",
+                "rental properties",
+                "multifamily housing",
+                "garden apartments"
+            ]
             
-            if not places:
+            all_places = {}  # Use dict to avoid duplicates based on place_id
+            
+            for query in search_queries:
+                places, error = await self._search_places(location, query)
+                if error:
+                    logger.warning(f"Error searching for '{query}' in {location}: {error}")
+                    continue
+                
+                # Add places to our collection, avoiding duplicates
+                new_places = 0
+                for place in places:
+                    place_id = place.get("place_id")
+                    if place_id and place_id not in all_places:
+                        all_places[place_id] = place
+                        new_places += 1
+                
+                logger.info(f"Query '{query}': {len(places)} results, {new_places} new unique places")
+            
+            # Also try nearby search if we have geocoding available
+            nearby_places, error = await self._nearby_search(location)
+            if nearby_places and not error:
+                nearby_new = 0
+                for place in nearby_places:
+                    place_id = place.get("place_id")
+                    if place_id and place_id not in all_places:
+                        all_places[place_id] = place
+                        nearby_new += 1
+                logger.info(f"Nearby search: {len(nearby_places)} results, {nearby_new} new unique places")
+            
+            if not all_places:
                 return {}, f"No apartments found in location: {location}"
+            
+            logger.info(f"Found {len(all_places)} unique places across all search queries")
                 
             # Then get details for each place and build hash table
             apartments_hash = {}
-            for place in places:
+            failed_count = 0
+            
+            for place in all_places.values():
                 details, error = await self._get_place_details(place["place_id"])
                 if error:
+                    failed_count += 1
                     logger.warning(f"Error getting details for place {place.get('name', 'Unknown')}: {error}")
                     continue
                     
@@ -63,8 +111,10 @@ class GoogleMapsService:
                     if external_id:
                         apartments_hash[external_id] = details
             
+            logger.info(f"Successfully retrieved details for {len(apartments_hash)} apartments, {failed_count} failed")
+            
             if not apartments_hash:
-                return {}, f"Could not retrieve details for any apartments in {location}"
+                return {}, f"Could not retrieve details for any apartments in {location} (found {len(all_places)} places but all detail fetches failed)"
                 
             return apartments_hash, None
         
@@ -97,7 +147,7 @@ class GoogleMapsService:
             
             body = {
                 "textQuery": f"{keyword} in {location}",
-                "maxResultCount": 20
+                "maxResultCount": 20  # Google Places API v1 max limit per query
             }
             
             try:
@@ -116,6 +166,7 @@ class GoogleMapsService:
                                     "formatted_address": place.get("formattedAddress", ""),
                                     "types": place.get("types", [])
                                 })
+                            logger.info(f"Found {len(transformed_places)} places for query '{keyword} in {location}'")
                             return transformed_places, None
                         else:
                             return [], f"No {keyword} found in {location}"
@@ -135,6 +186,104 @@ class GoogleMapsService:
                 error_msg = f"Error connecting to Google Places API: {str(e)}"
                 logger.error(error_msg)
                 return [], error_msg
+    
+    async def _nearby_search(self, location: str) -> Tuple[List[Dict], Optional[str]]:
+        """
+        Use Nearby Search to find apartments around a location
+        This requires geocoding the location first
+        """
+        try:
+            # First geocode the location to get coordinates
+            coordinates, error = await self._geocode_location(location)
+            if error or not coordinates:
+                logger.warning(f"Could not geocode location '{location}' for nearby search: {error}")
+                return [], error
+            
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.base_url}/places:searchNearby"
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": self.api_key,
+                    "X-Goog-FieldMask": "places.displayName,places.id,places.types,places.formattedAddress,places.name"
+                }
+                
+                body = {
+                    "includedTypes": ["lodging", "real_estate_agency"],
+                    "maxResultCount": 20,
+                    "locationRestriction": {
+                        "circle": {
+                            "center": {
+                                "latitude": coordinates["lat"],
+                                "longitude": coordinates["lng"]
+                            },
+                            "radius": 10000.0  # 10km radius
+                        }
+                    }
+                }
+                
+                try:
+                    async with session.post(url, json=body, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            places = data.get("places", [])
+                            
+                            if places:
+                                transformed_places = []
+                                for place in places:
+                                    # Filter for apartment-related places
+                                    place_types = place.get("types", [])
+                                    place_name = place.get("displayName", {}).get("text", "").lower()
+                                    
+                                    if (any(apt_type in str(place_types).lower() for apt_type in ["lodging", "real_estate"]) or
+                                        any(keyword in place_name for keyword in ["apartment", "housing", "residence", "complex"])):
+                                        
+                                        transformed_places.append({
+                                            "place_id": place.get("id"),
+                                            "name": place.get("displayName", {}).get("text", "Unknown"),
+                                            "formatted_address": place.get("formattedAddress", ""),
+                                            "types": place.get("types", [])
+                                        })
+                                
+                                return transformed_places, None
+                            else:
+                                return [], None
+                        else:
+                            logger.warning(f"Nearby search failed with status {response.status}")
+                            return [], f"Nearby search failed: Status {response.status}"
+                            
+                except Exception as e:
+                    logger.warning(f"Error in nearby search: {str(e)}")
+                    return [], str(e)
+                    
+        except Exception as e:
+            return [], f"Error in nearby search: {str(e)}"
+    
+    async def _geocode_location(self, location: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Geocode a location string to get coordinates"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://maps.googleapis.com/maps/api/geocode/json"
+                params = {
+                    "address": location,
+                    "key": self.api_key
+                }
+                
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        results = data.get("results", [])
+                        
+                        if results:
+                            location_data = results[0]["geometry"]["location"]
+                            return {"lat": location_data["lat"], "lng": location_data["lng"]}, None
+                        else:
+                            return None, f"No geocoding results for {location}"
+                    else:
+                        return None, f"Geocoding failed: Status {response.status}"
+                        
+        except Exception as e:
+            return None, f"Geocoding error: {str(e)}"
     
     async def _get_place_details(self, place_id: str) -> Tuple[Optional[Dict], Optional[str]]:
         """
