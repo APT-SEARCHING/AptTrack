@@ -150,6 +150,7 @@ Requirements:
 - The input is a string `text` containing the crawled website content.
 - The function must parse the text and return a JSON object (list of dicts) with the following fields:
   {Plan, Price, Available, Size}.
+- be aware number is possible to be seperate by , like 1,034
 - Do not include explanations, comments, or additional functions in the output.  
 - Output only valid Python code.
 """}, 
@@ -442,11 +443,12 @@ if __name__ == "__main__":
             # Step 1: Find candidates
             candidates = self.step1_find_homepage_candidates(homepage_url)
             if not candidates:
-                print("No candidates found. Exiting.")
-                return None
-            
-            # Step 2: LLM selects best URL
-            selected_url = self.step2_llm_floor_finder(candidates)
+                selected_url = homepage_url
+            else:
+                 # Step 2: LLM selects best URL
+                selected_url = self.step2_llm_floor_finder(candidates)
+                # print("No candidates found. Exiting.")
+                # return None
             
             # Step 3: Crawl floor plans
             raw_content = self.step3_crawl_floor_plans(selected_url)
