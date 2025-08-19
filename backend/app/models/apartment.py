@@ -54,6 +54,10 @@ class Apartment(Base):
     
     # Metadata
     source_url = Column(String, nullable=True, comment="URL of the original listing")
+    phone = Column(String, nullable=True, comment="Phone number for the property")
+    rating = Column(Float, nullable=True, comment="Google rating (0-5)")
+    user_rating_count = Column(Integer, nullable=True, comment="Number of user ratings")
+    business_name = Column(String, nullable=True, comment="Official business name of the property")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="When this record was created")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="When this record was last updated")
     

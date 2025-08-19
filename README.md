@@ -60,7 +60,14 @@ AptTrack/
 │   │   ├── models/       # SQLAlchemy models
 │   │   ├── schemas/      # Pydantic schemas
 │   │   └── services/     # Business logic and external services
-│   └── tests/            # Unit and integration tests
+│
+├── tests/                # Comprehensive test suite
+│   ├── unit/             # Unit tests for backend components
+│   ├── integration/      # Integration tests for web scraping
+│   └── llm/              # LLM-powered parsing tests
+├── .env                  # Environment configuration (create from .env.example)
+├── .env.example          # Example environment configuration
+└── setup_env.py          # Environment setup helper script
 │
 └── docker-compose.yml    # Docker Compose configuration
 ```
@@ -131,6 +138,32 @@ Contains information about neighborhoods including walkability scores and safety
 - Git
 - Google Maps API key (for importing apartment data)
 
+### Environment Configuration
+
+AptTrack uses a single top-level `.env` file for all configuration. This includes:
+- Database connection settings
+- Backend and frontend ports
+- API endpoints
+- External service API keys
+- CORS configuration
+- Logging levels
+
+**Quick Setup:**
+```bash
+# Use the automated setup script (recommended)
+python3 setup_env.py
+
+# Or manually copy and edit
+cp .env.example .env
+# Edit .env with your actual values
+```
+
+**Required Environment Variables:**
+- `GOOGLE_MAPS_API_KEY`: Your Google Maps API key
+- `DATABASE_URL`: Database connection string
+- `BACKEND_PORT`: Backend service port (default: 8000)
+- `FRONTEND_PORT`: Frontend service port (default: 3000)
+
 ### Installation
 
 1. Clone the repository:
@@ -141,8 +174,15 @@ Contains information about neighborhoods including walkability scores and safety
 
 2. Set up environment variables:
    ```bash
-   # Create a .env file in the backend directory
-   echo "GOOGLE_MAPS_API_KEY=your_api_key_here" > backend/.env
+   # Option 1: Use the setup script (recommended)
+   python setup_env.py
+   
+   # Option 2: Manual setup
+   cp .env.example .env
+   
+   # Edit the .env file with your actual values
+   # At minimum, set your Google Maps API key:
+   # GOOGLE_MAPS_API_KEY=your_api_key_here
    ```
 
 3. Start the application using Docker Compose:
@@ -202,6 +242,46 @@ To run the scraper manually:
 ```bash
 docker compose exec backend python -m app.services.scraper
 ```
+
+## Testing
+
+AptTrack includes a comprehensive test suite organized into three main categories:
+
+### Test Structure
+- **Unit Tests** (`tests/unit/`): Test individual components and functions
+- **Integration Tests** (`tests/integration/`): Test web scraping and data processing workflows
+- **LLM Tests** (`tests/llm/`): Test AI-powered parsing and code generation
+
+### Running Tests
+
+1. **Setup test environment:**
+   ```bash
+   python tests/setup_tests.py
+   ```
+
+2. **Run all tests:**
+   ```bash
+   python tests/run_tests.py
+   ```
+
+3. **Run specific test categories:**
+   ```bash
+   # Unit tests only
+   pytest tests/unit/ -v
+   
+   # Integration tests only
+   pytest tests/integration/ -v
+   
+   # LLM tests only
+   pytest tests/llm/ -v
+   ```
+
+4. **Run individual test files:**
+   ```bash
+   pytest tests/unit/test_google_maps.py -v
+   ```
+
+For detailed testing information, see [tests/README.md](tests/README.md).
 
 ## Contributing
 
