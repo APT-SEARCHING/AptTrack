@@ -7,12 +7,15 @@ This directory contains all test code for the AptTrack project, organized into l
 ### Unit Tests (`tests/unit/`)
 - **`test_google_maps.py`** - Tests for Google Maps API integration
 - **`test_google_maps_simple.py`** - Simplified Google Maps API tests
+- **`run_google_maps.py`** - Standalone runner for Google Maps service testing
 
 ### Integration Tests (`tests/integration/`)
 - **`crawl.py`** - Web crawling tests for apartment websites
 - **`vista99_crawl.py`** - Specific crawling tests for Vista 99 apartments
 - **`floor_finder.py`** - Tests for finding floor plan URLs
 - **`llm_floor_finder.py`** - AI-powered floor plan URL selection tests
+- **`check_db_schema.py`** - Database schema inspection utility
+- **`run_migration.py`** - Database migration script for Google Maps fields
 - **`candidates.txt`** - Sample candidate URLs for testing
 - **`selected_url.txt`** - Selected URL output for testing
 
@@ -45,7 +48,7 @@ python tests/run_tests.py
 pytest tests/unit/ -v
 
 # Integration tests only
-pytest tests/integration/ -v
+pytest tests/unit/ -v
 
 # LLM tests only
 pytest tests/llm/ -v
@@ -60,6 +63,18 @@ pytest tests/unit/test_google_maps.py -v
 pytest tests/unit/test_google_maps.py --cov=backend.app.services.google_maps
 ```
 
+### Run Standalone Scripts
+```bash
+# Run Google Maps service directly
+python3 tests/unit/run_google_maps.py
+
+# Check database schema
+python3 tests/integration/check_db_schema.py
+
+# Run database migration
+python3 tests/integration/run_migration.py
+```
+
 ## Test Configuration
 
 The `conftest.py` file configures the Python path to include the backend and app directories, allowing tests to import modules from those locations.
@@ -70,3 +85,5 @@ The `conftest.py` file configures the Python path to include the backend and app
 - Integration tests use Playwright for web scraping - ensure browsers are installed
 - LLM tests require OpenAI API access
 - Test output files are preserved for debugging and analysis
+- Standalone scripts in integration tests can be run directly for database operations
+- The `run_google_maps.py` script is a convenient way to test the Google Maps service without pytest

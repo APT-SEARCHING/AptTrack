@@ -1,27 +1,34 @@
 import aiohttp
 import asyncio
 import json
-from typing import List, Dict, Optional, Union, Tuple
+import os
+import sys
+from typing import List, Dict, Optional, Tuple
 import logging
-from sqlalchemy.orm import Session
-from app.core.config import settings
-from app.models.apartment import Apartment, Plan
-from datetime import datetime
+from pathlib import Path
+
+# Handle imports for both direct execution and module import
+try:
+    from app.core.config import settings
+except ImportError:
+    # Add the backend/app directory to Python path for direct execution
+    backend_app_path = Path(__file__).parent.parent
+    sys.path.insert(0, str(backend_app_path))
+    from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 class GoogleMapsService:
     """Service for interacting with Google Maps API to fetch apartment data"""
     
-    def __init__(self, db: Session, api_key: Optional[str] = None):
-        self.db = db
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GOOGLE_MAPS_API_KEY
         if not self.api_key:
             logger.warning("No Google Maps API key provided. API requests will likely be denied.")
         # Use the newer Places API endpoints
         self.base_url = "https://places.googleapis.com/v1"
     
-    async def fetch_apartments_by_location(self, location: str) -> Tuple[List[Dict], Optional[str]]:
+    async def fetch_apartments_by_location(self, location: str) -> Tuple[Dict[str, Dict], Optional[str]]:
         """
         Fetch apartments in a given location (city or zipcode)
         
@@ -29,22 +36,22 @@ class GoogleMapsService:
             location: City name or zipcode
             
         Returns:
-            Tuple of (list of apartment details, error message if any)
+            Tuple of (hash table with apartment details keyed by external_id, error message if any)
         """
         try:
             if not self.api_key:
-                return [], "No Google Maps API key provided. Please provide a valid API key."
+                return {}, "No Google Maps API key provided. Please provide a valid API key."
                 
             # First, use Places API to search for apartments
             places, error = await self._search_places(location, "apartment")
             if error:
-                return [], error
+                return {}, error
             
             if not places:
-                return [], f"No apartments found in location: {location}"
+                return {}, f"No apartments found in location: {location}"
                 
-            # Then get details for each place
-            apartments = []
+            # Then get details for each place and build hash table
+            apartments_hash = {}
             for place in places:
                 details, error = await self._get_place_details(place["place_id"])
                 if error:
@@ -52,17 +59,19 @@ class GoogleMapsService:
                     continue
                     
                 if details:
-                    apartments.append(details)
+                    external_id = details.get("external_id")
+                    if external_id:
+                        apartments_hash[external_id] = details
             
-            if not apartments:
-                return [], f"Could not retrieve details for any apartments in {location}"
+            if not apartments_hash:
+                return {}, f"Could not retrieve details for any apartments in {location}"
                 
-            return apartments, None
+            return apartments_hash, None
         
         except Exception as e:
             error_msg = f"Error fetching apartments from Google Maps: {str(e)}"
             logger.error(error_msg)
-            return [], error_msg
+            return {}, error_msg
     
     async def _search_places(self, location: str, keyword: str) -> Tuple[List[Dict], Optional[str]]:
         """
@@ -269,147 +278,7 @@ class GoogleMapsService:
             "user_rating_count": user_rating_count
         }
 
-    async def save_places_to_new_tables(self, location: str, db_session: Session) -> Tuple[int, Optional[str]]:
-        """
-        Fetch places and persist into new google-specific tables without touching legacy schemas.
-        """
-        from app.models.google_place import GooglePlaceRaw, GoogleApartment
-
-        apartments, error = await self.fetch_apartments_by_location(location)
-        if error:
-            return 0, error
-
-        saved = 0
-        for apt in apartments:
-            try:
-                # Also fetch and upsert raw record using place_resource_name -> place_id
-                resource_name = apt.get("place_resource_name") or ""
-                place_id = resource_name.split("/")[-1] if resource_name else None
-                if place_id:
-                    raw_place, raw_err = await self._get_place_details_raw_only(place_id)
-                    if raw_place:
-                        # Prepare fields for raw table
-                        loc = (raw_place or {}).get("location", {})
-                        raw_existing = db_session.query(GooglePlaceRaw).filter(GooglePlaceRaw.place_resource_name == resource_name).first()
-                        if raw_existing:
-                            raw_existing.place_id = place_id
-                            raw_existing.display_name = (raw_place.get("displayName", {}) or {}).get("text")
-                            raw_existing.formatted_address = raw_place.get("formattedAddress")
-                            raw_existing.website_uri = raw_place.get("websiteUri")
-                            raw_existing.national_phone_number = raw_place.get("nationalPhoneNumber")
-                            raw_existing.rating = raw_place.get("rating")
-                            raw_existing.user_rating_count = raw_place.get("userRatingCount")
-                            raw_existing.latitude = loc.get("latitude")
-                            raw_existing.longitude = loc.get("longitude")
-                            raw_existing.raw_json = raw_place
-                            db_session.commit()
-                        else:
-                            db_session.add(GooglePlaceRaw(
-                                place_resource_name=resource_name,
-                                place_id=place_id,
-                                display_name=(raw_place.get("displayName", {}) or {}).get("text"),
-                                formatted_address=raw_place.get("formattedAddress"),
-                                website_uri=raw_place.get("websiteUri"),
-                                national_phone_number=raw_place.get("nationalPhoneNumber"),
-                                rating=raw_place.get("rating"),
-                                user_rating_count=raw_place.get("userRatingCount"),
-                                latitude=loc.get("latitude"),
-                                longitude=loc.get("longitude"),
-                                raw_json=raw_place,
-                            ))
-                            db_session.commit()
-                    else:
-                        logger.warning(f"Raw fetch failed for {resource_name}: {raw_err}")
-
-                # Save normalized record
-                existing = db_session.query(GoogleApartment).filter(GoogleApartment.external_id == apt["external_id"]).first()
-                if existing:
-                    for key, value in apt.items():
-                        if hasattr(existing, key) and key not in ["id", "created_at"]:
-                            setattr(existing, key, value)
-                    db_session.commit()
-                else:
-                    ga = GoogleApartment(**apt)
-                    db_session.add(ga)
-                    db_session.commit()
-                saved += 1
-            except Exception as e:
-                db_session.rollback()
-                logger.error(f"Failed saving Google apartment {apt.get('title')}: {e}")
-
-        return saved, None
     
-    async def import_apartments_to_db(self, location: str, db_session: Optional[Session] = None) -> Tuple[int, Optional[str]]:
-        """
-        Import apartments from Google Maps API to the database
-        
-        Args:
-            location: City name or zipcode
-            db_session: Optional database session to use (if not provided, uses self.db)
-            
-        Returns:
-            Tuple of (number of apartments imported, error message if any)
-        """
-        apartments, error = await self.fetch_apartments_by_location(location)
-        if error:
-            return 0, error
-            
-        if not apartments:
-            return 0, f"No apartments found in location: {location}"
-            
-        # Use provided session or fall back to self.db
-        db = db_session or self.db
-        imported_count = 0
-        
-        for apt_data in apartments:
-            try:
-                # Check if apartment already exists by external_id
-                existing_apartment = db.query(Apartment).filter(
-                    Apartment.external_id == apt_data["external_id"]
-                ).first()
-                
-                if existing_apartment:
-                    # Update existing apartment
-                    for key, value in apt_data.items():
-                        if key not in ["external_id"] and hasattr(existing_apartment, key):
-                            setattr(existing_apartment, key, value)
-                    
-                    existing_apartment.updated_at = datetime.now()
-                    db.commit()
-                    logger.info(f"Updated apartment: {apt_data['title']}")
-                else:
-                    # Create new apartment
-                    # Filter out any keys that aren't in the Apartment model
-                    valid_keys = [column.name for column in Apartment.__table__.columns]
-                    filtered_data = {k: v for k, v in apt_data.items() if k in valid_keys}
-                    
-                    new_apartment = Apartment(**filtered_data)
-                    
-                    # Create a default plan since we don't have specific floor plan data
-                    default_plan = Plan(
-                        name="Default Plan",
-                        bedrooms=1.0,  # Default values since we don't have this info
-                        bathrooms=1.0,
-                        area_sqft=800.0,
-                        price=0.0,  # We don't have price info from Google Maps
-                        is_available=True
-                    )
-                    
-                    new_apartment.plans = [default_plan]
-                    
-                    db.add(new_apartment)
-                    db.commit()
-                    logger.info(f"Added new apartment: {apt_data['title']}")
-                    imported_count += 1
-            
-            except Exception as e:
-                db.rollback()
-                logger.error(f"Error importing apartment {apt_data.get('title', 'Unknown')}: {str(e)}")
-        
-        if imported_count == 0:
-            return 0, "No apartments were imported. Check the logs for details."
-            
-        return imported_count, None
 
 
 async def test_fetch_apartments_to_json(location: str, output_file: str = "apartments_data.json") -> Tuple[int, Optional[str]]:
@@ -424,43 +293,24 @@ async def test_fetch_apartments_to_json(location: str, output_file: str = "apart
         Tuple of (number of apartments fetched, error message if any)
     """
     try:
-        # Create a mock database session (we won't use it)
-        class MockDB:
-            def __init__(self):
-                pass
-            def query(self, *args):
-                return self
-            def filter(self, *args):
-                return self
-            def first(self):
-                return None
-            def commit(self):
-                pass
-            def rollback(self):
-                pass
-            def add(self, *args):
-                pass
-            def close(self):
-                pass
-        
-        mock_db = MockDB()
-        service = GoogleMapsService(mock_db)
+        # Create service without database dependency
+        service = GoogleMapsService()
         
         # Fetch apartments without database operations
-        apartments, error = await service.fetch_apartments_by_location(location)
+        apartments_hash, error = await service.fetch_apartments_by_location(location)
         if error:
             return 0, error
             
-        if not apartments:
+        if not apartments_hash:
             return 0, f"No apartments found in location: {location}"
         
         # Save to JSON file
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(apartments, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(apartments_hash, f, indent=2, ensure_ascii=False, default=str)
             
-            logger.info(f"Successfully saved {len(apartments)} apartments to {output_file}")
-            return len(apartments), None
+            logger.info(f"Successfully saved {len(apartments_hash)} apartments to {output_file}")
+            return len(apartments_hash), None
             
         except Exception as e:
             error_msg = f"Error saving to JSON file: {str(e)}"
@@ -472,44 +322,6 @@ async def test_fetch_apartments_to_json(location: str, output_file: str = "apart
         logger.error(error_msg)
         return 0, error_msg
 
-async def test_import_apartments_to_db(location: str) -> Tuple[int, Optional[str]]:
-    """
-    Test function to import apartments from Google Maps API to the database
-    
-    Args:
-        location: City name or zipcode
-        
-    Returns:
-        Tuple of (number of apartments imported, error message if any)
-    """
-    try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
-        
-        # Create a local database connection (not Docker)
-        local_db_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/rental_tracker")
-        engine = create_engine(local_db_url)
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        
-        db = SessionLocal()
-        try:
-            service = GoogleMapsService(db)
-            
-            # Import apartments to database using the local session
-            count, error = await service.import_apartments_to_db(location, db_session=db)
-            if error:
-                return 0, error
-                
-            logger.info(f"Successfully imported {count} apartments to database")
-            return count, None
-            
-        finally:
-            db.close()
-            
-    except Exception as e:
-        error_msg = f"Error in database import test: {str(e)}"
-        logger.error(error_msg)
-        return 0, error_msg
 
 async def main():
     """Test function for the Google Maps service"""
@@ -534,18 +346,7 @@ async def main():
         print(f"Successfully fetched {count} apartments")
         print("Results saved to 'santa_clara_apartments.json'")
         print("Check the file to see the apartment details.")
-    
-    # Test importing to database
-    print("\nTesting database import...")
-    print("Importing apartments to database...")
-    
-    db_count, db_error = await test_import_apartments_to_db("Santa Clara, CA")
-    
-    if db_error:
-        print(f"Database import error: {db_error}")
-    else:
-        print(f"Successfully imported {db_count} apartments to database")
-        print("Check the database to see the imported data.")
+        print("Note: Database operations have been separated into a different service.")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

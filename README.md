@@ -281,6 +281,18 @@ AptTrack includes a comprehensive test suite organized into three main categorie
    pytest tests/unit/test_google_maps.py -v
    ```
 
+5. **Run standalone scripts:**
+   ```bash
+   # Run Google Maps service directly
+   python3 tests/unit/run_google_maps.py
+   
+   # Check database schema
+   python3 tests/integration/check_db_schema.py
+   
+   # Run database migration
+   python3 tests/integration/run_migration.py
+   ```
+
 For detailed testing information, see [tests/README.md](tests/README.md).
 
 ## Contributing
