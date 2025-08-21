@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import json
+import re
+import os
+
+import re
+
+def extract_apartment_info(text):
+    results = []
+    lines = text.splitlines()
+    blocks = []
+    current = []
+    in_block = False
+    for l in lines:
+        s = l.strip()
+        if s.startswith("Apt."):
+            if current:
+                blocks.append("\n".join(current))
+            in_block = True
+            current = [l]
+        else:
+            if in_block:
+                current.append(l)
+    if current and in_block:
+        blocks.append("\n".join(current))
+    for block in blocks:
+        plan = ""
+        price = ""
+        available = ""
+        size = ""
+        bed_m = re.search(r'(\d+)\s*bed\b', block, re.IGNORECASE)
+        bath_m = re.search(r'(\d+)\s*bath\b', block, re.IGNORECASE)
+        if bed_m and bath_m:
+            plan = f"{bed_m.group(1)} Bed {bath_m.group(1)} Bath"
+        elif bed_m:
+            plan = f"{bed_m.group(1)} Bed"
+        size_m = re.search(r'([\d,]+)\s*(?:sq\s*ft|sqft|sf)\b', block, re.IGNORECASE)
+        if size_m:
+            size = size_m.group(1).replace(',', '')
+        price_m = re.search(r'^\s*starting at\s*\$?\s*([\d,]+)', block, re.IGNORECASE | re.MULTILINE)
+        if price_m:
+            price = price_m.group(1).replace(',', '')
+        else:
+            price_m2 = re.search(r'\bfrom\s*\$?\s*([\d,]+)', block, re.IGNORECASE)
+            if price_m2:
+                price = price_m2.group(1).replace(',', '')
+        month_pat = r'(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*\d{1,2}'
+        avail_m = re.search(r'available(?:\s*starting)?\s*(now|today|' + month_pat + r')', block, re.IGNORECASE)
+        if avail_m:
+            val = avail_m.group(1)
+            if re.fullmatch(r'now|today', val, re.IGNORECASE):
+                available = val.capitalize()
+            else:
+                available = val
+        if any([plan, price, available, size]):
+            results.append({
+                "Plan": plan,
+                "Price": price,
+                "Available": available,
+                "Size": size
+            })
+    if not results:
+        for m in re.finditer(r'(?i)\b(studio|townhouse|\d+\s*(?:bed|bedroom)s?)\s+from\s*\$([\d,]+)', text):
+            plan_raw = m.group(1)
+            plan_norm = plan_raw
+            plan_norm = re.sub(r'(?i)\b(\d+)\s*bedrooms?\b', r'\1 Bedroom', plan_norm)
+            plan_norm = re.sub(r'(?i)\b(\d+)\s*beds?\b', r'\1 Bed', plan_norm)
+            results.append({
+                "Plan": plan_norm.strip(),
+                "Price": m.group(2).replace(',', ''),
+                "Available": "",
+                "Size": ""
+            })
+    return results
+
+if __name__ == "__main__":
+    # Use absolute paths to ensure files can be found
+    raw_content_file = r"/Users/chenximin/AptTrack/tests/integration/data/output_eaves_san_jose.txt"
+    results_file = r"/Users/chenximin/AptTrack/tests/integration/result/parser_output_eaves_san_jose.txt"
+    
+    print(f"Reading from: {raw_content_file}")
+    print(f"Writing to: {results_file}")
+    
+    try:
+        # Read the raw content
+        with open(raw_content_file, "r", encoding="utf-8") as f:
+            raw_text = f.read()
+        
+        print(f"Read {len(raw_text)} characters from raw content file")
+
+        # Extract information from the provided text
+        apartments_data = extract_apartment_info(raw_text)
+        print(f"Extracted {len(apartments_data)} apartment entries")
+        print(apartments_data)
+
+        # Save results
+        with open(results_file, "w", encoding="utf-8") as f:
+            f.write(json.dumps(apartments_data, indent=2))
+        
+        print(f"Results successfully saved to: {results_file}")
+        
+    except FileNotFoundError as e:
+        print(f"Error: File not found - {e}")
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Raw content file exists: {os.path.exists(raw_content_file)}")
+        print(f"Results directory exists: {os.path.exists(os.path.dirname(results_file))}")
+    except Exception as e:
+        print(f"Error during extraction: {e}")
+        import traceback
+        traceback.print_exc()

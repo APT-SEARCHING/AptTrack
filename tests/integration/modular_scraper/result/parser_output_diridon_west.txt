@@ -1,0 +1,14 @@
+[
+  {
+    "Plan": "A7",
+    "Price": "$2,999",
+    "Available": "Available Now",
+    "Size": "650 - 681 sq. ft."
+  },
+  {
+    "Plan": "B3",
+    "Price": "$3,697",
+    "Available": "Available Now",
+    "Size": "1044 sq. ft."
+  }
+]

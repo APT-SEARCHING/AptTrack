@@ -1,0 +1,38 @@
+[
+  {
+    "Plan": "1 bed \u2022 1 bath",
+    "Price": "$2,978",
+    "Available": "Aug 21",
+    "Size": "735 sqft"
+  },
+  {
+    "Plan": "1 bed \u2022 1 bath",
+    "Price": "$2,983",
+    "Available": "Sep 07",
+    "Size": "735 sqft"
+  },
+  {
+    "Plan": "1 bed \u2022 1 bath",
+    "Price": "$3,038",
+    "Available": "Aug 24",
+    "Size": "735 sqft"
+  },
+  {
+    "Plan": "1 bed \u2022 1 bath",
+    "Price": "$3,043",
+    "Available": "Sep 05",
+    "Size": "735 sqft"
+  },
+  {
+    "Plan": "1 bed \u2022 1 bath",
+    "Price": "$3,053",
+    "Available": "Sep 23",
+    "Size": "735 sqft"
+  },
+  {
+    "Plan": "",
+    "Price": "$3,431",
+    "Available": "Sep 07",
+    "Size": "1079 sqft"
+  }
+]

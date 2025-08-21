@@ -1,0 +1,56 @@
+[
+  {
+    "Plan": "Plan ned",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "Plan s - 2 Bedroom",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "Plan s - Studio",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "Plan and",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "Plan layouts",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "1 Bedroom",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "2 Bedroom",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  },
+  {
+    "Plan": "Studio",
+    "Price": "",
+    "Available": "",
+    "Size": ""
+  }
+]

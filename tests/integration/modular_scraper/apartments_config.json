@@ -1,0 +1,54 @@
+[
+  {
+    "name": "vista_99",
+    "floor_plan_url": "https://www.equityapartments.com/san-francisco-bay/north-san-jose/vista-99-apartments/floor-plans"
+  },
+  {
+    "name": "avalon_cahill_park",
+    "floor_plan_url": "https://www.avaloncommunities.com/california/san-jose-apartments/avalon-at-cahill-park/floor-plans"
+  },
+  {
+    "name": "avalon_morrison_park",
+    "floor_plan_url": "https://www.avaloncommunities.com/california/san-jose-apartments/avalon-morrison-park/floor-plans"
+  },
+  {
+    "name": "avalon_on_the_alameda",
+    "floor_plan_url": "https://www.avaloncommunities.com/california/san-jose-apartments/avalon-on-the-alameda/floor-plans"
+  },
+  {
+    "name": "avalon_willow_glen",
+    "floor_plan_url": "https://www.avaloncommunities.com/california/san-jose-apartments/avalon-willow-glen/floor-plans"
+  },
+  {
+    "name": "diridon_west",
+    "floor_plan_url": "https://www.diridonwest.com/floor-plans"
+  },
+  {
+    "name": "eaves_san_jose",
+    "floor_plan_url": "https://www.eaves.com/california/san-jose-apartments/eaves-san-jose/floor-plans"
+  },
+  {
+    "name": "eaves_west_valley",
+    "floor_plan_url": "https://www.eaves.com/california/san-jose-apartments/eaves-west-valley/floor-plans"
+  },
+  {
+    "name": "elan_at_river_oaks",
+    "floor_plan_url": "https://www.elanapartments.com/california/san-jose-apartments/elan-at-river-oaks-apartments/floor-plans"
+  },
+  {
+    "name": "hanover_winchester",
+    "floor_plan_url": "https://www.hanoverapartments.com/california/san-jose-apartments/hanover-winchester/floor-plans"
+  },
+  {
+    "name": "miro_san_jose",
+    "floor_plan_url": "https://www.miroapartments.com/floor-plans"
+  },
+  {
+    "name": "santa_clara_square",
+    "floor_plan_url": "https://www.santaclarasquare.com/floor-plans"
+  },
+  {
+    "name": "the_benton",
+    "floor_plan_url": "https://www.thebenton.com/floor-plans"
+  }
+]

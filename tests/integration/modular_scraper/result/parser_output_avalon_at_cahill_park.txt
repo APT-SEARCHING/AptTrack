@@ -1,0 +1,38 @@
+[
+  {
+    "Plan": "Apt. 002-2308",
+    "Price": "$2,670",
+    "Available": "Aug 21",
+    "Size": "712 sqft"
+  },
+  {
+    "Plan": "Apt. 004-4415",
+    "Price": "$2,740",
+    "Available": "Aug 24",
+    "Size": "793 sqft"
+  },
+  {
+    "Plan": "Apt. 003-3305",
+    "Price": "$2,875",
+    "Available": "Sep 06",
+    "Size": "712 sqft"
+  },
+  {
+    "Plan": "Apt. 003-3102",
+    "Price": "$2,915",
+    "Available": "Sep 08",
+    "Size": "793 sqft"
+  },
+  {
+    "Plan": "Apt. 003-3309",
+    "Price": "$2,940",
+    "Available": "Sep 08",
+    "Size": "712 sqft"
+  },
+  {
+    "Plan": "Apt. 003-3109",
+    "Price": "$2,970",
+    "Available": "Sep 17",
+    "Size": "793 sqft"
+  }
+]

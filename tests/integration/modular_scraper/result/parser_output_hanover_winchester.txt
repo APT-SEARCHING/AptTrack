@@ -1,0 +1,134 @@
+[
+  {
+    "Plan": "A",
+    "Price": "$3,278",
+    "Available": "Available",
+    "Size": "639 sq. ft."
+  },
+  {
+    "Plan": "B",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "625 - 635 sq. ft."
+  },
+  {
+    "Plan": "C",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "639 - 657 sq. ft."
+  },
+  {
+    "Plan": "D",
+    "Price": "$3,265",
+    "Available": "Available",
+    "Size": "687 - 723 sq. ft."
+  },
+  {
+    "Plan": "G",
+    "Price": "$3,337",
+    "Available": "Available",
+    "Size": "714 - 800 sq. ft."
+  },
+  {
+    "Plan": "F",
+    "Price": "$3,848",
+    "Available": "Available",
+    "Size": "728 - 795 sq. ft."
+  },
+  {
+    "Plan": "E",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "728 - 830 sq. ft."
+  },
+  {
+    "Plan": "H",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "746 sq. ft."
+  },
+  {
+    "Plan": "I",
+    "Price": "$3,531",
+    "Available": "Available",
+    "Size": "755 - 838 sq. ft."
+  },
+  {
+    "Plan": "J",
+    "Price": "$3,745",
+    "Available": "Available",
+    "Size": "772 - 887 sq. ft."
+  },
+  {
+    "Plan": "K",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "879 - 952 sq. ft."
+  },
+  {
+    "Plan": "L",
+    "Price": "$3,818",
+    "Available": "Available",
+    "Size": "890 sq. ft."
+  },
+  {
+    "Plan": "M",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "931 sq. ft."
+  },
+  {
+    "Plan": "N",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1070 sq. ft."
+  },
+  {
+    "Plan": "O",
+    "Price": "$4,599",
+    "Available": "Available",
+    "Size": "1099 - 1214 sq. ft."
+  },
+  {
+    "Plan": "P",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1155 - 1225 sq. ft."
+  },
+  {
+    "Plan": "S",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1230 - 1356 sq. ft."
+  },
+  {
+    "Plan": "Q",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1245 - 1371 sq. ft."
+  },
+  {
+    "Plan": "R",
+    "Price": "$5,345",
+    "Available": "Available",
+    "Size": "1269 sq. ft."
+  },
+  {
+    "Plan": "T",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1352 sq. ft."
+  },
+  {
+    "Plan": "U",
+    "Price": "$5,385",
+    "Available": "Available",
+    "Size": "1470 sq. ft."
+  },
+  {
+    "Plan": "V",
+    "Price": "Contact Us",
+    "Available": "Contact Us",
+    "Size": "1361 - 1514 sq. ft."
+  }
+]

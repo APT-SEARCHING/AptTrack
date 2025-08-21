@@ -6,40 +6,41 @@ import os
 def extract_apartment_info(text):
     import re
     results = []
-    pattern = re.compile(r'(?i)^\s*(PLAN\s*\d+[A-Z0-9]*)\b', re.MULTILINE)
-    matches = list(pattern.finditer(text))
+    plan_pattern = re.compile(r'(?im)^(?:PLAN|Plan)\s+[^\n]+')
+    matches = list(plan_pattern.finditer(text))
     for i, m in enumerate(matches):
-        start = m.start()
-        end = matches[i+1].start() if i+1 < len(matches) else len(text)
-        block = text[start:end]
-        plan = ' '.join(m.group(1).strip().split()).upper()
-        price = ""
-        pm = re.search(r'\$\s*[\d,]+', block)
-        if pm:
-            price = pm.group(0).replace(' ', '')
+        plan_name = m.group(0).strip()
+        seg_start = m.end()
+        seg_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        segment = text[seg_start:seg_end]
+
+        bldg_marker = 'BLDG NO. / APT NO.'
+        idx_bldg = segment.find(bldg_marker)
+        pre_units = segment[:idx_bldg] if idx_bldg != -1 else segment
+        units = segment[idx_bldg:] if idx_bldg != -1 else ''
+
+        size = None
+        size_matches = list(re.finditer(r'(?m)^\s*([\d,]{3,5}(?:\s*-\s*[\d,]{3,5})?)\s*$', pre_units))
+        if size_matches:
+            size = size_matches[-1].group(1)
+
+        if units:
+            unit_pattern = re.compile(r'(?im)^\s*\d{1,2}\s*mo\.\s*\n^\s*\$([\d,]+)\s*\n^\s*(Today|\d{2}/\d{2}/\d{4})\s*', re.MULTILINE)
+            for price, avail in unit_pattern.findall(units):
+                results.append({
+                    "Plan": plan_name.upper(),
+                    "Price": f"${price}",
+                    "Available": avail,
+                    "Size": size if size is not None else ""
+                })
         else:
-            if re.search(r'No Availability', block, re.IGNORECASE):
-                price = "No Availability"
-        size = ""
-        search_start = pm.end() if pm else 0
-        size_re = re.compile(r'([\d,]{2,5}(?:\s*-\s*[\d,]{2,5})?)')
-        srm = size_re.search(block, search_start)
-        if not srm:
-            srm = size_re.search(block)
-        if srm:
-            size = srm.group(1).replace(' ', '')
-        available = ""
-        if re.search(r'No Availability', block, re.IGNORECASE):
-            available = "No Availability"
-        else:
-            t = re.search(r'\bToday\b', block)
-            if t:
-                available = "Today"
-            else:
-                d = re.search(r'\b(\d{1,2}/\d{1,2}/\d{4})\b', block)
-                if d:
-                    available = d.group(1)
-        results.append({"Plan": plan, "Price": price, "Available": available, "Size": size})
+            if re.search(r'No Availability', pre_units, re.IGNORECASE):
+                results.append({
+                    "Plan": plan_name.upper(),
+                    "Price": "",
+                    "Available": "No Availability",
+                    "Size": size if size is not None else ""
+                })
     return results
 
 if __name__ == "__main__":

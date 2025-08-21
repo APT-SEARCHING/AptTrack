@@ -1,0 +1,734 @@
+[
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,555",
+    "Available": "09/26/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,940",
+    "Available": "08/25/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,675",
+    "Available": "09/24/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,790",
+    "Available": "10/05/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,895",
+    "Available": "08/29/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 01",
+    "Price": "$3,895",
+    "Available": "09/20/2025",
+    "Size": "640 - 642"
+  },
+  {
+    "Plan": "PLAN 03",
+    "Price": "$3,865",
+    "Available": "09/08/2025",
+    "Size": "752 - 768"
+  },
+  {
+    "Plan": "PLAN 03",
+    "Price": "$4,065",
+    "Available": "09/03/2025",
+    "Size": "752 - 768"
+  },
+  {
+    "Plan": "PLAN 05",
+    "Price": "$4,000",
+    "Available": "09/10/2025",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 05",
+    "Price": "$4,250",
+    "Available": "09/26/2025",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 05",
+    "Price": "$4,105",
+    "Available": "10/10/2025",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 08",
+    "Price": "$4,195",
+    "Available": "Today",
+    "Size": "934"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,760",
+    "Available": "09/16/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/05/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,850",
+    "Available": "10/03/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/07/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,860",
+    "Available": "09/28/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,910",
+    "Available": "10/07/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,940",
+    "Available": "10/27/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 09",
+    "Price": "$3,965",
+    "Available": "09/18/2025",
+    "Size": "790 - 794"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,885",
+    "Available": "09/24/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,910",
+    "Available": "09/15/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 10",
+    "Price": "$3,895",
+    "Available": "09/19/2025",
+    "Size": "785 - 824"
+  },
+  {
+    "Plan": "PLAN 11",
+    "Price": "$3,875",
+    "Available": "09/13/2025",
+    "Size": "772 - 808"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,865",
+    "Available": "09/23/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,915",
+    "Available": "Today",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,915",
+    "Available": "09/03/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$3,980",
+    "Available": "08/27/2025",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 12",
+    "Price": "$4,630",
+    "Available": "Today",
+    "Size": "811"
+  },
+  {
+    "Plan": "PLAN 15",
+    "Price": "$4,210",
+    "Available": "Today",
+    "Size": "962"
+  },
+  {
+    "Plan": "PLAN 20",
+    "Price": "$4,325",
+    "Available": "Today",
+    "Size": "1,030"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,150",
+    "Available": "09/10/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,165",
+    "Available": "Today",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,180",
+    "Available": "Today",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,190",
+    "Available": "Today",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,190",
+    "Available": "09/10/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 21",
+    "Price": "$4,205",
+    "Available": "09/09/2025",
+    "Size": "910 - 930"
+  },
+  {
+    "Plan": "PLAN 22",
+    "Price": "$5,560",
+    "Available": "Today",
+    "Size": "1,143"
+  },
+  {
+    "Plan": "PLAN 22",
+    "Price": "$5,980",
+    "Available": "08/31/2025",
+    "Size": "1,143"
+  },
+  {
+    "Plan": "PLAN 25",
+    "Price": "$4,825",
+    "Available": "09/19/2025",
+    "Size": "1,067 - 1,123"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$4,820",
+    "Available": "09/02/2025",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$5,215",
+    "Available": "Today",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 26",
+    "Price": "$5,045",
+    "Available": "09/18/2025",
+    "Size": "1,108 - 1,165"
+  },
+  {
+    "Plan": "PLAN 27",
+    "Price": "$4,915",
+    "Available": "Today",
+    "Size": "1,123"
+  },
+  {
+    "Plan": "PLAN 27",
+    "Price": "$5,050",
+    "Available": "09/02/2025",
+    "Size": "1,123"
+  },
+  {
+    "Plan": "PLAN 28",
+    "Price": "$5,200",
+    "Available": "11/09/2025",
+    "Size": "1,243"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,750",
+    "Available": "09/03/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,850",
+    "Available": "Today",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,785",
+    "Available": "08/30/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,800",
+    "Available": "09/26/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$4,870",
+    "Available": "Today",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$5,265",
+    "Available": "10/04/2025",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 30",
+    "Price": "$5,415",
+    "Available": "Today",
+    "Size": "1,108 - 1,124"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$4,895",
+    "Available": "09/06/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$5,175",
+    "Available": "09/06/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 31",
+    "Price": "$4,945",
+    "Available": "09/27/2025",
+    "Size": "1,177 - 1,205"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,215",
+    "Available": "09/26/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,335",
+    "Available": "Today",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,265",
+    "Available": "08/25/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 32",
+    "Price": "$5,345",
+    "Available": "08/31/2025",
+    "Size": "1,313"
+  },
+  {
+    "Plan": "PLAN 33",
+    "Price": "$6,355",
+    "Available": "Today",
+    "Size": "1,444"
+  },
+  {
+    "Plan": "PLAN 38",
+    "Price": "$5,735",
+    "Available": "Today",
+    "Size": "1,206"
+  },
+  {
+    "Plan": "PLAN 39",
+    "Price": "$5,475",
+    "Available": "Today",
+    "Size": "1,194"
+  },
+  {
+    "Plan": "PLAN 39",
+    "Price": "$5,535",
+    "Available": "Today",
+    "Size": "1,194"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$7,665",
+    "Available": "08/30/2025",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$7,740",
+    "Available": "Today",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 42",
+    "Price": "$8,005",
+    "Available": "09/18/2025",
+    "Size": "1,718"
+  },
+  {
+    "Plan": "PLAN 46",
+    "Price": "$4,140",
+    "Available": "Today",
+    "Size": "863"
+  },
+  {
+    "Plan": "PLAN 47",
+    "Price": "$4,075",
+    "Available": "Today",
+    "Size": "872"
+  },
+  {
+    "Plan": "PLAN 49",
+    "Price": "$4,270",
+    "Available": "Today",
+    "Size": "913"
+  },
+  {
+    "Plan": "PLAN 53",
+    "Price": "$3,920",
+    "Available": "09/23/2025",
+    "Size": "759 - 796"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$3,985",
+    "Available": "09/17/2025",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$4,085",
+    "Available": "Today",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 55",
+    "Price": "$4,075",
+    "Available": "10/07/2025",
+    "Size": "847 - 855"
+  },
+  {
+    "Plan": "PLAN 58",
+    "Price": "$5,475",
+    "Available": "Today",
+    "Size": "1,113"
+  },
+  {
+    "Plan": "PLAN 61",
+    "Price": "$4,640",
+    "Available": "Today",
+    "Size": "1,061 - 1,089"
+  },
+  {
+    "Plan": "PLAN 61",
+    "Price": "$4,720",
+    "Available": "Today",
+    "Size": "1,061 - 1,089"
+  },
+  {
+    "Plan": "PLAN 63",
+    "Price": "$4,715",
+    "Available": "Today",
+    "Size": "1,116"
+  },
+  {
+    "Plan": "PLAN 64",
+    "Price": "$5,380",
+    "Available": "09/11/2025",
+    "Size": "1,243"
+  },
+  {
+    "Plan": "PLAN 71",
+    "Price": "$5,480",
+    "Available": "Today",
+    "Size": "1,434"
+  },
+  {
+    "Plan": "PLAN 02",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "899"
+  },
+  {
+    "Plan": "PLAN 04",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "850 - 879"
+  },
+  {
+    "Plan": "PLAN 06",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "818"
+  },
+  {
+    "Plan": "PLAN 07",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "729"
+  },
+  {
+    "Plan": "PLAN 13",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "815"
+  },
+  {
+    "Plan": "PLAN 14",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "882"
+  },
+  {
+    "Plan": "PLAN 16",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,127"
+  },
+  {
+    "Plan": "PLAN 17",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "891"
+  },
+  {
+    "Plan": "PLAN 18",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "980"
+  },
+  {
+    "Plan": "PLAN 19",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,118"
+  },
+  {
+    "Plan": "PLAN 23",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,816"
+  },
+  {
+    "Plan": "PLAN 24",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "981"
+  },
+  {
+    "Plan": "PLAN 29",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,328"
+  },
+  {
+    "Plan": "PLAN 30 ALT",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,092"
+  },
+  {
+    "Plan": "PLAN 34",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,363"
+  },
+  {
+    "Plan": "PLAN 35",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,363"
+  },
+  {
+    "Plan": "PLAN 36",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,395"
+  },
+  {
+    "Plan": "PLAN 37",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "973"
+  },
+  {
+    "Plan": "PLAN 40",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,683"
+  },
+  {
+    "Plan": "PLAN 41",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,645"
+  },
+  {
+    "Plan": "PLAN 43",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,202"
+  },
+  {
+    "Plan": "PLAN 44",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "669"
+  },
+  {
+    "Plan": "PLAN 45",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "824"
+  },
+  {
+    "Plan": "PLAN 48",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "842"
+  },
+  {
+    "Plan": "PLAN 50",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "744 - 777"
+  },
+  {
+    "Plan": "PLAN 51",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "788"
+  },
+  {
+    "Plan": "PLAN 52",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "846"
+  },
+  {
+    "Plan": "PLAN 54",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "949"
+  },
+  {
+    "Plan": "PLAN 56",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,187"
+  },
+  {
+    "Plan": "PLAN 57",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,212"
+  },
+  {
+    "Plan": "PLAN 59",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,220"
+  },
+  {
+    "Plan": "PLAN 60",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,366"
+  },
+  {
+    "Plan": "PLAN 62",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,074"
+  },
+  {
+    "Plan": "PLAN 65",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,237"
+  },
+  {
+    "Plan": "PLAN 66",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,175"
+  },
+  {
+    "Plan": "PLAN 67",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,252 - 1,360"
+  },
+  {
+    "Plan": "PLAN 68",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,333"
+  },
+  {
+    "Plan": "PLAN 69",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "949"
+  },
+  {
+    "Plan": "PLAN 70",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,259"
+  },
+  {
+    "Plan": "PLAN 72",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,535"
+  },
+  {
+    "Plan": "PLAN 73",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "1,537"
+  },
+  {
+    "Plan": "PLAN 74",
+    "Price": "",
+    "Available": "No Availability",
+    "Size": "95054"
+  }
+]

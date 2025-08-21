@@ -1,0 +1,38 @@
+def extract_apartment_info(text):
+    import re
+    lines = text.splitlines()
+    idx = None
+    for i, l in enumerate(lines):
+        if 'List View' in l:
+            idx = i
+            break
+    if idx is None:
+        segment = text
+    else:
+        segment_lines = lines[idx + 1:]
+        end_idx = None
+        for j, l in enumerate(segment_lines):
+            if 'Floor plans are artist' in l:
+                end_idx = j
+                break
+        if end_idx is not None:
+            segment_lines = segment_lines[:end_idx]
+        segment = '\n'.join(segment_lines)
+    seg_lines = [l.strip() for l in segment.splitlines() if l.strip() != '']
+    plan_indices = []
+    for i, l in enumerate(seg_lines):
+        if re.fullmatch(r'[A-Z][0-9]{1,3}', l):
+            plan_indices.append(i)
+    results = []
+    for k, start in enumerate(plan_indices):
+        end = plan_indices[k + 1] if k + 1 < len(plan_indices) else len(seg_lines)
+        block = '\n'.join(seg_lines[start:end])
+        plan = seg_lines[start]
+        m_price = re.search(r'Base\s+Rent\s*\$?\s*([\d,]+)', block, re.I)
+        price = f'${m_price.group(1)}' if m_price else None
+        m_av = re.search(r'(Available[^\n]*)', block, re.I)
+        available = m_av.group(1).strip() if m_av else None
+        m_size = re.search(r'([\d,]+(?:\s*-\s*[\d,]+)?)\s*sq\.?\s*ft\.?', block, re.I)
+        size = m_size.group(0).strip() if m_size else None
+        results.append({'Plan': plan, 'Price': price, 'Available': available, 'Size': size})
+    return results

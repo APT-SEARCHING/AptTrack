@@ -1,0 +1,38 @@
+[
+  {
+    "Plan": "Studio",
+    "Price": 2020,
+    "Available": "Aug 21",
+    "Size": 405
+  },
+  {
+    "Plan": "Studio",
+    "Price": 2040,
+    "Available": "Aug 21",
+    "Size": 405
+  },
+  {
+    "Plan": "Studio",
+    "Price": 2040,
+    "Available": "Sep 03",
+    "Size": 405
+  },
+  {
+    "Plan": "Studio",
+    "Price": 2040,
+    "Available": "Sep 04",
+    "Size": 405
+  },
+  {
+    "Plan": "Studio",
+    "Price": 2040,
+    "Available": "Sep 27",
+    "Size": 405
+  },
+  {
+    "Plan": "Studio",
+    "Price": 2040,
+    "Available": "Sep 27",
+    "Size": 405
+  }
+]

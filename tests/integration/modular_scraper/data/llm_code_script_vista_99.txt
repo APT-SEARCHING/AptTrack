@@ -1,0 +1,62 @@
+def extract_apartment_info(text):
+    import re
+    lines = [l.strip() for l in text.splitlines()]
+    results = []
+    price_pat = re.compile(r'^\$\d[\d,]*(?:\.\d{2})?$')
+    size_pat = re.compile(r'(\d[\d,]*)\s*sq\.\s*ft\.?$', re.IGNORECASE)
+    avail_pat = re.compile(r'^Available\s+(.*)$', re.IGNORECASE)
+
+    n = len(lines)
+    for i, line in enumerate(lines):
+        if line == "Furnished Price":
+            price = None
+            j = i - 1
+            while j >= 0:
+                s = lines[j].strip()
+                if price_pat.match(s) and s != "$0":
+                    price = s
+                    break
+                j -= 1
+
+            plan = ""
+            plan1 = None
+            plan2 = None
+            size = ""
+            available = ""
+
+            # Scan forward for plan, size, available
+            forward_limit = min(i + 30, n)
+            saw_sqft = False
+            t = i + 1
+            while t < forward_limit:
+                s = lines[t].strip()
+                if not plan1 and re.search(r'\bBed\b', s, re.IGNORECASE):
+                    if re.search(r'\bBath\b', s, re.IGNORECASE):
+                        plan = s
+                    else:
+                        plan1 = s
+                elif plan1 and not plan2 and re.search(r'\bBath\b', s, re.IGNORECASE):
+                    plan2 = s
+                m_size = size_pat.search(s)
+                if m_size and not size:
+                    # Normalize size to include "sq. ft."
+                    size = f"{m_size.group(1)} sq. ft."
+                    saw_sqft = True
+                m_av = avail_pat.match(s)
+                if m_av and not available:
+                    available = m_av.group(1).strip()
+                if plan1 and plan2 and plan == "":
+                    plan = f"{plan1} / {plan2}"
+                # Stop early if we've collected key fields after seeing sqft and availability
+                if plan and size and available:
+                    break
+                t += 1
+
+            if price and plan and size:
+                results.append({
+                    "Plan": plan,
+                    "Price": price,
+                    "Available": available,
+                    "Size": size
+                })
+    return results

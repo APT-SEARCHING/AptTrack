@@ -1,0 +1,66 @@
+def extract_apartment_info(text):
+    import re
+
+    results = []
+    if not text or not isinstance(text, str):
+        return results
+
+    starts = [m.start() for m in re.finditer(r'\bApt\.\s', text)]
+    if not starts:
+        return results
+    starts.append(len(text))
+
+    for i in range(len(starts) - 1):
+        chunk = text[starts[i]:starts[i + 1]]
+
+        # Plan
+        plan = None
+        m_plan = re.search(r'\b(Studio|[0-9]+\s*bedroom)\b', chunk, re.IGNORECASE)
+        if m_plan:
+            raw_plan = m_plan.group(1).strip()
+            if re.match(r'^\s*studio\s*$', raw_plan, re.IGNORECASE):
+                plan = "Studio"
+            else:
+                num = re.search(r'\d+', raw_plan)
+                if num:
+                    plan = f"{num.group()} bedroom"
+                else:
+                    plan = raw_plan.title()
+
+        # Size
+        size = None
+        m_size = re.search(r'([\d,]+)\s*sqft', chunk, re.IGNORECASE)
+        if m_size:
+            try:
+                size = int(m_size.group(1).replace(',', ''))
+            except:
+                size = None
+
+        # Price (base "Starting at $X")
+        price = None
+        m_price = re.search(r'Starting at[^$]*\$\s*([\d,]+)', chunk, re.IGNORECASE | re.DOTALL)
+        if m_price:
+            try:
+                price = int(m_price.group(1).replace(',', ''))
+            except:
+                price = None
+
+        # Available
+        available = ""
+        m_avail = re.search(r'Available.*?starting.*?([A-Za-z]{3}\s*\d{1,2})', chunk, re.IGNORECASE | re.DOTALL)
+        if m_avail:
+            available = m_avail.group(1).strip()
+        else:
+            m_now = re.search(r'Available\s*now', chunk, re.IGNORECASE)
+            if m_now:
+                available = "Now"
+
+        if any([plan, price is not None, size is not None, available]):
+            results.append({
+                "Plan": plan or "",
+                "Price": price,
+                "Available": available,
+                "Size": size
+            })
+
+    return results

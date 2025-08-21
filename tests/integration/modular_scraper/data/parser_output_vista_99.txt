@@ -1,0 +1,26 @@
+[
+  {
+    "Plan": "1 Bed",
+    "Price": "$3,117+",
+    "Available": true,
+    "Size": ""
+  },
+  {
+    "Plan": "2 Bed",
+    "Price": "$3,855+",
+    "Available": true,
+    "Size": ""
+  },
+  {
+    "Plan": "3 Bed",
+    "Price": "$4,294+",
+    "Available": true,
+    "Size": ""
+  },
+  {
+    "Plan": "Shared",
+    "Price": "$1,928+",
+    "Available": true,
+    "Size": ""
+  }
+]

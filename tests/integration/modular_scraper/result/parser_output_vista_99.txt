@@ -1,0 +1,122 @@
+[
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,117",
+    "Available": "9/23/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,200",
+    "Available": "8/19/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,205",
+    "Available": "8/19/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,220",
+    "Available": "8/22/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,231",
+    "Available": "8/19/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,297",
+    "Available": "9/11/2025",
+    "Size": "740 sq. ft."
+  },
+  {
+    "Plan": "1 Bed / 1 Bath",
+    "Price": "$3,490",
+    "Available": "8/23/2025",
+    "Size": "816 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$3,855",
+    "Available": "9/16/2025",
+    "Size": "1,111 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$3,913",
+    "Available": "8/19/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$3,918",
+    "Available": "8/19/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$3,979",
+    "Available": "10/8/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$3,988",
+    "Available": "9/30/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$4,006",
+    "Available": "9/9/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$4,036",
+    "Available": "9/27/2025",
+    "Size": "1,072 sq. ft."
+  },
+  {
+    "Plan": "2 Bed / 2 Bath",
+    "Price": "$4,101",
+    "Available": "9/24/2025",
+    "Size": "1,077 sq. ft."
+  },
+  {
+    "Plan": "3 Bed / 2 Bath",
+    "Price": "$75",
+    "Available": "8/26/2025",
+    "Size": "1,332 sq. ft."
+  },
+  {
+    "Plan": "3 Bed / 2 Bath",
+    "Price": "$4,404",
+    "Available": "9/9/2025",
+    "Size": "1,332 sq. ft."
+  },
+  {
+    "Plan": "3 Bed / 2 Bath",
+    "Price": "$4,435",
+    "Available": "9/16/2025",
+    "Size": "1,312 sq. ft."
+  },
+  {
+    "Plan": "3 Bed / 2 Bath",
+    "Price": "$4,615",
+    "Available": "9/9/2025",
+    "Size": "1,312 sq. ft."
+  },
+  {
+    "Plan": "3 Bed / 2 Bath",
+    "Price": "$4,700",
+    "Available": "8/19/2025",
+    "Size": "1,312 sq. ft."
+  }
+]

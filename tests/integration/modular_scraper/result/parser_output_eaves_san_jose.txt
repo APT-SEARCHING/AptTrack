@@ -1,0 +1,38 @@
+[
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2569",
+    "Available": "Aug 27",
+    "Size": "667"
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2601",
+    "Available": "Sep 15",
+    "Size": "667"
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2626",
+    "Available": "Sep 19",
+    "Size": "667"
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2636",
+    "Available": "Sep 24",
+    "Size": "667"
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2641",
+    "Available": "Sep 09",
+    "Size": "667"
+  },
+  {
+    "Plan": "1 Bed 1 Bath",
+    "Price": "2641",
+    "Available": "Sep 14",
+    "Size": "667"
+  }
+]
