@@ -8,9 +8,12 @@ pytest-mock>=3.10.0
 playwright>=1.40.0
 beautifulsoup4>=4.12.0
 
-# For LLM tests
+# For LLM tests and agentic scraper (Minimax uses OpenAI-compatible SDK)
 openai>=1.0.0
 
 # For API testing
 httpx>=0.24.0
 requests>=2.31.0
+
+# Environment variables
+python-dotenv>=1.0.0

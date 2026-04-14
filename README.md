@@ -231,17 +231,75 @@ curl -X POST "http://localhost:8000/api/v1/apartments/import/google-maps" \
 
 Or use the Swagger UI at http://localhost:8000/docs to trigger the import.
 
-### Web Scraping
+### Agentic Scraper (Recommended)
 
-AptTrack includes a scraper service that can collect apartment data from various sources. Currently, it supports:
+The agentic scraper uses **MiniMax-M2.5** (via the OpenAI-compatible API) and a real Playwright browser to extract floor plan and pricing data from any apartment website — including sites with dynamic UIs, iframes, and tab-based layouts that break traditional HTML-parsing approaches.
 
-- Irvine Company Apartments
+The agent navigates the site autonomously, clicks through floor plan tabs, scrolls to load lazy content, and submits structured JSON once it has collected pricing data.
 
-To run the scraper manually:
+**Setup:**
 
 ```bash
-docker compose exec backend python -m app.services.scraper
+pip install -r tests/requirements-test.txt
+playwright install chromium
 ```
+
+Add `MINIMAX_API_KEY=your_key` to your `.env` file.
+
+**Scrape a single apartment:**
+
+```python
+import asyncio
+from tests.integration.agentic_scraper.agent import ApartmentAgent
+
+async def main():
+    agent = ApartmentAgent()   # reads MINIMAX_API_KEY from .env
+    result = await agent.scrape("https://www.rentmiro.com/floorplans")
+    for plan in result.floor_plans:
+        print(plan.name, plan.min_price, plan.size_sqft)
+
+asyncio.run(main())
+```
+
+**Batch-scrape 10 Bay Area apartments:**
+
+```bash
+python tests/integration/agentic_scraper/batch_runner.py
+```
+
+Results are printed as a table and saved to `tests/integration/agentic_scraper/batch_results.json`.
+
+**How it works:**
+
+1. The agent calls `navigate_to`, `click_link`, `click_button`, and `scroll_down` tools in a loop driven by the LLM.
+2. When it has collected enough data it calls `submit_findings`, which terminates the loop and returns an `ApartmentData` Pydantic model.
+3. A post-scrape validator (`_sanitize`) detects and removes prices that were mistakenly copied from a site's price-range filter slider rather than from individual plan cards.
+4. The LLM call layer retries automatically on 429 / 5xx / overload errors with exponential back-off.
+
+**Agentic scraper files:**
+
+```
+tests/integration/agentic_scraper/
+├── models.py          # ApartmentData, FloorPlan Pydantic models
+├── browser_tools.py   # BrowserSession wrapping Playwright async API
+├── agent.py           # ApartmentAgent + tool definitions + sanitizer
+├── batch_runner.py    # Scrape 10 apartments concurrently and print a table
+└── test_agentic_scraper.py  # 13 unit tests + 3 live integration tests
+```
+
+**Run tests:**
+
+```bash
+# Unit tests — no API key or internet required
+pytest tests/integration/agentic_scraper/ -m "not integration" -v
+
+# Live integration tests — requires MINIMAX_API_KEY
+pytest tests/integration/agentic_scraper/ -m integration -v -s
+```
+
+### Legacy Scraper
+
+The older pipeline (`tests/integration/modular_scraper/`) crawls raw HTML then asks an LLM to generate extraction code. It is kept for reference but is fragile on JS-heavy or iframe-based sites.
 
 ## Testing
 
@@ -266,12 +324,12 @@ AptTrack includes a comprehensive test suite organized into three main categorie
 
 3. **Run specific test categories:**
    ```bash
-   # Unit tests only
+   # Unit tests only (no credentials needed)
    pytest tests/unit/ -v
-   
-   # Integration tests only
-   pytest tests/integration/ -v
-   
+
+   # Agentic scraper unit tests
+   pytest tests/integration/agentic_scraper/ -m "not integration" -v
+
    # LLM tests only
    pytest tests/llm/ -v
    ```
@@ -285,10 +343,10 @@ AptTrack includes a comprehensive test suite organized into three main categorie
    ```bash
    # Run Google Maps service directly
    python3 tests/unit/run_google_maps.py
-   
+
    # Check database schema
    python3 tests/integration/check_db_schema.py
-   
+
    # Run database migration
    python3 tests/integration/run_migration.py
    ```
