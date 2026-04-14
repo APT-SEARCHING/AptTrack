@@ -108,6 +108,18 @@ class FakeBrowserSession:
     async def navigate_to(self, url: str) -> dict:
         return {**FAKE_PAGE_STATE, "url": url}
 
+    async def read_iframe(self, keyword: str) -> dict:
+        return {**FAKE_PAGE_STATE, "active_frame": f"https://fake-iframe.com/{keyword}"}
+
+    async def extract_all_units(self) -> dict:
+        return {
+            "units": [
+                {"unit_number": "A101", "plan_name": "Studio", "bedrooms": 0, "bathrooms": 1, "size_sqft": 450, "price": 1800, "availability": "Available Now"},
+                {"unit_number": "B205", "plan_name": "1 Bed/1 Bath", "bedrooms": 1, "bathrooms": 1, "size_sqft": 650, "price": 2200, "availability": "Available Now"},
+            ],
+            "total": 2,
+        }
+
     async def click_link(self, text_or_href: str) -> dict:
         return FAKE_PAGE_STATE
 

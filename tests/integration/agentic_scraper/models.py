@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class FloorPlan(BaseModel):
     name: str = Field(..., description="Plan name, e.g. 'Studio', '1 Bed/1 Bath', 'Plan A'")
+    unit_number: Optional[str] = Field(None, description="Specific unit identifier, e.g. 'E316', '4B', '#201'. None when price is a plan-level range.")
     bedrooms: Optional[float] = Field(None, description="Bedroom count (0 for studio)")
     bathrooms: Optional[float] = Field(None, description="Bathroom count")
     size_sqft: Optional[float] = Field(None, description="Square footage")

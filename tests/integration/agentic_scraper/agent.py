@@ -22,7 +22,7 @@ load_dotenv()
 
 MODEL = "MiniMax-M2.5"
 BASE_URL = "https://api.minimax.io/v1"
-MAX_ITERATIONS = 20
+MAX_ITERATIONS = 35
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,14 @@ Use the browser tools to navigate the site and find:
 Navigation strategy:
 1. Navigate to the provided URL first.
 2. Look for links or buttons labelled "Floor Plans", "Availability", "Apartments", "Pricing", or "Rent" and click them.
-3. If pricing is split across tabs (e.g., "Studio", "1 Bedroom"), click each tab in turn.
-4. Scroll down to see all plans — many pages load plans lazily.
-5. If a plan card shows no price on the listing page, try clicking it to open a detail view.
-6. Only call submit_findings once you have explored all tabs and scrolled the full page.
+3. If the page state lists "iframes", call read_iframe with a keyword from the iframe URL (e.g. "sightmap", "entrata", "yardi"). The iframe often contains the real per-unit pricing data.
+4. Inside a SightMap iframe (URL contains "sightmap") or any iframe with unit listings:
+   a. Immediately call extract_all_units — it automatically cycles through every floor with available homes and returns a structured unit list.
+   b. Use that unit list to populate floor_plans in submit_findings (one entry per unit, with unit_number filled in).
+   c. Do NOT manually click bedroom/sqft/price filter buttons.
+5. If there is no iframe, look for per-plan "View Available Units" or "See Units" buttons and click them.
+6. Scroll down to see all plans/units — many pages load content lazily.
+7. submit_findings as soon as you have unit data — do not keep exploring once you have prices.
 
 Rules:
 - Do not navigate away from the apartment complex domain.
@@ -55,14 +59,22 @@ CRITICAL — price extraction rules:
 - A PRICE RANGE FILTER / SLIDER (e.g., "Price $1,500 to $5,000", a "$X — $Y" slider control, or
   "Prices from $X") is a search filter for the visitor. It is NOT the rent for any specific plan.
   NEVER use these slider/filter values as a plan's min_price or max_price.
-- Only record a price when a specific dollar amount is shown directly on a floor plan card or row,
-  clearly tied to that specific plan (e.g., "from $2,716/mo" or "$3,095 – $3,500").
+- Only record a price when a specific dollar amount is shown directly on a floor plan card, unit
+  row, or unit detail panel, clearly tied to that specific plan or unit.
 - If a plan card shows "Contact for pricing", "Call for details", "Waitlist", or no dollar amount
   at all, set min_price and max_price to null for that plan.
-- Do NOT invent or interpolate prices. If you cannot find a price for a plan, leave it null.
+- Do NOT invent or interpolate prices. If you cannot find a price for a plan/unit, leave it null.
 - When a price looks like "$1,500 - $2,000", set min_price=1500 and max_price=2000.
 - When only one price is shown, set both min_price and max_price to that value.
-- Bedroom count is 0 for studios."""
+- Bedroom count is 0 for studios.
+
+Per-unit vs plan-level pricing:
+- If the site shows individual unit numbers (e.g., "Unit E316", "HOME W302", "Apt 4B"), create one
+  FloorPlan entry per unit and populate unit_number with the unit identifier.
+- If the site only shows a range for a plan type (e.g., "Studio: from $2,800/mo"), create one
+  FloorPlan entry for the plan type with unit_number=null and min_price=max_price=that figure.
+- Prefer per-unit data over plan-level ranges when both are available (e.g., after entering an
+  iframe that lists individual units)."""
 
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI-compatible function-calling schema)
@@ -134,6 +146,41 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "extract_all_units",
+            "description": (
+                "After entering an iframe with read_iframe, call this to automatically "
+                "cycle through every floor/tab that has available units and return a "
+                "structured list of all individual units with their prices. "
+                "Use this immediately after read_iframe instead of manually clicking floors."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_iframe",
+            "description": (
+                "Switch into an embedded iframe and return its content. "
+                "Use this when the page state lists iframes (e.g. sightmap, entrata, yardi). "
+                "The iframe usually contains the real per-unit pricing data. "
+                "After calling this, click_button / scroll_down operate inside the iframe."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "Substring of the iframe src URL to match, e.g. 'sightmap', 'entrata', 'yardi'",
+                    },
+                },
+                "required": ["keyword"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "submit_findings",
             "description": (
                 "Submit the final extracted apartment data. "
@@ -167,6 +214,10 @@ TOOLS = [
                                 "name": {
                                     "type": "string",
                                     "description": "Plan label (e.g. 'Studio', '1 Bed/1 Bath', 'Plan A3')",
+                                },
+                                "unit_number": {
+                                    "type": "string",
+                                    "description": "Specific unit identifier if shown (e.g. 'E316', '#201'). Omit for plan-level entries.",
                                 },
                                 "bedrooms": {
                                     "type": "number",
@@ -376,8 +427,12 @@ class ApartmentAgent:
                         tool_result: dict = {"status": "ok", "message": "Findings recorded."}
                         done = True
 
+                    elif name == "extract_all_units":
+                        tool_result = await browser.extract_all_units()
                     elif name == "navigate_to":
                         tool_result = await browser.navigate_to(args.get("url", ""))
+                    elif name == "read_iframe":
+                        tool_result = await browser.read_iframe(args.get("keyword", ""))
                     elif name == "click_link":
                         tool_result = await browser.click_link(args.get("text_or_href", ""))
                     elif name == "click_button":
