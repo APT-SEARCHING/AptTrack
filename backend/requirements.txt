@@ -8,5 +8,12 @@ aiohttp==3.9.1
 pytest==7.4.4
 alembic==1.13.1
 psycopg2-binary==2.9.9
-pydantic==1.10.13
-fastapi-utils==0.2.1 
+pydantic[email]==1.10.13
+fastapi-utils==0.2.1
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+# Celery
+celery[redis]==5.3.6
+redis==5.0.1 

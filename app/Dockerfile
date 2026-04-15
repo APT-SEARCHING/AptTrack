@@ -3,6 +3,10 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 
+# Optional: override API base URL at build time (defaults to /api/v1 for nginx proxy)
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+
 # Copy package files
 COPY package*.json ./
 

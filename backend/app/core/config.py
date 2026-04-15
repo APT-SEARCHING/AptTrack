@@ -26,11 +26,24 @@ class Settings(BaseSettings):
     
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = ""
-    
+
+    # JWT
+    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+
+    # Redis / Celery
+    REDIS_URL: str = "redis://redis:6379/0"
+
+    # Notification services
+    SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: str = "noreply@apttrack.app"
+    TELEGRAM_BOT_TOKEN: str = ""
+
     # API
     API_BASE_URL: str = "http://localhost:8000/api/v1"
     API_VERSION: str = "v1"
-    
+
     # Logging
     LOG_LEVEL: str = "INFO"
     
