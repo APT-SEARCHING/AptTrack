@@ -1,0 +1,10 @@
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — enforced by formatter, not linter
+    "E711",   # comparison to True/False — SQLAlchemy requires == True idiom
+    "E712",   # comparison to True — same as above (noqa comments already in place)
+]

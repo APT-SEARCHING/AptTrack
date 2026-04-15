@@ -1,16 +1,19 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
 
 from app.db.session import get_db
+from app.core.limiter import limiter
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.schemas.apartment import PriceTrend
 
 router = APIRouter()
 
 @router.get("/stats/price-trends", response_model=List[PriceTrend])
+@limiter.limit("60/minute")
 def get_price_trends(
+    request: Request,
     db: Session = Depends(get_db),
     days: int = 30,
     city: Optional[str] = None,
@@ -45,8 +48,10 @@ def get_price_trends(
     return [{"date": date, "avg_price": avg_price} for date, avg_price in result]
 
 @router.get("/stats/apartments-by-city", response_model=List[dict])
+@limiter.limit("60/minute")
 def get_apartments_by_city(
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     """
     Get apartment count by city
@@ -61,8 +66,10 @@ def get_apartments_by_city(
     return [{"city": city, "count": count} for city, count in result]
 
 @router.get("/stats/apartments-by-property-type", response_model=List[dict])
+@limiter.limit("60/minute")
 def get_apartments_by_property_type(
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     """
     Get apartment count by property type
@@ -77,9 +84,11 @@ def get_apartments_by_property_type(
     return [{"property_type": property_type, "count": count} for property_type, count in result]
 
 @router.get("/stats/average-price-by-bedrooms", response_model=List[dict])
+@limiter.limit("60/minute")
 def get_average_price_by_bedrooms(
+    request: Request,
     db: Session = Depends(get_db),
-    city: Optional[str] = None
+    city: Optional[str] = None,
 ):
     """
     Get average price by number of bedrooms
@@ -99,8 +108,10 @@ def get_average_price_by_bedrooms(
     return [{"bedrooms": bedrooms, "avg_price": avg_price} for bedrooms, avg_price in result]
 
 @router.get("/stats/plans-by-bedrooms", response_model=List[dict])
+@limiter.limit("60/minute")
 def get_plans_by_bedrooms(
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     """
     Get plan count by number of bedrooms
@@ -115,9 +126,11 @@ def get_plans_by_bedrooms(
     return [{"bedrooms": bedrooms, "count": count} for bedrooms, count in result]
 
 @router.get("/stats/average-area-by-bedrooms", response_model=List[dict])
+@limiter.limit("60/minute")
 def get_average_area_by_bedrooms(
+    request: Request,
     db: Session = Depends(get_db),
-    city: Optional[str] = None
+    city: Optional[str] = None,
 ):
     """
     Get average area by number of bedrooms

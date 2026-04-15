@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend: lint + unit tests + agentic scraper unit tests
+  # ---------------------------------------------------------------------------
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+      JWT_SECRET_KEY: ci-test-secret-key
+      MINIMAX_API_KEY: ""
+      GOOGLE_MAPS_API_KEY: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Install dev tools
+        run: pip install ruff pytest pytest-asyncio
+
+      - name: Lint (ruff)
+        run: ruff check backend/ --config backend/ruff.toml
+
+      - name: Unit tests
+        run: pytest tests/unit/ -v
+
+      - name: Agentic scraper unit tests (no network)
+        run: pytest tests/integration/agentic_scraper/ -m "not integration" -v
+
+  # ---------------------------------------------------------------------------
+  # Frontend: install + build
+  # ---------------------------------------------------------------------------
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: cd app && npm ci
+
+      - name: Type-check
+        run: cd app && npx tsc --noEmit
+
+      - name: Build
+        run: cd app && npm run build

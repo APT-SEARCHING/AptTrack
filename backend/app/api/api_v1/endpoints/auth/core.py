@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
+from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserResponse
 
@@ -16,7 +17,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
     """Create a new account and return a JWT."""
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(
@@ -35,7 +37,9 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 def login(
+    request: Request,
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
@@ -61,6 +65,7 @@ def login(
 
 
 @router.get("/me", response_model=UserResponse)
-def me(current_user: User = Depends(get_current_user)):
+@limiter.limit("60/minute")
+def me(request: Request, current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
     return current_user

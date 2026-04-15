@@ -1,161 +1,144 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 
+from app.core.security import get_current_user
 from app.db.session import get_db
+from app.core.limiter import limiter
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
-from app.schemas.apartment import PlanCreate, PlanUpdate, PlanResponse, PlanPriceHistoryBase, PriceTrend
+from app.models.user import User
+from app.schemas.apartment import PlanCreate, PlanPriceHistoryBase, PlanResponse, PlanUpdate, PriceTrend
 
 router = APIRouter()
 
+
 @router.get("/apartments/{apartment_id}/plans", response_model=List[PlanResponse])
+@limiter.limit("60/minute")
 def get_apartment_plans(
+    request: Request,
     apartment_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get all plans for an apartment
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
     return db_apartment.plans
 
-@router.post("/apartments/{apartment_id}/plans", response_model=PlanResponse)
+
+@router.post("/apartments/{apartment_id}/plans", response_model=PlanResponse, status_code=201)
+@limiter.limit("10/minute")
 def create_apartment_plan(
+    request: Request,
     apartment_id: int,
     plan: PlanCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Create a new plan for an apartment
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
+
     db_plan = Plan(**plan.dict(), apartment_id=apartment_id)
-    
-    # Create initial price history entry
-    price_history = PlanPriceHistory(price=plan.price)
-    db_plan.price_history = [price_history]
-    
+    db_plan.price_history = [PlanPriceHistory(price=plan.price)]
     db.add(db_plan)
     db.commit()
     db.refresh(db_plan)
     return db_plan
 
+
 @router.get("/apartments/{apartment_id}/plans/{plan_id}", response_model=PlanResponse)
+@limiter.limit("60/minute")
 def get_apartment_plan(
+    request: Request,
     apartment_id: int,
     plan_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get a specific plan for an apartment
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
-    db_plan = db.query(Plan).filter(
-        Plan.id == plan_id,
-        Plan.apartment_id == apartment_id
-    ).first()
-    
+
+    db_plan = db.query(Plan).filter(Plan.id == plan_id, Plan.apartment_id == apartment_id).first()
     if db_plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    
     return db_plan
 
+
 @router.put("/apartments/{apartment_id}/plans/{plan_id}", response_model=PlanResponse)
+@limiter.limit("10/minute")
 def update_apartment_plan(
+    request: Request,
     apartment_id: int,
     plan_id: int,
     plan: PlanUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Update a plan for an apartment
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
-    db_plan = db.query(Plan).filter(
-        Plan.id == plan_id,
-        Plan.apartment_id == apartment_id
-    ).first()
-    
+
+    db_plan = db.query(Plan).filter(Plan.id == plan_id, Plan.apartment_id == apartment_id).first()
     if db_plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    
-    # Update plan fields
+
     update_data = plan.dict(exclude_unset=True)
-    
-    # If price is updated, add a new price history entry
     if "price" in update_data and update_data["price"] != db_plan.price:
-        new_price = update_data["price"]
-        price_history = PlanPriceHistory(plan_id=plan_id, price=new_price)
-        db.add(price_history)
-    
-    # Update the plan object
+        db.add(PlanPriceHistory(plan_id=plan_id, price=update_data["price"]))
+
     for key, value in update_data.items():
         setattr(db_plan, key, value)
-    
+
     db.commit()
     db.refresh(db_plan)
     return db_plan
 
+
 @router.delete("/apartments/{apartment_id}/plans/{plan_id}", response_model=dict)
+@limiter.limit("10/minute")
 def delete_apartment_plan(
+    request: Request,
     apartment_id: int,
     plan_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Delete a plan for an apartment
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
-    db_plan = db.query(Plan).filter(
-        Plan.id == plan_id,
-        Plan.apartment_id == apartment_id
-    ).first()
-    
+
+    db_plan = db.query(Plan).filter(Plan.id == plan_id, Plan.apartment_id == apartment_id).first()
     if db_plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    
+
     db.delete(db_plan)
     db.commit()
     return {"message": "Plan deleted successfully"}
 
-@router.get("/apartments/{apartment_id}/plans/{plan_id}/price-history", response_model=List[PriceTrend])
+
+@router.get(
+    "/apartments/{apartment_id}/plans/{plan_id}/price-history",
+    response_model=List[PriceTrend],
+)
+@limiter.limit("60/minute")
 def get_plan_price_history(
+    request: Request,
     apartment_id: int,
     plan_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get price history for a specific plan
-    """
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    
-    db_plan = db.query(Plan).filter(
-        Plan.id == plan_id,
-        Plan.apartment_id == apartment_id
-    ).first()
-    
+
+    db_plan = db.query(Plan).filter(Plan.id == plan_id, Plan.apartment_id == apartment_id).first()
     if db_plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    
-    price_history = db.query(PlanPriceHistory).filter(
-        PlanPriceHistory.plan_id == plan_id
-    ).order_by(PlanPriceHistory.recorded_at).all()
-    
-    return [{"date": ph.recorded_at, "avg_price": ph.price} for ph in price_history] 
+
+    price_history = (
+        db.query(PlanPriceHistory)
+        .filter(PlanPriceHistory.plan_id == plan_id)
+        .order_by(PlanPriceHistory.recorded_at)
+        .all()
+    )
+    return [{"date": ph.recorded_at, "avg_price": ph.price} for ph in price_history]

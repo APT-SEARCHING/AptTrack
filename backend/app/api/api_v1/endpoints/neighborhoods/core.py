@@ -1,92 +1,94 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from app.core.security import get_current_user
 from app.db.session import get_db
+from app.core.limiter import limiter
 from app.models.apartment import Neighborhood
-from app.schemas.apartment import NeighborhoodCreate, NeighborhoodUpdate, NeighborhoodInDB
+from app.models.user import User
+from app.schemas.apartment import NeighborhoodCreate, NeighborhoodInDB, NeighborhoodUpdate
 
 router = APIRouter()
 
-@router.post("/neighborhoods", response_model=NeighborhoodInDB)
-def create_neighborhood(
-    neighborhood: NeighborhoodCreate,
-    db: Session = Depends(get_db)
+
+@router.get("/neighborhoods", response_model=List[NeighborhoodInDB])
+@limiter.limit("60/minute")
+def get_neighborhoods(
+    request: Request,
+    db: Session = Depends(get_db),
+    city: Optional[str] = None,
+    state: Optional[str] = None,
 ):
-    """
-    Create a new neighborhood
-    """
+    query = db.query(Neighborhood)
+    if city:
+        query = query.filter(Neighborhood.city.ilike(f"%{city}%"))
+    if state:
+        query = query.filter(Neighborhood.state == state)
+    return query.all()
+
+
+@router.post("/neighborhoods", response_model=NeighborhoodInDB, status_code=201)
+@limiter.limit("10/minute")
+def create_neighborhood(
+    request: Request,
+    neighborhood: NeighborhoodCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     db_neighborhood = Neighborhood(**neighborhood.dict())
     db.add(db_neighborhood)
     db.commit()
     db.refresh(db_neighborhood)
     return db_neighborhood
 
-@router.get("/neighborhoods", response_model=List[NeighborhoodInDB])
-def get_neighborhoods(
-    db: Session = Depends(get_db),
-    city: Optional[str] = None,
-    state: Optional[str] = None
-):
-    """
-    Get all neighborhoods with optional filtering
-    """
-    query = db.query(Neighborhood)
-    
-    if city:
-        query = query.filter(Neighborhood.city.ilike(f"%{city}%"))
-    if state:
-        query = query.filter(Neighborhood.state == state)
-    
-    return query.all()
 
 @router.get("/neighborhoods/{neighborhood_id}", response_model=NeighborhoodInDB)
+@limiter.limit("60/minute")
 def get_neighborhood(
+    request: Request,
     neighborhood_id: int = Path(..., description="The ID of the neighborhood to retrieve"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """
-    Get a specific neighborhood by ID
-    """
     db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
     return db_neighborhood
 
+
 @router.put("/neighborhoods/{neighborhood_id}", response_model=NeighborhoodInDB)
+@limiter.limit("10/minute")
 def update_neighborhood(
+    request: Request,
     neighborhood_id: int,
     neighborhood: NeighborhoodUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Update a neighborhood
-    """
     db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
-    
-    # Update neighborhood fields
-    update_data = neighborhood.dict(exclude_unset=True)
-    for key, value in update_data.items():
+
+    for key, value in neighborhood.dict(exclude_unset=True).items():
         setattr(db_neighborhood, key, value)
-    
+
     db.commit()
     db.refresh(db_neighborhood)
     return db_neighborhood
 
+
 @router.delete("/neighborhoods/{neighborhood_id}", response_model=dict)
+@limiter.limit("10/minute")
 def delete_neighborhood(
+    request: Request,
     neighborhood_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Delete a neighborhood
-    """
     db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
-    
+
     db.delete(db_neighborhood)
     db.commit()
-    return {"message": "Neighborhood deleted successfully"} 
+    return {"message": "Neighborhood deleted successfully"}
