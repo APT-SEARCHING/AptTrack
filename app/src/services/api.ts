@@ -316,7 +316,29 @@ const api = {
     }
 
     const apt = await apiFetch<ApartmentResponse>(`/apartments/${id}`);
-    return aptToListings(apt)[0] ?? aptToListings(apt)[0];
+    const listings = aptToListings(apt);
+    if (listings.length > 0) return listings[0];
+    // Apartment has no available plans — return a shell listing so the detail
+    // page can still render the name, location, and floor-plan table.
+    const location = apt.address
+      ? `${apt.address}, ${apt.city}, ${apt.state}`
+      : `${apt.city}, ${apt.state}`;
+    return {
+      id: apt.id,
+      plan_id: -1,
+      external_id: apt.external_id ?? '',
+      title: apt.title,
+      plan_name: '',
+      description: apt.description ?? '',
+      location,
+      bedrooms: 0,
+      bathrooms: 0,
+      area_sqft: null,
+      price_history: [],
+      _raw: apt,
+      created_at: apt.created_at,
+      updated_at: apt.updated_at,
+    };
   },
 
   // -------------------------------------------------------------------------

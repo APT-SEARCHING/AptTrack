@@ -166,11 +166,14 @@ async def scrape_all(dry_run: bool) -> None:
             print(f"\n[{name}] Scraping {url} …")
             try:
                 agent = ApartmentAgent(api_key=api_key)
-                data = await agent.scrape(url, headless=True)
+                data, metrics = await agent.scrape(url, headless=True)
                 if data is None:
                     print(f"  ! No data returned for {name}")
                     return
-                print(f"  ✓ {len(data.floor_plans)} floor plans found")
+                print(
+                    f"  ✓ {len(data.floor_plans)} floor plans  "
+                    f"{metrics.total_tokens:,} tok  ${metrics.total_cost_usd:.4f}"
+                )
                 if dry_run:
                     for fp in data.floor_plans:
                         print(f"    {fp.name:30s} beds={fp.bedrooms} ${fp.min_price}")

@@ -49,6 +49,24 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    @validator('JWT_SECRET_KEY')
+    def check_jwt_secret(cls, v, values):
+        import os, warnings
+        if v == "change-me-in-production":
+            # In production (BACKEND_RELOAD=false or unset) refuse to start.
+            # In dev (BACKEND_RELOAD=true) emit a loud warning instead.
+            reload_flag = str(os.environ.get("BACKEND_RELOAD", "true")).lower()
+            if reload_flag != "true":
+                raise ValueError(
+                    "JWT_SECRET_KEY is still set to the default value. "
+                    "Set a strong secret in your .env before running in production."
+                )
+            warnings.warn(
+                "JWT_SECRET_KEY is using the default value — change it in .env before deploying!",
+                stacklevel=2,
+            )
+        return v
+
     @validator('CORS_ORIGINS')
     def parse_cors_origins(cls, v):
         """Convert comma-separated string to list"""

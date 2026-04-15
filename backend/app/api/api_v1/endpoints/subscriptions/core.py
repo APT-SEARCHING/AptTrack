@@ -25,6 +25,12 @@ def create_subscription(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="At least one of apartment_id, plan_id, or city must be provided",
         )
+    # At least one threshold must be set, otherwise the alert can never fire.
+    if payload.target_price is None and payload.price_drop_pct is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one of target_price or price_drop_pct must be provided",
+        )
     sub = PriceSubscription(**payload.dict(), user_id=current_user.id)
     db.add(sub)
     db.commit()

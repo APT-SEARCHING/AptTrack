@@ -110,7 +110,10 @@ def _get_latest_price(sub: PriceSubscription, db: Session) -> Optional[float]:
         .filter(Plan.is_available.is_(True))
     )
     if sub.city:
-        query = query.filter(Apartment.city.ilike(f"%{sub.city}%"))
+        # Use exact case-insensitive match (cities are normalised in the DB).
+        # This lets the ix_apartments_city_lower functional index be used.
+        from sqlalchemy import func as sa_func
+        query = query.filter(sa_func.lower(Apartment.city) == sub.city.lower())
     if sub.zipcode:
         query = query.filter(Apartment.zipcode == sub.zipcode)
     if sub.min_bedrooms is not None:

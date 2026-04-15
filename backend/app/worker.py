@@ -7,14 +7,33 @@ Beat scheduler:
   celery -A app.worker beat --loglevel=info
 """
 
+import asyncio
 import logging
+from typing import Optional
 
-from celery import Celery
+from celery import Celery, signals
 from celery.schedules import crontab
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Graceful shutdown — terminate any in-flight Playwright browser on SIGTERM
+# ---------------------------------------------------------------------------
+
+_current_scrape_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+@signals.worker_shutting_down.connect
+def _on_worker_shutdown(sig, how, exitcode, **kwargs):
+    """Cancel all running async tasks so Playwright browsers are closed cleanly."""
+    loop = _current_scrape_loop
+    if loop is None or not loop.is_running():
+        return
+    logger.info("Worker shutting down — cancelling in-flight scrape tasks")
+    for task in asyncio.all_tasks(loop):
+        task.cancel()
 
 celery_app = Celery(
     "apttrack",
@@ -72,20 +91,7 @@ def task_refresh_apartment_data(self):
 
     db = SessionLocal()
     try:
-        # Import the agentic scraper. It lives in tests/ during development;
-        # in production Docker the repo root is on PYTHONPATH so both paths work.
-        try:
-            from tests.integration.agentic_scraper.agent import ApartmentAgent
-        except ImportError:
-            try:
-                from integration.agentic_scraper.agent import ApartmentAgent  # type: ignore[no-redef]
-            except ImportError:
-                logger.error(
-                    "task_refresh_apartment_data: ApartmentAgent not importable — "
-                    "ensure the repo root is on PYTHONPATH or the scraper has been "
-                    "promoted to backend/app/services/."
-                )
-                return
+        from app.services.scraper_agent.agent import ApartmentAgent
 
         apts = (
             db.query(Apartment.id, Apartment.source_url)
@@ -98,13 +104,24 @@ def task_refresh_apartment_data(self):
             agent = ApartmentAgent()
             for apt_id, url in apts:
                 try:
-                    result = await agent.scrape(url)
+                    result, metrics = await agent.scrape(url)
+                    logger.info(
+                        "Scraped apt %d: %d tok, $%.4f",
+                        apt_id, metrics.total_tokens, metrics.total_cost_usd,
+                    )
                     if result:
                         _persist_scraped_prices(apt_id, result, db)
                 except Exception as exc:
                     logger.error("Failed to scrape apartment %d (%s): %s", apt_id, url, exc)
 
-        asyncio.run(_run())
+        global _current_scrape_loop
+        loop = asyncio.new_event_loop()
+        _current_scrape_loop = loop
+        try:
+            loop.run_until_complete(_run())
+        finally:
+            loop.close()
+            _current_scrape_loop = None
     except Exception as exc:
         logger.error("task_refresh_apartment_data failed: %s", exc)
         raise self.retry(exc=exc, countdown=60 * 10)
