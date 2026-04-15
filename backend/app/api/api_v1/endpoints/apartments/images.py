@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 from typing import List
 
-from app.core.security import get_current_user, require_admin
-from app.db.session import get_db
 from app.core.limiter import limiter
+from app.core.security import require_admin
+from app.db.session import get_db
 from app.models.apartment import Apartment, ApartmentImage
 from app.models.user import User
 from app.schemas.apartment import ApartmentImageCreate, ApartmentImageResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 

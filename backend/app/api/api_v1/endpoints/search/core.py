@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.db.session import get_db
 from app.core.limiter import limiter
+from app.db.session import get_db
 from app.models.apartment import Apartment, Plan
 from app.schemas.apartment import ApartmentResponse
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 

@@ -4,9 +4,9 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from app.api.api_v1.api import api_router
 from app.core.config import settings
 from app.core.limiter import limiter  # shared singleton
-from app.api.api_v1.api import api_router
 
 app = FastAPI(
     title="Rental Price Tracker",

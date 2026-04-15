@@ -1,12 +1,12 @@
-from fastapi import APIRouter
 from app.api.api_v1.endpoints import (
     apartments,
     neighborhoods,
-    statistics,
     search,
+    statistics,
 )
 from app.api.api_v1.endpoints.auth import router as auth_router
 from app.api.api_v1.endpoints.subscriptions import router as subscriptions_router
+from fastapi import APIRouter
 
 api_router = APIRouter()
 
@@ -20,4 +20,4 @@ api_router.include_router(statistics.router, tags=["statistics"])
 api_router.include_router(search.router, tags=["search"])
 
 # Authenticated endpoints
-api_router.include_router(subscriptions_router) 
+api_router.include_router(subscriptions_router)

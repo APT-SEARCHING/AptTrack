@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List, Optional, Union
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
 
 class PropertyType(str, Enum):
     APARTMENT = "apartment"
@@ -68,7 +70,7 @@ class ApartmentBase(BaseModel):
     external_id: Optional[str] = None
     title: str
     description: Optional[str] = None
-    
+
     # Location details
     address: Optional[str] = None
     city: str
@@ -76,10 +78,10 @@ class ApartmentBase(BaseModel):
     zipcode: str = Field(..., min_length=5, max_length=10)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    
+
     # Property details
     property_type: PropertyType = PropertyType.APARTMENT
-    
+
     # Amenities
     has_parking: Optional[bool] = None
     has_pool: Optional[bool] = None
@@ -88,10 +90,10 @@ class ApartmentBase(BaseModel):
     has_air_conditioning: Optional[bool] = None
     has_washer_dryer: Optional[bool] = None
     pets_allowed: Optional[bool] = None
-    
+
     # Availability
     is_available: bool = True
-    
+
     # Metadata
     source_url: Optional[str] = None
 
@@ -198,4 +200,4 @@ class ApartmentFilter(BaseModel):
     has_gym: Optional[bool] = None
     pets_allowed: Optional[bool] = None
     available_from: Optional[datetime] = None
-    is_available: Optional[bool] = None 
+    is_available: Optional[bool] = None

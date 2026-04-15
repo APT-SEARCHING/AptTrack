@@ -28,7 +28,6 @@ from app.services.google_maps import GoogleMapsService
 async def test_real_google_maps_service():
     """Test the actual GoogleMapsService from backend/app/services/google_maps.py"""
     print("🧪 Testing REAL GoogleMapsService from backend/app/services/google_maps.py")
-    
     # Get API key from environment
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
     if not api_key:

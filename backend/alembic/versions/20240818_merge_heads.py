@@ -5,8 +5,6 @@ Revises: plan_schema_update, google_places_tables
 Create Date: 2025-08-19 00:05:00.000000
 
 """
-from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'merge_google_plan_heads'

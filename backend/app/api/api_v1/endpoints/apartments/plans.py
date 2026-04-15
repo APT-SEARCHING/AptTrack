@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
-from sqlalchemy.orm import Session
 from typing import List
 
-from app.core.security import get_current_user, require_admin
-from app.db.session import get_db
 from app.core.limiter import limiter
+from app.core.security import require_admin
+from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import User
-from app.schemas.apartment import PlanCreate, PlanPriceHistoryBase, PlanResponse, PlanUpdate, PriceTrend
+from app.schemas.apartment import PlanCreate, PlanResponse, PlanUpdate, PriceTrend
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 

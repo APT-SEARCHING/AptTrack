@@ -1,7 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-
+from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -9,9 +6,11 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
-from app.core.limiter import limiter
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

@@ -3,15 +3,14 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-
 from app.core.limiter import limiter
 from app.core.security import require_admin
 from app.db.session import get_db
 from app.models.user import User
 from app.services.google_maps import GoogleMapsService
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 

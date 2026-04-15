@@ -5,9 +5,8 @@ Revises: google_places_tables
 Create Date: 2026-04-14 00:00:00.000000
 
 """
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'add_users_subscriptions'

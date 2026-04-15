@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from app.db.base_class import Base
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
-from app.db.base_class import Base
 
 
 class GooglePlaceRaw(Base):

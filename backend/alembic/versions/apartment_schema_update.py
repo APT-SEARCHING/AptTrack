@@ -5,10 +5,9 @@ Revises: initial_migration
 Create Date: 2024-03-10 12:00:00.000000
 
 """
-from alembic import op
+
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
-import enum
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'apartment_schema_update'
@@ -18,7 +17,7 @@ depends_on = None
 
 def upgrade():
     # Create the new tables
-    
+
     # Create apartments table
     op.create_table(
         'apartments',
@@ -51,7 +50,7 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Create apartment_images table
     op.create_table(
         'apartment_images',
@@ -64,7 +63,7 @@ def upgrade():
         sa.ForeignKeyConstraint(['apartment_id'], ['apartments.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Create neighborhoods table
     op.create_table(
         'neighborhoods',
@@ -81,7 +80,7 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Create a new price_history table that references apartments
     op.create_table(
         'apartment_price_history',
@@ -92,38 +91,38 @@ def upgrade():
         sa.ForeignKeyConstraint(['apartment_id'], ['apartments.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Check if listings table exists
     conn = op.get_bind()
     res = conn.execute("SELECT 1 FROM information_schema.tables WHERE table_name='listings'").scalar()
-    
+
     if res:
         # Migrate data from old listings table to new apartments table
         # This is a basic migration - you may need to adjust based on your data
         op.execute("""
         INSERT INTO apartments (
-            external_id, title, description, city, state, zipcode, 
+            external_id, title, description, city, state, zipcode,
             bedrooms, bathrooms, area_sqft, created_at, updated_at
         )
-        SELECT 
-            external_id, title, description, 
-            SPLIT_PART(location, ',', 1) as city, 
-            'CA' as state, 
+        SELECT
+            external_id, title, description,
+            SPLIT_PART(location, ',', 1) as city,
+            'CA' as state,
             '00000' as zipcode,
             bedrooms, bathrooms, area_sqft, created_at, updated_at
         FROM listings;
         """)
-        
+
         # Migrate price history data
         op.execute("""
         INSERT INTO apartment_price_history (apartment_id, price, recorded_at)
-        SELECT 
+        SELECT
             a.id as apartment_id, ph.price, ph.recorded_at
         FROM price_history ph
         JOIN listings l ON ph.listing_id = l.id
         JOIN apartments a ON a.external_id = l.external_id;
         """)
-        
+
         # Drop old tables
         op.drop_table('price_history')
         op.drop_table('listings')
@@ -146,7 +145,7 @@ def downgrade():
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('external_id')
     )
-    
+
     op.create_table(
         'price_history',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -156,32 +155,32 @@ def downgrade():
         sa.ForeignKeyConstraint(['listing_id'], ['listings.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    
+
     # Migrate data back (simplified)
     op.execute("""
     INSERT INTO listings (
-        external_id, title, description, location, 
+        external_id, title, description, location,
         bedrooms, bathrooms, area_sqft, created_at, updated_at
     )
-    SELECT 
-        external_id, title, description, 
+    SELECT
+        external_id, title, description,
         city || ', ' || state as location,
         bedrooms, bathrooms, area_sqft, created_at, updated_at
     FROM apartments;
     """)
-    
+
     # Migrate price history data back
     op.execute("""
     INSERT INTO price_history (listing_id, price, recorded_at)
-    SELECT 
+    SELECT
         l.id as listing_id, ph.price, ph.recorded_at
     FROM apartment_price_history ph
     JOIN apartments a ON ph.apartment_id = a.id
     JOIN listings l ON a.external_id = l.external_id;
     """)
-    
+
     # Drop new tables
     op.drop_table('apartment_price_history')
     op.drop_table('neighborhoods')
     op.drop_table('apartment_images')
-    op.drop_table('apartments') 
+    op.drop_table('apartments')
