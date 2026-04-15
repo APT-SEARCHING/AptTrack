@@ -1,24 +1,25 @@
 # AptTrack
 
-Bay Area apartment rental tracking system. Aggregates listings via Google Maps API and an LLM-powered agentic browser scraper; stores price history in PostgreSQL; serves a REST API consumed by a React frontend. Goal: price drop alerts + ML rent prediction for tenants.
+Bay Area apartment rental tracking system. Aggregates listings via Google Maps API and an LLM-powered agentic browser scraper; stores price history in PostgreSQL; serves a REST API with JWT auth consumed by a React frontend. Users can subscribe to price-drop alerts delivered via email or Telegram. Celery handles scheduled scraping and alert checks.
 
 ## Architecture
 
 ```
-┌─────────────────────┐     ┌──────────────────┐     ┌────────────┐
-│  React / TypeScript  │◄───►│  FastAPI (Python) │◄───►│ PostgreSQL │
-│  Tailwind CSS        │     │  Pydantic v1      │     │ 14-alpine  │
-│  Recharts            │     │  SQLAlchemy <2.0   │     └────────────┘
-└─────────────────────┘     │  Alembic           │
-                             └────────┬───────────┘
-                                      │
+┌─────────────────────┐     ┌──────────────────────┐     ┌────────────┐
+│  React / TypeScript  │◄───►│  FastAPI (Python)     │◄───►│ PostgreSQL │
+│  Tailwind CSS        │     │  Pydantic v1          │     │ 14-alpine  │
+│  Recharts            │     │  SQLAlchemy <2.0      │     └────────────┘
+└─────────────────────┘     │  Alembic              │
+                             │  slowapi (rate limit)  │     ┌────────────┐
+                             │  JWT auth (jose)       │◄───►│   Redis    │
+                             └────────┬───────────────┘     │  7-alpine  │
+                                      │                      └────────────┘
                     ┌─────────────────┼─────────────────┐
                     ▼                 ▼                   ▼
-           Google Maps API    Agentic Scraper       Celery (planned)
-           (Places New)       MiniMax-M2.5 +        price alerts
-                              Playwright             scheduling
+           Google Maps API   Scraper Agent          Celery Worker + Beat
+           (Places New)      MiniMax-M2.5 +         daily price check
+                             Playwright             daily data refresh
 ```
-
 ## Compliance Principles
 
 ### 1. Public Data Only
@@ -43,156 +44,134 @@ Every property page must include: → "View official listing"
 
 | Path | Purpose |
 |------|---------|
-| `backend/app/api/api_v1/endpoints/` | REST endpoints grouped by domain |
-| `backend/app/models/apartment.py` | SQLAlchemy models: Apartment, Plan, PlanPriceHistory, ApartmentImage, Neighborhood |
-| `backend/app/schemas/apartment.py` | Pydantic request/response schemas |
-| `backend/app/services/google_maps.py` | Google Maps Places API (New) integration, ~500 LOC |
-| `backend/app/services/apartment_db_service.py` | DB helper for upsert operations |
+| `backend/app/api/api_v1/endpoints/` | REST endpoints: apartments, auth, neighborhoods, search, statistics, subscriptions |
+| `backend/app/models/apartment.py` | Apartment, Plan, PlanPriceHistory, ApartmentImage, Neighborhood |
+| `backend/app/models/user.py` | User, PriceSubscription |
+| `backend/app/schemas/` | Pydantic request/response schemas (apartment.py, user.py) |
+| `backend/app/core/security.py` | JWT + bcrypt + `get_current_user` / `require_admin` dependencies |
+| `backend/app/core/limiter.py` | Shared slowapi Limiter singleton |
 | `backend/app/core/config.py` | Settings via Pydantic BaseSettings, reads `.env` |
-| `backend/alembic/` | 5 migration versions |
-| `app/src/` | React frontend (TypeScript) |
-| `app/src/services/api.ts` | **Currently uses mock data, NOT real API** |
-| `app/src/services/mockData.ts` | Hardcoded fake listings |
-| `tests/integration/agentic_scraper/` | MiniMax + Playwright agent (best code in repo) |
-| `tests/integration/modular_scraper/` | Legacy HTML-dump + LLM codegen (deprecated) |
-| `tests/integration/legacy_scraper/` | Oldest scraper (deprecated) |
+| `backend/app/services/scraper_agent/` | **Agentic scraper** — MiniMax M2.5 + Playwright |
+| `backend/app/services/google_maps.py` | Google Maps Places API (New), ~500 LOC |
+| `backend/app/services/price_checker.py` | Price-drop detection (plan/apartment/area level, 24h debounce) |
+| `backend/app/services/notification.py` | SendGrid email + Telegram bot (fire-and-forget) |
+| `backend/app/worker.py` | Celery app, beat schedule, tasks, graceful shutdown handler |
+| `backend/alembic/` | 10 migration versions |
+| `app/src/services/api.ts` | Real API client + adapter layer + mock fallback |
+| `app/src/context/AuthContext.tsx` | JWT token in React Context + localStorage |
+| `app/src/pages/` | ListingsPage (two-level), ListingDetailPage, AlertsPage |
+| `tests/integration/agentic_scraper/` | 16 scraper tests (unit + integration) |
+| `seed_apartments.py` | Scrapes 10 real Bay Area apartments, seeds database |
 
 ## Data Model
 
 ```
+User (1) ──► (N) PriceSubscription
+                      │ optional FK to apartment/plan
 Apartment (1) ──► (N) Plan (1) ──► (N) PlanPriceHistory
     │
     └──► (N) ApartmentImage
 
-Neighborhood (standalone, not FK-linked)
+Neighborhood (standalone, no FK)
 ```
 
-Key fields on Apartment: `external_id` (unique, from source), `city`, `zipcode`, `latitude/longitude`, `property_type`, amenity booleans, `source_url`, `rating`.
+## Auth & Security
 
-Key fields on Plan: `name`, `bedrooms`, `bathrooms`, `area_sqft`, `price`, `is_available`.
+- JWT (HS256) via `python-jose`, 24h expiry, bcrypt passwords.
+- `require_admin` on all apartment/plan/image/neighborhood write endpoints + Google Maps import.
+- `get_current_user` on subscription endpoints, scoped to own user_id.
+- GET endpoints are public.
+- Rate limiting: write 10/min, auth 5/min, read 60/min, import 3/hr.
+- JWT_SECRET_KEY validator refuses to start in production with default value.
 
-PlanPriceHistory: `plan_id`, `price`, `recorded_at` — the core time-series data for tracking.
+## API Endpoints (all under /api/v1)
 
-## Known Bugs & Tech Debt
+**Public:** GET apartments, GET apartments/{id}, GET search, GET stats/*, GET neighborhoods, GET health, POST auth/register, POST auth/login.
 
-### Critical (app won't start)
-- **`backend/app/main.py:7`** imports `from app.services.scraper import IrvineApartmentsScraper` — this file was deleted. Backend crashes on startup. Remove this import line and the unused import of `repeat_every`, `get_db`, `Session`.
+**Authenticated:** GET auth/me, CRUD /subscriptions (own user only).
 
-### Severe (repo hygiene)
-- **`app/node_modules/`** is committed to git (44,300 files, 388MB). Run: `git rm -r --cached app/node_modules && git commit`.
-- **`__pycache__/`** dirs committed (11 .pyc files). Run: `git rm -r --cached '**/__pycache__' && git commit`.
-- Add to `.gitignore`: `**/__pycache__/`, `*.pyc`, `app/node_modules/`.
-
-### Security
-- **Zero authentication** on all endpoints. Any caller can CREATE / DELETE data and trigger Google Maps API calls.
-- **API key accepted via POST body** in `import_api.py` — should only come from server-side env var.
-- **No rate limiting** — no `slowapi` or equivalent middleware.
-- **CORS allows all methods/headers** — fine for dev, tighten for prod.
-
-### Architecture
-- **Frontend uses mock data** — `app/src/services/api.ts` never calls the real backend; all data comes from `mockData.ts`.
-- **Duplicate import endpoints** — `import.py` and `import_api.py` do the same thing.
-- **Task status stored in-memory dict** — lost on restart, broken with multiple workers.
-- **No scheduled scraping** — `SCRAPE_INTERVAL_MINUTES` config exists but nothing reads it (no Celery/cron).
-- **Agentic scraper lives in tests/** — should be promoted to `backend/app/services/`.
-
-### Dependencies
-- Pydantic v1 (1.10.13) — `BaseSettings` will break on upgrade; need `pydantic-settings`.
-- SQLAlchemy <2.0 — pinned to 1.4.x; v2 has breaking changes.
-
-## Environment Variables
-
-Copy `.env.example` → `.env`. Required:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:password@db:5432/rental_tracker` |
-| `GOOGLE_MAPS_API_KEY` | Google Places API (New) key | — |
-| `MINIMAX_API_KEY` | MiniMax M2.5 API key (agentic scraper) | — |
-| `BACKEND_PORT` | Backend port | `8000` |
-| `FRONTEND_PORT` | Frontend port | `3000` |
-| `CORS_ORIGINS` | Comma-separated allowed origins | `http://localhost:3000,http://localhost:8080` |
-| `SCRAPE_INTERVAL_MINUTES` | (Not yet wired) | `60` |
-| `LOG_LEVEL` | Python logging level | `INFO` |
-
-## API Endpoints
-
-All under `/api/v1`. No auth required (currently).
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/apartments` | List/filter apartments |
-| POST | `/apartments` | Create apartment |
-| GET/PUT/DELETE | `/apartments/{id}` | CRUD single apartment |
-| POST | `/apartments/import/google-maps` | Trigger Google Maps import (background task) |
-| GET | `/apartments/import/status/{task_id}` | Poll import task status |
-| GET/POST | `/apartments/{id}/plans` | List/create plans |
-| GET/PUT/DELETE | `/apartments/{id}/plans/{plan_id}` | CRUD single plan |
-| GET | `/apartments/{id}/plans/{plan_id}/price-history` | Price history for a plan |
-| GET/POST/PUT/DELETE | `/apartments/{id}/images` | Image CRUD |
-| GET/POST/PUT/DELETE | `/neighborhoods` | Neighborhood CRUD |
-| GET | `/search?query=...` | Full-text search across title/desc/city/zip |
-| GET | `/stats/price-trends` | Avg price over time (by day) |
-| GET | `/stats/apartments-by-city` | Count per city |
-| GET | `/stats/average-price-by-bedrooms` | Avg price grouped by BR count |
-| GET | `/health` | Health check |
+**Admin:** POST/PUT/DELETE apartments, plans, images, neighborhoods; POST apartments/import/google-maps.
 
 ## Agentic Scraper
 
-The best-engineered component. Located at `tests/integration/agentic_scraper/`.
+Files: `backend/app/services/scraper_agent/` (agent.py, browser_tools.py, models.py).
 
-**How it works:**
-1. `ApartmentAgent.scrape(url)` sends URL + system prompt to MiniMax-M2.5 via OpenAI-compatible API.
-2. Model calls browser tools in a loop: `navigate_to`, `click_link`, `click_button`, `scroll_down`, `read_iframe`, `extract_all_units`.
-3. When data collected, calls `submit_findings` → returns `ApartmentData` Pydantic model.
-4. `_sanitize()` post-processor detects/removes prices from slider filters (not real unit prices).
-5. Auto-retries on 429/5xx with exponential backoff.
+ReAct loop: LLM sees structured page state (text/links/buttons/iframes from BeautifulSoup, NOT screenshots) → decides tool call → BrowserSession executes via Playwright → result appended to conversation → repeat until `submit_findings`.
 
-**Files:** `models.py` (Pydantic), `browser_tools.py` (Playwright wrapper), `agent.py` (agent + tools + sanitizer), `batch_runner.py`, `test_agentic_scraper.py` (16 tests).
+Tools: `navigate_to`, `click_link`, `click_button`, `scroll_down`, `read_iframe`, `extract_all_units`, `submit_findings`.
 
-**MiniMax API:** Base URL `https://api.minimax.io/v1`, model `MiniMax-M2.5`, OpenAI-compatible function calling.
+`_sanitize()` removes price-slider contamination. `ScrapeMetrics` tracks tokens + cost per scrape.
+
+MiniMax API: base URL `https://api.minimax.io/v1`, model `MiniMax-M2.5`, $0.30/M input, $1.10/M output.
+
+**Token cost concern:** Full conversation history resent each iteration. 6-10 iterations per apartment = 80K-250K tokens. Daily scraping of 10 sites = $3-9/month. Navigation path caching (not yet built) would reduce to near-zero for repeat visits.
+
+## Celery Tasks
+
+| Task | Schedule | Purpose |
+|------|----------|---------|
+| `task_check_price_drops` | Daily 08:00 PT | Check subscriptions, send alerts |
+| `task_refresh_apartment_data` | Daily 02:00 PT | Re-scrape apartments, update PlanPriceHistory |
+
+## Docker Services
+
+backend, frontend, db (postgres), redis, celery-worker, celery-beat — 6 services total.
+
+## Environment Variables
+
+See `.env.example`. Critical: `DATABASE_URL`, `JWT_SECRET_KEY` (must change for prod), `MINIMAX_API_KEY` (for scraper), `REDIS_URL`.
 
 ## Development
 
 ```bash
-# Full stack
-docker compose up -d
-
-# Backend only (hot reload) — requires DB running
-cd backend && pip install -r requirements.txt
-uvicorn app.main:app --reload
-
-# Frontend only (hot reload)
-cd app && npm install && npm start
-
-# Database only
-docker compose up -d db
-
-# Run unit tests (no network/credentials)
+./start.sh          # Docker full stack
+./start.sh local    # Local dev
+python seed_apartments.py  # Seed with real data
 pytest tests/unit/ -v
 pytest tests/integration/agentic_scraper/ -m "not integration" -v
-
-# Run integration tests (needs MINIMAX_API_KEY)
-pytest tests/integration/agentic_scraper/ -m integration -v -s
 ```
 
 ## Coding Conventions
 
-- **Backend:** Python 3.11, FastAPI, type hints everywhere, SQLAlchemy ORM (not raw SQL).
-- **Endpoints:** grouped in domain folders under `api/api_v1/endpoints/`, each has `core.py` + `__init__.py` that assembles sub-routers.
-- **Schemas:** Pydantic v1 style (`class Config: from_attributes = True`). Separate Create/Update/Response models.
-- **Frontend:** React functional components with hooks, TypeScript strict, Tailwind for styling.
-- **Tests:** pytest + pytest-asyncio. `@pytest.mark.integration` for tests needing network. Unit tests must pass offline.
-- **Async:** Backend endpoints are sync (SQLAlchemy 1.4 sync session). Agentic scraper is fully async.
-- **Config:** Single top-level `.env` file, loaded by Pydantic BaseSettings in `backend/app/core/config.py`.
+- Python 3.11, type hints, SQLAlchemy ORM. Pydantic v1 style.
+- Endpoints in domain folders, each with core.py + __init__.py router assembly.
+- Every write endpoint needs `@limiter.limit()` + auth dependency.
+- Frontend: React functional + hooks, TypeScript strict, Tailwind.
+- Tests: pytest, `@pytest.mark.integration` for network tests.
+- Lint: ruff (backend/ruff.toml), 120 char lines.
+
+## Known Tech Debt
+
+- Pydantic v1 + SQLAlchemy 1.4 — should migrate to v2 of both.
+- `_persist_scraped_prices` matches by `Plan.name` — fragile if sites rename plans.
+- Agent opens new browser per apartment — could reuse browser context in batch.
+- No API endpoint integration tests (TestClient + test DB).
+- High token consumption for daily re-scraping — needs path caching.
+
+## Scraper Compliance
+
+AptTrack scrapes individual apartment complex websites (NOT aggregator platforms). This is relatively low-risk: public data, no login required, factual pricing only. Key legal protections: hiQ v. LinkedIn (9th Cir. 2022) and Meta v. Bright Data (N.D. Cal. 2024) confirm logged-off scraping of public data is lawful.
+
+**Current gaps (to be built):**
+- No robots.txt checking — scraper should verify before each target
+- User-Agent spoofs Chrome — should identify as `AptTrack/1.0 (rental research bot)`
+- No site registry — should track each domain's robots.txt status, ToS review, and platform type
+- No inter-scrape delay — should add 5s pause between apartments in batch runs
+- No C&D response protocol documented in code
+
+**Hard rules:**
+- NEVER scrape Craigslist (Craigslist v. RadPad: $60.5M judgment)
+- NEVER scrape behind login walls
+- NEVER collect personal information (user emails, personal phone numbers)
+- IMMEDIATELY comply with any cease & desist letter
+- Only store factual data: prices, sqft, bedrooms, availability
 
 ## What's NOT Built Yet
 
-These are the core product features that differentiate AptTrack from competitors:
-
-1. **User system** — no auth, no accounts, no saved preferences
-2. **Price drop alerts / subscriptions** — no notification system at all
-3. **Scheduled scraping** — no Celery/cron, no periodic data refresh
-4. **ML price prediction** — no Prophet/XGBoost/time-series models
-5. **"Best time to rent" analysis** — no seasonal decomposition
-6. **Frontend ↔ Backend integration** — frontend reads mock data, not real API
+1. ML price prediction (Prophet time-series, XGBoost cross-sectional)
+2. "Best time to rent" seasonal analysis
+3. Navigation path caching for scraper (token optimization)
+4. Scraper compliance registry (site-level robots.txt / ToS tracking)
+5. Public data integration (ZORI, Apartment List, HUD FMR)
+6. Crowdsourced actual lease prices
+7. Geographic expansion beyond Bay Area

@@ -28,6 +28,19 @@ run_docker() {
     echo "Services starting — waiting for health checks..."
     sleep 5
 
+    # Auto-seed: if the apartments table is empty, run seed_apartments.py
+    echo "Checking if database needs seeding..."
+    APT_COUNT=$(docker compose exec -T backend python -c \
+        "import sys; sys.path.insert(0,'app'); from app.db.session import SessionLocal; from app.models.apartment import Apartment; db=SessionLocal(); print(db.query(Apartment).count()); db.close()" \
+        2>/dev/null || echo "0")
+    if [ "${APT_COUNT:-0}" = "0" ]; then
+        echo "Database is empty — seeding apartments (this may take a few minutes)..."
+        docker compose exec -T backend python /app/../seed_apartments.py || \
+            echo "WARNING: seed_apartments.py failed — you can run it manually with: python seed_apartments.py"
+    else
+        echo "Database already has $APT_COUNT apartment(s) — skipping seed."
+    fi
+
     echo ""
     echo "  Frontend : http://localhost:$(grep FRONTEND_PORT .env | cut -d= -f2 | tr -d ' ' || echo 3000)"
     echo "  Backend  : http://localhost:$(grep BACKEND_PORT  .env | cut -d= -f2 | tr -d ' ' || echo 8000)/docs"
@@ -63,6 +76,19 @@ run_local() {
     # Run Alembic migrations
     echo "Running database migrations..."
     (cd backend && PYTHONPATH=. python -m alembic upgrade heads)
+
+    # Auto-seed: if the apartments table is empty, run seed_apartments.py
+    echo "Checking if database needs seeding..."
+    APT_COUNT=$(python -c \
+        "import sys; sys.path.insert(0,'backend'); from app.db.session import SessionLocal; from app.models.apartment import Apartment; db=SessionLocal(); print(db.query(Apartment).count()); db.close()" \
+        2>/dev/null || echo "0")
+    if [ "${APT_COUNT:-0}" = "0" ]; then
+        echo "Database is empty — seeding apartments (this may take a few minutes)..."
+        python seed_apartments.py || \
+            echo "WARNING: seed_apartments.py failed — you can run it manually later."
+    else
+        echo "Database already has $APT_COUNT apartment(s) — skipping seed."
+    fi
 
     # Start backend in background
     echo "Starting backend on :8000..."

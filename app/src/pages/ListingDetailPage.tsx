@@ -22,7 +22,14 @@ const ListingDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAlert, setShowAlert] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [alertPlan, setAlertPlan] = useState<PlanResponse | null>(null);
   const { token } = useAuth();
+
+  const openAlertForPlan = (plan: PlanResponse) => {
+    if (!token) { setShowAuth(true); return; }
+    setAlertPlan(plan);
+    setShowAlert(true);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -90,7 +97,7 @@ const ListingDetailPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => token ? setShowAlert(true) : setShowAuth(true)}
+                onClick={() => { if (token) { setAlertPlan(null); setShowAlert(true); } else setShowAuth(true); }}
                 className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
               >
                 <span>🔔</span> Set Alert
@@ -133,6 +140,7 @@ const ListingDetailPage: React.FC = () => {
                   <th className="text-left px-4 py-3">Sqft</th>
                   <th className="text-right px-4 py-3">Price</th>
                   <th className="text-center px-4 py-3">Status</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -158,6 +166,15 @@ const ListingDetailPage: React.FC = () => {
                       <span className={`badge ${plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
                         {plan.is_available ? 'Available' : 'Unavailable'}
                       </span>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        title="Set price alert for this plan"
+                        onClick={() => openAlertForPlan(plan)}
+                        className="text-slate-400 hover:text-indigo-600 transition-colors text-base leading-none"
+                      >
+                        🔔
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -214,9 +231,11 @@ const ListingDetailPage: React.FC = () => {
         <AlertModal
           apartmentId={apt.id}
           apartmentTitle={listing.title}
-          currentPrice={minP}
-          onClose={() => setShowAlert(false)}
-          onCreated={() => setShowAlert(false)}
+          currentPrice={alertPlan ? alertPlan.price : minP}
+          planId={alertPlan?.id}
+          planName={alertPlan?.name}
+          onClose={() => { setShowAlert(false); setAlertPlan(null); }}
+          onCreated={() => { setShowAlert(false); setAlertPlan(null); }}
         />
       )}
       {showAuth && (

@@ -6,11 +6,13 @@ interface Props {
   apartmentId: number;
   apartmentTitle: string;
   currentPrice: number;
+  planId?: number;
+  planName?: string;
   onClose: () => void;
   onCreated: () => void;
 }
 
-const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, onClose, onCreated }) => {
+const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, planId, planName, onClose, onCreated }) => {
   const { token } = useAuth();
   const [type, setType] = useState<'price' | 'pct'>('price');
   const [targetPrice, setTargetPrice] = useState(String(Math.floor(currentPrice * 0.95)));
@@ -27,6 +29,7 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
     try {
       const payload: SubscriptionCreate = {
         apartment_id: apartmentId,
+        ...(planId !== undefined && { plan_id: planId }),
         notify_email: true,
       };
       if (type === 'price') {
@@ -59,7 +62,10 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
         <div className="bg-indigo-50 rounded-xl px-4 py-3 mb-5">
           <p className="text-xs text-indigo-400 font-semibold uppercase tracking-wider mb-0.5">Watching</p>
           <p className="font-semibold text-indigo-900 text-sm leading-snug">{apartmentTitle}</p>
-          <p className="text-xs text-indigo-500 mt-0.5">Current from ${currentPrice.toLocaleString()}/mo</p>
+          {planName && (
+            <p className="text-xs text-indigo-700 font-medium mt-0.5">Plan: {planName}</p>
+          )}
+          <p className="text-xs text-indigo-500 mt-0.5">Current ${currentPrice.toLocaleString()}/mo</p>
         </div>
 
         {success ? (

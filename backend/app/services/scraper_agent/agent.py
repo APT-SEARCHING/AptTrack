@@ -595,10 +595,18 @@ class ApartmentAgent:
         *data* is ``None`` if no pricing data was found.  *metrics* is always
         returned and reflects actual LLM usage (0 calls on cache hit).
         """
+        from .compliance import check_robots_txt
         from .path_cache import invalidate_path, load_path, save_path
 
         metrics = ScrapeMetrics(url=url)
         t0 = time.monotonic()
+
+        # Compliance gate — respect robots.txt before any browser activity
+        robots = await check_robots_txt(url)
+        if not robots["allowed"]:
+            logger.warning("robots.txt disallows scraping %s — aborting", url)
+            metrics.elapsed_sec = time.monotonic() - t0
+            return None, metrics
 
         # Choose browser context (reuse vs. create new) — optimisation 1.4
         if self._browser_instance is not None:
