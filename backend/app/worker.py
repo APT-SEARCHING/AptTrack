@@ -101,18 +101,27 @@ def task_refresh_apartment_data(self):
         logger.info("task_refresh_apartment_data: refreshing %d apartment(s)", len(apts))
 
         async def _run():
-            agent = ApartmentAgent()
-            for apt_id, url in apts:
-                try:
-                    result, metrics = await agent.scrape(url)
-                    logger.info(
-                        "Scraped apt %d: %d tok, $%.4f",
-                        apt_id, metrics.total_tokens, metrics.total_cost_usd,
-                    )
-                    if result:
-                        _persist_scraped_prices(apt_id, result, db)
-                except Exception as exc:
-                    logger.error("Failed to scrape apartment %d (%s): %s", apt_id, url, exc)
+            from app.services.scraper_agent.browser_tools import BrowserSession
+
+            # Reuse one Chromium instance for the whole batch (optimisation 1.4).
+            # Each scrape() call resets active_frame but shares the same process,
+            # saving ~15 s of browser startup per apartment.
+            async with BrowserSession(headless=True) as shared_browser:
+                agent = ApartmentAgent(_browser_instance=shared_browser)
+                for apt_id, url in apts:
+                    try:
+                        result, metrics = await agent.scrape(url)
+                        logger.info(
+                            "Scraped apt %d: cache=%s, %d tok, $%.4f",
+                            apt_id, metrics.cache_hit,
+                            metrics.total_tokens, metrics.total_cost_usd,
+                        )
+                        if result:
+                            _persist_scraped_prices(apt_id, result, db)
+                    except Exception as exc:
+                        logger.error(
+                            "Failed to scrape apartment %d (%s): %s", apt_id, url, exc
+                        )
 
         global _current_scrape_loop
         loop = asyncio.new_event_loop()

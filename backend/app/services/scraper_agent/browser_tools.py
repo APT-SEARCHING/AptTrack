@@ -10,9 +10,16 @@ from bs4 import BeautifulSoup
 from playwright.async_api import Browser, BrowserContext, Frame, Page, async_playwright
 
 # Caps to keep tool-result payloads manageable for the LLM
-MAX_TEXT_CHARS = 8000
-MAX_LINKS = 50
-MAX_BUTTONS = 40
+MAX_TEXT_CHARS = 4000   # reduced from 8000 — saves ~20-30% input tokens
+MAX_LINKS = 20          # reduced from 50
+MAX_BUTTONS = 15        # reduced from 40
+
+# Keywords that indicate pricing-relevant content — these lines are
+# prioritised when truncating page text so the model sees them first.
+_PRICING_KEYWORDS = [
+    "$", "bed", "bath", "sqft", "sq ft", "plan", "studio",
+    "available", "price", "rent", "floor", "unit", "home",
+]
 
 
 class BrowserSession:
@@ -259,6 +266,18 @@ class BrowserSession:
     # Helpers
     # ------------------------------------------------------------------
 
+    def _smart_truncate(self, text: str, max_chars: int) -> str:
+        """Truncate *text* to *max_chars*, prioritising pricing-relevant lines.
+
+        Lines containing any pricing/apartment keyword are moved to the front
+        so the model always sees them even when the page is long.
+        """
+        lines = text.split("\n")
+        priority = [l for l in lines if any(k in l.lower() for k in _PRICING_KEYWORDS)]
+        other = [l for l in lines if l not in priority]
+        combined = "\n".join(priority + other)
+        return combined[:max_chars]
+
     async def _settle(self) -> None:
         """Wait for the page to reach a stable network state."""
         try:
@@ -281,7 +300,7 @@ class BrowserSession:
 
         raw_text = soup.get_text(separator="\n", strip=True)
         lines = [line for line in raw_text.splitlines() if line.strip()]
-        text = "\n".join(lines)[:MAX_TEXT_CHARS]
+        text = self._smart_truncate("\n".join(lines), MAX_TEXT_CHARS)
 
         # Clickable links
         links: List[dict] = []

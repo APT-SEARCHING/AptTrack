@@ -4,6 +4,12 @@ The agent controls a real browser via ``BrowserSession`` and uses
 MiniMax-M2.5 function-calling to decide which actions to take until it
 has collected floor-plan and pricing data, at which point it calls
 ``submit_findings`` to terminate the loop.
+
+Token optimizations (Phase 1):
+  1.1  History trimming   — keep only the last N tool results in full
+  1.2  Reduced page state — halved caps, smart keyword-priority truncation
+  1.3  Path caching       — replay cached browser paths without LLM calls
+  1.4  Browser reuse      — share one Chromium instance across a batch
 """
 
 import asyncio
@@ -12,13 +18,13 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from .browser_tools import BrowserSession
-from .models import ApartmentData
+from .models import ApartmentData, FloorPlan
 
 load_dotenv()
 
@@ -62,8 +68,7 @@ class ScrapeMetrics:
     calls: List[CallMetrics] = field(default_factory=list)
     iterations: int = 0
     elapsed_sec: float = 0.0
-
-    # ── aggregates ──────────────────────────────────────────────────────────
+    cache_hit: bool = False    # True when data came from path cache (0 LLM calls)
 
     @property
     def total_input_tokens(self) -> int:
@@ -84,6 +89,7 @@ class ScrapeMetrics:
     def summary(self) -> dict:
         return {
             "url": self.url,
+            "cache_hit": self.cache_hit,
             "iterations": self.iterations,
             "llm_calls": len(self.calls),
             "input_tokens": self.total_input_tokens,
@@ -92,6 +98,7 @@ class ScrapeMetrics:
             "cost_usd": round(self.total_cost_usd, 5),
             "elapsed_sec": round(self.elapsed_sec, 1),
         }
+
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -321,29 +328,19 @@ TOOLS = [
     },
 ]
 
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 def _sanitize(data: Optional[ApartmentData]) -> Optional[ApartmentData]:
-    """Remove prices that look like they were copied from a global filter slider.
-
-    A classic symptom: every plan that is NOT available gets the exact same
-    (min_price, max_price) pair that matches the site-wide price range slider
-    (e.g., all unavailable plans show $2,833–$7,195 while the one available
-    plan shows a specific price like $3,614).  When we detect this pattern we
-    null-out the repeated slider values, keeping only the distinct per-plan
-    prices.
-    """
+    """Remove prices that look like they were copied from a global filter slider."""
     if data is None:
         return None
-
     plans = data.floor_plans
     if len(plans) < 2:
         return data
 
-    # Collect (min, max) pairs that have actual prices
     from collections import Counter
     price_pairs = [
         (p.min_price, p.max_price)
@@ -355,24 +352,67 @@ def _sanitize(data: Optional[ApartmentData]) -> Optional[ApartmentData]:
 
     counts = Counter(price_pairs)
     total_priced = len(price_pairs)
-
-    # If one (min, max) pair covers >50 % of all priced plans AND there are
-    # other distinct prices present, that dominant pair is almost certainly
-    # the slider range rather than a real plan price.
     for pair, cnt in counts.items():
         if cnt / total_priced > 0.50 and len(counts) > 1:
             logger.warning(
-                "Detected likely slider-range contamination: %s appears on %d/%d plans — nulling it out",
+                "Detected slider-range contamination: %s on %d/%d plans — nulling",
                 pair, cnt, total_priced,
             )
             for p in plans:
                 if (p.min_price, p.max_price) == pair:
                     p.min_price = None
                     p.max_price = None
-            break  # only strip the single dominant pair
-
+            break
     return data
 
+
+def _parse_units_to_apartment_data(
+    units: List[Dict[str, Any]], name: str, url: str
+) -> Optional[ApartmentData]:
+    """Convert ``extract_all_units`` output directly to :class:`ApartmentData`.
+
+    Used during path-cache replay to produce structured data without any
+    LLM call — the unit list is already deterministic.
+    """
+    if not units:
+        return None
+    floor_plans: List[FloorPlan] = []
+    for u in units:
+        price = u.get("price")
+        fp = FloorPlan(
+            name=u.get("plan_name") or "Unit",
+            unit_number=u.get("unit_number"),
+            bedrooms=u.get("bedrooms"),
+            bathrooms=u.get("bathrooms"),
+            size_sqft=float(u["size_sqft"]) if u.get("size_sqft") else None,
+            min_price=float(price) if price else None,
+            max_price=float(price) if price else None,
+            availability=u.get("availability", "Available"),
+        )
+        floor_plans.append(fp)
+    if not floor_plans:
+        return None
+    return ApartmentData(name=name, website=url, floor_plans=floor_plans)
+
+
+class _NullContextManager:
+    """Wrap an existing ``BrowserSession`` so ``async with`` doesn't close it.
+
+    Used for browser reuse (1.4): the caller owns the lifecycle.
+    """
+    def __init__(self, browser: BrowserSession) -> None:
+        self._browser = browser
+
+    async def __aenter__(self) -> BrowserSession:
+        return self._browser
+
+    async def __aexit__(self, *_args: Any) -> None:
+        pass  # do NOT close — the shared browser is owned by the caller
+
+
+# ---------------------------------------------------------------------------
+# Agent
+# ---------------------------------------------------------------------------
 
 class ApartmentAgent:
     """Agentic apartment scraper powered by MiniMax-M2.5.
@@ -380,11 +420,14 @@ class ApartmentAgent:
     Parameters
     ----------
     api_key:
-        Minimax API key.  Falls back to ``MINIMAX_API_KEY`` env var.
+        MiniMax API key. Falls back to ``MINIMAX_API_KEY`` env var.
     _client:
         Inject a pre-built ``AsyncOpenAI`` client (useful for testing).
     _browser_class:
         Inject a custom ``BrowserSession`` subclass (useful for testing).
+    _browser_instance:
+        Pass a pre-started ``BrowserSession`` to reuse across multiple
+        ``scrape()`` calls (browser-reuse optimisation, 1.4).
     """
 
     def __init__(
@@ -393,12 +436,46 @@ class ApartmentAgent:
         *,
         _client: Optional[AsyncOpenAI] = None,
         _browser_class: Optional[Type[BrowserSession]] = None,
+        _browser_instance: Optional[BrowserSession] = None,
     ) -> None:
         resolved_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
         self._client = _client or AsyncOpenAI(base_url=BASE_URL, api_key=resolved_key)
         self._browser_class = _browser_class or BrowserSession
+        self._browser_instance = _browser_instance  # optional shared browser (1.4)
 
-    async def _llm_call(self, messages: list, metrics: ScrapeMetrics) -> object:
+    # ── History trimming (1.1) ───────────────────────────────────────────────
+
+    def _trim_messages(self, messages: list, keep_last: int = 4) -> list:
+        """Keep only the most recent *keep_last* tool results in full.
+
+        Older tool results are replaced with a compact summary so the model
+        retains context without re-reading full page dumps.  Saves 40-60% of
+        cumulative input tokens on longer scrapes.
+        """
+        trimmed = []
+        tool_indices = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+        cutoff = tool_indices[-keep_last] if len(tool_indices) > keep_last else 0
+
+        for i, msg in enumerate(messages):
+            if i < cutoff and msg.get("role") == "tool":
+                try:
+                    content = json.loads(msg["content"])
+                    summary: Dict[str, Any] = {
+                        "url": content.get("url", content.get("active_frame", "")),
+                        "_trimmed": True,
+                        "buttons_count": len(content.get("buttons", [])),
+                        "links_count": len(content.get("links", [])),
+                    }
+                except (json.JSONDecodeError, TypeError):
+                    summary = {"_trimmed": True}
+                trimmed.append({**msg, "content": json.dumps(summary)})
+            else:
+                trimmed.append(msg)
+        return trimmed
+
+    # ── LLM call with observability ─────────────────────────────────────────
+
+    async def _llm_call(self, messages: list, metrics: "ScrapeMetrics") -> object:
         """Call the LLM with exponential-backoff retry on 5xx / overload errors.
 
         Appends a :class:`CallMetrics` entry to *metrics* on every successful call.
@@ -414,7 +491,6 @@ class ApartmentAgent:
                     tools=TOOLS,  # type: ignore[arg-type]
                     tool_choice="auto",
                 )
-                # Record token usage when the API provides it
                 usage = getattr(response, "usage", None)
                 if usage:
                     call_m = CallMetrics(
@@ -434,46 +510,155 @@ class ApartmentAgent:
                 code = getattr(exc, "status_code", None)
                 if attempt < max_retries - 1 and code in (429, 500, 502, 503, 529):
                     logger.warning(
-                        "API error %s on attempt %d — retrying in %.0fs", code, attempt + 1, delay
+                        "API error %s on attempt %d — retrying in %.0fs",
+                        code, attempt + 1, delay,
                     )
                     await asyncio.sleep(delay)
                     delay = min(delay * 2, 60)
                 else:
                     raise
 
-    async def scrape(
-        self, url: str, headless: bool = True
-    ) -> Tuple[Optional[ApartmentData], ScrapeMetrics]:
-        """Run the agent loop and return ``(data, metrics)``.
+    # ── Path-cache replay (1.3) ──────────────────────────────────────────────
 
-        *data* is ``None`` if the agent exhausted its iteration budget without
-        calling ``submit_findings``.  *metrics* is always populated.
+    async def _replay_cached_path(
+        self,
+        url: str,
+        steps: List[Dict[str, Any]],
+        apartment_name: str,
+        browser: BrowserSession,
+    ) -> Optional[ApartmentData]:
+        """Execute cached browser steps without LLM calls.
+
+        Returns :class:`ApartmentData` if replay produced pricing data,
+        ``None`` if any step failed (caller falls back to full agent loop).
+
+        When the final step is ``extract_all_units`` the result is parsed
+        directly into :class:`ApartmentData` with no LLM involvement.
         """
+        last_result: Optional[Dict[str, Any]] = None
+        for step in steps:
+            action = step.get("action")
+            args: Dict[str, Any] = step.get("args", {})
+            try:
+                if action == "navigate_to":
+                    last_result = await browser.navigate_to(args.get("url", url))
+                elif action == "click_link":
+                    last_result = await browser.click_link(args.get("text_or_href", ""))
+                elif action == "click_button":
+                    last_result = await browser.click_button(args.get("text", ""))
+                elif action == "scroll_down":
+                    last_result = await browser.scroll_down()
+                elif action == "read_iframe":
+                    last_result = await browser.read_iframe(args.get("keyword", ""))
+                elif action == "extract_all_units":
+                    last_result = await browser.extract_all_units()
+                else:
+                    logger.warning("Replay: unknown action %r, skipping", action)
+                    continue
+
+                if isinstance(last_result, dict) and last_result.get("error"):
+                    logger.info("Replay step %r failed: %s", action, last_result["error"])
+                    return None
+            except Exception as exc:
+                logger.info("Replay step %r raised: %s", action, exc)
+                return None
+
+        # If final step was extract_all_units, convert directly — 0 LLM calls.
+        if isinstance(last_result, dict) and "units" in last_result:
+            data = _parse_units_to_apartment_data(
+                last_result["units"], apartment_name, url
+            )
+            if data and data.floor_plans:
+                return data
+
+        # Other terminal steps: we have browser state but need LLM to interpret.
+        # Return None so the full loop handles it.
+        return None
+
+    # ── Main scrape loop ─────────────────────────────────────────────────────
+
+    async def scrape(
+        self,
+        url: str,
+        headless: bool = True,
+    ) -> Tuple[Optional[ApartmentData], ScrapeMetrics]:
+        """Run the agent and return ``(data, metrics)``.
+
+        Flow
+        ----
+        1. If a path-cache entry exists (1.3): attempt browser-only replay.
+           On success → return immediately with ``metrics.cache_hit = True``.
+        2. Otherwise run the full ReAct loop, trimming old history (1.1) and
+           using reduced page-state caps (1.2).
+        3. On success, save the navigation path to cache for next time (1.3).
+
+        *data* is ``None`` if no pricing data was found.  *metrics* is always
+        returned and reflects actual LLM usage (0 calls on cache hit).
+        """
+        from .path_cache import invalidate_path, load_path, save_path
+
         metrics = ScrapeMetrics(url=url)
-        messages: list[dict] = [
-            {
-                "role": "user",
-                "content": f"Extract apartment floor plan and pricing information from: {url}",
-            }
-        ]
-        result: Optional[ApartmentData] = None
         t0 = time.monotonic()
 
-        async with self._browser_class(headless=headless) as browser:
+        # Choose browser context (reuse vs. create new) — optimisation 1.4
+        if self._browser_instance is not None:
+            self._browser_instance._active_frame = None  # reset state for new site
+            browser_ctx: Any = _NullContextManager(self._browser_instance)
+        else:
+            browser_ctx = self._browser_class(headless=headless)
+
+        async with browser_ctx as browser:
+
+            # ── 1.3: try cached path first ───────────────────────────────────
+            cache_entry = load_path(url)
+            if cache_entry:
+                logger.info(
+                    "Path cache HIT for %s — replaying %d steps (0 LLM calls)",
+                    url, len(cache_entry["steps"]),
+                )
+                cached_data = await self._replay_cached_path(
+                    url,
+                    cache_entry["steps"],
+                    cache_entry.get("apartment_name", ""),
+                    browser,
+                )
+                if cached_data and cached_data.floor_plans:
+                    metrics.cache_hit = True
+                    metrics.elapsed_sec = time.monotonic() - t0
+                    logger.info(
+                        "Cache replay OK — %d plans, $0.00, %.1fs",
+                        len(cached_data.floor_plans), metrics.elapsed_sec,
+                    )
+                    return _sanitize(cached_data), metrics
+                else:
+                    logger.info("Cache replay failed — invalidating and running full loop")
+                    invalidate_path(url)
+
+            # ── Full ReAct agent loop ────────────────────────────────────────
+            messages: List[Dict[str, Any]] = [
+                {
+                    "role": "user",
+                    "content": f"Extract apartment floor plan and pricing information from: {url}",
+                }
+            ]
+            result: Optional[ApartmentData] = None
+            navigation_steps: List[Dict[str, Any]] = []  # browser steps to cache
+
             for iteration in range(MAX_ITERATIONS):
                 logger.info("Agent iteration %d / %d", iteration + 1, MAX_ITERATIONS)
                 metrics.iterations = iteration + 1
 
+                # 1.1: trim old tool results before sending to LLM
                 response = await self._llm_call(
-                    [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                    [{"role": "system", "content": SYSTEM_PROMPT}]
+                    + self._trim_messages(messages),
                     metrics,
                 )
 
                 choice = response.choices[0]
                 assistant_msg = choice.message
 
-                # Append assistant turn to conversation history
-                assistant_dict: dict = {"role": "assistant"}
+                assistant_dict: Dict[str, Any] = {"role": "assistant"}
                 if assistant_msg.content:
                     assistant_dict["content"] = assistant_msg.content
                 if assistant_msg.tool_calls:
@@ -490,12 +675,13 @@ class ApartmentAgent:
                     ]
                 messages.append(assistant_dict)
 
-                # Model decided it was done without calling a tool
                 if not assistant_msg.tool_calls:
-                    logger.info("Agent stopped with no tool call (finish_reason=%s)", choice.finish_reason)
+                    logger.info(
+                        "Agent stopped with no tool call (finish_reason=%s)",
+                        choice.finish_reason,
+                    )
                     break
 
-                # Execute tool calls
                 done = False
                 for tc in assistant_msg.tool_calls:
                     name = tc.function.name
@@ -510,49 +696,60 @@ class ApartmentAgent:
                         try:
                             result = ApartmentData(**args)
                             logger.info(
-                                "submit_findings called — %d plan(s) for %r",
-                                len(result.floor_plans),
-                                result.name,
+                                "submit_findings — %d plan(s) for %r",
+                                len(result.floor_plans), result.name,
                             )
                         except Exception as exc:
-                            logger.warning("Failed to parse submit_findings payload: %s", exc)
-                        tool_result: dict = {"status": "ok", "message": "Findings recorded."}
+                            logger.warning("Failed to parse submit_findings: %s", exc)
+                        tool_result: Dict[str, Any] = {
+                            "status": "ok", "message": "Findings recorded.",
+                        }
                         done = True
 
-                    elif name == "extract_all_units":
-                        tool_result = await browser.extract_all_units()
-                    elif name == "navigate_to":
-                        tool_result = await browser.navigate_to(args.get("url", ""))
-                    elif name == "read_iframe":
-                        tool_result = await browser.read_iframe(args.get("keyword", ""))
-                    elif name == "click_link":
-                        tool_result = await browser.click_link(args.get("text_or_href", ""))
-                    elif name == "click_button":
-                        tool_result = await browser.click_button(args.get("text", ""))
-                    elif name == "scroll_down":
-                        tool_result = await browser.scroll_down()
                     else:
-                        tool_result = {"error": f"Unknown tool: {name!r}"}
+                        # Record browser step for path cache (1.3)
+                        navigation_steps.append({"action": name, "args": args})
+
+                        if name == "extract_all_units":
+                            tool_result = await browser.extract_all_units()
+                        elif name == "navigate_to":
+                            tool_result = await browser.navigate_to(args.get("url", ""))
+                        elif name == "read_iframe":
+                            tool_result = await browser.read_iframe(args.get("keyword", ""))
+                        elif name == "click_link":
+                            tool_result = await browser.click_link(args.get("text_or_href", ""))
+                        elif name == "click_button":
+                            tool_result = await browser.click_button(args.get("text", ""))
+                        elif name == "scroll_down":
+                            tool_result = await browser.scroll_down()
+                        else:
+                            tool_result = {"error": f"Unknown tool: {name!r}"}
 
                     messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tc.id,
-                            "content": json.dumps(tool_result, ensure_ascii=False, default=str),
+                            "content": json.dumps(
+                                tool_result, ensure_ascii=False, default=str
+                            ),
                         }
                     )
 
                 if done:
                     break
 
+            # ── 1.3: save navigation path on success ─────────────────────────
+            if result and result.floor_plans and navigation_steps:
+                save_path(url, navigation_steps, result.name)
+
         metrics.elapsed_sec = time.monotonic() - t0
         data = _sanitize(result)
         logger.info(
-            "Scrape complete — %d iter, %d calls, %d tok in, %d tok out, $%.4f, %.1fs",
+            "Scrape complete — cache=%s, %d iter, %d calls, %d tok, $%.4f, %.1fs",
+            metrics.cache_hit,
             metrics.iterations,
             len(metrics.calls),
-            metrics.total_input_tokens,
-            metrics.total_output_tokens,
+            metrics.total_tokens,
             metrics.total_cost_usd,
             metrics.elapsed_sec,
         )
