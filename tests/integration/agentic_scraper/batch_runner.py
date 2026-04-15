@@ -24,7 +24,7 @@ load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
 # Ensure the package root is on the path for relative imports to work
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from tests.integration.agentic_scraper.agent import ApartmentAgent
+from tests.integration.agentic_scraper.agent import ApartmentAgent, ScrapeMetrics
 from tests.integration.agentic_scraper.models import ApartmentData
 
 APARTMENTS = [
@@ -45,6 +45,7 @@ class ScrapeResult:
     name: str
     url: str
     data: Optional[ApartmentData] = None
+    metrics: Optional[ScrapeMetrics] = None
     error: Optional[str] = None
 
 
@@ -53,9 +54,15 @@ async def scrape_one(name: str, url: str, api_key: str, sem: asyncio.Semaphore) 
         print(f"  → Starting: {name}")
         try:
             agent = ApartmentAgent(api_key=api_key)
-            data = await agent.scrape(url, headless=True)
-            print(f"  ✓ Done:     {name}  ({len(data.floor_plans) if data else 0} plans)")
-            return ScrapeResult(name=name, url=url, data=data)
+            data, metrics = await agent.scrape(url, headless=True)
+            plans = len(data.floor_plans) if data else 0
+            print(
+                f"  ✓ Done:     {name:<20}  {plans:>3} plans  "
+                f"{metrics.iterations:>2} iter  "
+                f"{metrics.total_tokens:>7,} tok  "
+                f"${metrics.total_cost_usd:.4f}"
+            )
+            return ScrapeResult(name=name, url=url, data=data, metrics=metrics)
         except Exception as exc:
             print(f"  ✗ Error:    {name}  {exc}")
             return ScrapeResult(name=name, url=url, error=traceback.format_exc())
