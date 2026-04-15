@@ -1,7 +1,7 @@
 """add users and price subscriptions
 
 Revision ID: add_users_subscriptions
-Revises: google_places_tables
+Revises: merge_google_plan_heads
 Create Date: 2026-04-14 00:00:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'add_users_subscriptions'
-down_revision = 'google_places_tables'
+down_revision = 'merge_google_plan_heads'
 branch_labels = None
 depends_on = None
 

@@ -17,19 +17,19 @@ class PlanPriceHistoryBase(BaseModel):
     recorded_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PlanBase(BaseModel):
     name: str
     bedrooms: float
     bathrooms: float
-    area_sqft: float
+    area_sqft: Optional[float] = None
     price: float
     available_from: Optional[datetime] = None
     is_available: bool = True
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PlanCreate(PlanBase):
     pass
@@ -50,13 +50,13 @@ class PlanInDB(PlanBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PlanResponse(PlanInDB):
     price_history: List[PlanPriceHistoryBase] = []
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ApartmentImageBase(BaseModel):
     url: str
@@ -64,7 +64,7 @@ class ApartmentImageBase(BaseModel):
     is_primary: bool = False
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ApartmentBase(BaseModel):
     external_id: Optional[str] = None
@@ -126,14 +126,14 @@ class ApartmentInDB(ApartmentBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ApartmentResponse(ApartmentInDB):
     plans: List[PlanResponse] = []
     images: List[ApartmentImageBase] = []
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class ApartmentImageCreate(BaseModel):
     url: str
@@ -146,7 +146,7 @@ class ApartmentImageResponse(ApartmentImageBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class NeighborhoodBase(BaseModel):
     name: str
@@ -177,7 +177,7 @@ class NeighborhoodInDB(NeighborhoodBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PriceTrend(BaseModel):
     date: datetime

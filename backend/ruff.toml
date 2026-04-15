@@ -8,3 +8,6 @@ ignore = [
     "E711",   # comparison to True/False — SQLAlchemy requires == True idiom
     "E712",   # comparison to True — same as above (noqa comments already in place)
 ]
+
+[lint.per-file-ignores]
+"app/db/base.py" = ["F401"]  # model imports are required for Alembic, not "unused"

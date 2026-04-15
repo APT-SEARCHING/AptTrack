@@ -66,14 +66,16 @@ export interface PriceHistory {
 
 /** Flat shape consumed by ListingCard, ListingDetailPage, etc. */
 export interface Listing {
-  id: number;
+  id: number;           // apartment id
+  plan_id: number;      // plan id (unique per row)
   external_id: string;
   title: string;
+  plan_name: string;
   description: string;
   location: string;
   bedrooms: number;
   bathrooms: number;
-  area_sqft: number;
+  area_sqft: number | null;
   price_history: PriceHistory[];
   /** The full backend response, kept for detail pages that need plan data. */
   _raw?: ApartmentResponse;
@@ -81,9 +83,69 @@ export interface Listing {
   updated_at: string;
 }
 
+/** One card per apartment complex shown on the home page */
+export interface ApartmentSummary {
+  id: number;
+  title: string;
+  location: string;
+  city: string;
+  source_url: string | null;
+  plan_count: number;
+  available_count: number;
+  min_price: number;
+  max_price: number;
+  min_beds: number;
+  max_beds: number;
+  _raw: ApartmentResponse;
+}
+
 export interface PriceTrend {
   date: string;
   avg_price: number;
+}
+
+// ---------------------------------------------------------------------------
+// Auth types
+// ---------------------------------------------------------------------------
+
+export interface AuthToken {
+  access_token: string;
+  token_type: string;
+}
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Subscription types
+// ---------------------------------------------------------------------------
+
+export interface SubscriptionCreate {
+  apartment_id?: number;
+  plan_id?: number;
+  city?: string;
+  target_price?: number;
+  price_drop_pct?: number;
+  notify_email?: boolean;
+}
+
+export interface SubscriptionResponse {
+  id: number;
+  user_id: number;
+  apartment_id: number | null;
+  plan_id: number | null;
+  city: string | null;
+  target_price: number | null;
+  price_drop_pct: number | null;
+  notify_email: boolean;
+  notify_telegram: boolean;
+  is_active: boolean;
+  last_notified_at: string | null;
+  created_at: string;
 }
 
 export interface ListingsFilter {
@@ -95,48 +157,66 @@ export interface ListingsFilter {
   limit?: number;
 }
 
+function aptToSummary(apt: ApartmentResponse): ApartmentSummary {
+  const available = apt.plans.filter(p => p.is_available && p.price > 0);
+  const prices = available.map(p => p.price);
+  const beds = apt.plans.map(p => p.bedrooms);
+  const location = apt.address
+    ? `${apt.address}, ${apt.city}, ${apt.state}`
+    : `${apt.city}, ${apt.state}`;
+  return {
+    id: apt.id,
+    title: apt.title,
+    location,
+    city: apt.city,
+    source_url: apt.source_url,
+    plan_count: apt.plans.length,
+    available_count: available.length,
+    min_price: prices.length ? Math.min(...prices) : 0,
+    max_price: prices.length ? Math.max(...prices) : 0,
+    min_beds: beds.length ? Math.min(...beds) : 0,
+    max_beds: beds.length ? Math.max(...beds) : 0,
+    _raw: apt,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Adapter: ApartmentResponse → Listing
 // ---------------------------------------------------------------------------
 
-function toListingShape(apt: ApartmentResponse): Listing {
-  // Pick the cheapest available plan, falling back to the first plan.
-  const availablePlans = apt.plans.filter(p => p.is_available);
-  const representativePlan =
-    availablePlans.length > 0
-      ? availablePlans.reduce((a, b) => (a.price < b.price ? a : b))
-      : apt.plans[0];
-
+/** Expand one apartment into one Listing per available plan. */
+function aptToListings(apt: ApartmentResponse): Listing[] {
   const location = apt.address
     ? `${apt.address}, ${apt.city}, ${apt.state}`
     : `${apt.city}, ${apt.state}`;
 
-  // Build price_history from the representative plan, or synthesise a single
-  // data point from the plan's current price so the chart always has data.
-  const price_history: PriceHistory[] =
-    representativePlan && representativePlan.price_history.length > 0
-      ? representativePlan.price_history.map(h => ({
-          price: h.price,
-          recorded_at: h.recorded_at,
-        }))
-      : representativePlan
-      ? [{ price: representativePlan.price, recorded_at: apt.updated_at }]
-      : [];
+  const plans = apt.plans.filter(p => p.is_available && p.price > 0);
+  // If no available plans, show one placeholder card for the apartment
+  if (plans.length === 0) return [];
 
-  return {
-    id: apt.id,
-    external_id: apt.external_id ?? '',
-    title: apt.title,
-    description: apt.description ?? '',
-    location,
-    bedrooms: representativePlan?.bedrooms ?? 0,
-    bathrooms: representativePlan?.bathrooms ?? 0,
-    area_sqft: representativePlan?.area_sqft ?? 0,
-    price_history,
-    _raw: apt,
-    created_at: apt.created_at,
-    updated_at: apt.updated_at,
-  };
+  return plans.map(plan => {
+    const price_history: PriceHistory[] =
+      plan.price_history.length > 0
+        ? plan.price_history.map(h => ({ price: h.price, recorded_at: h.recorded_at }))
+        : [{ price: plan.price, recorded_at: apt.updated_at }];
+
+    return {
+      id: apt.id,
+      plan_id: plan.id,
+      external_id: apt.external_id ?? '',
+      title: apt.title,
+      plan_name: plan.name,
+      description: apt.description ?? '',
+      location,
+      bedrooms: plan.bedrooms,
+      bathrooms: plan.bathrooms,
+      area_sqft: plan.area_sqft ?? null,
+      price_history,
+      _raw: apt,
+      created_at: apt.created_at,
+      updated_at: apt.updated_at,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +275,19 @@ async function getMockListings(filters: ListingsFilter): Promise<Listing[]> {
 // ---------------------------------------------------------------------------
 
 const api = {
+  async getApartments(filters: ListingsFilter = {}): Promise<ApartmentSummary[]> {
+    const params = {
+      city: filters.location,
+      min_price: filters.min_price,
+      max_price: filters.max_price,
+      min_bedrooms: filters.bedrooms,
+      skip: filters.skip ?? 0,
+      limit: filters.limit ?? 100,
+    };
+    const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
+    return apts.map(aptToSummary).filter(a => a.plan_count > 0);
+  },
+
   async getListings(filters: ListingsFilter = {}): Promise<Listing[]> {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300));
@@ -210,7 +303,7 @@ const api = {
       limit: filters.limit ?? 50,
     };
     const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
-    return apts.map(toListingShape);
+    return apts.flatMap(aptToListings);
   },
 
   async getListing(id: number): Promise<Listing> {
@@ -223,7 +316,79 @@ const api = {
     }
 
     const apt = await apiFetch<ApartmentResponse>(`/apartments/${id}`);
-    return toListingShape(apt);
+    return aptToListings(apt)[0] ?? aptToListings(apt)[0];
+  },
+
+  // -------------------------------------------------------------------------
+  // Auth
+  // -------------------------------------------------------------------------
+
+  async register(email: string, password: string): Promise<AuthToken> {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
+  async login(email: string, password: string): Promise<AuthToken> {
+    const body = new URLSearchParams({ username: email, password });
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
+  async getMe(token: string): Promise<UserProfile> {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Not authenticated');
+    return res.json();
+  },
+
+  // -------------------------------------------------------------------------
+  // Subscriptions
+  // -------------------------------------------------------------------------
+
+  async getSubscriptions(token: string): Promise<SubscriptionResponse[]> {
+    const res = await fetch(`${API_BASE_URL}/subscriptions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to load subscriptions');
+    return res.json();
+  },
+
+  async createSubscription(token: string, payload: SubscriptionCreate): Promise<SubscriptionResponse> {
+    const res = await fetch(`${API_BASE_URL}/subscriptions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
+  async deleteSubscription(token: string, subId: number): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${subId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to delete subscription');
   },
 
   async getPriceTrends(location?: string, days: number = 30): Promise<PriceTrend[]> {

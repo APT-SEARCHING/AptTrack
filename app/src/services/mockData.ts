@@ -1,7 +1,9 @@
 export const mockListings = [
   {
     id: 1,
+    plan_id: 1,
     external_id: "apt-001",
+    plan_name: "2BR/2BA",
     title: "Luxury Downtown Apartment",
     description: "Modern 2-bed apartment with city views and updated amenities",
     location: "Downtown Seattle",
@@ -19,7 +21,9 @@ export const mockListings = [
   },
   {
     id: 2,
+    plan_id: 2,
     external_id: "apt-002",
+    plan_name: "Studio",
     title: "Cozy Capitol Hill Studio",
     description: "Charming studio in historic building, walking distance to restaurants",
     location: "Capitol Hill",
@@ -36,7 +40,9 @@ export const mockListings = [
   },
   {
     id: 3,
+    plan_id: 3,
     external_id: "apt-003",
+    plan_name: "3BR/2BA",
     title: "Spacious Ballard 3-Bedroom",
     description: "Family-friendly apartment with private balcony and parking",
     location: "Ballard",

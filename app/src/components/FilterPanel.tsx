@@ -4,73 +4,99 @@ import { ListingsFilter } from '../services/api';
 interface Props {
   filters: ListingsFilter;
   onFilterChange: (filters: ListingsFilter) => void;
+  totalCount: number;
 }
 
-const FilterPanel: React.FC<Props> = ({ filters, onFilterChange }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) => {
+  const set = (key: keyof ListingsFilter, value: string) => {
     onFilterChange({
       ...filters,
-      [name]: value === '' ? undefined : name.includes('price') ? parseFloat(value) : value
+      [key]: value === '' ? undefined : key.includes('price') || key === 'bedrooms'
+        ? parseFloat(value)
+        : value,
     });
   };
 
+  const clear = () => onFilterChange({});
+  const hasFilters = Object.values(filters).some(v => v !== undefined && v !== '');
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Location</label>
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      {/* Search */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          City
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-2.5 text-slate-400 text-sm">📍</span>
           <input
             type="text"
-            name="location"
             value={filters.location || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            placeholder="Enter location"
+            onChange={e => set('location', e.target.value)}
+            className="input-base pl-8"
+            placeholder="e.g. Oakland"
           />
         </div>
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Min Price</label>
+      {/* Price range */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Monthly Rent
+        </label>
+        <div className="flex gap-2">
           <input
             type="number"
-            name="min_price"
             value={filters.min_price || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            placeholder="Min price"
+            onChange={e => set('min_price', e.target.value)}
+            className="input-base"
+            placeholder="Min $"
           />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Max Price</label>
           <input
             type="number"
-            name="max_price"
             value={filters.max_price || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            placeholder="Max price"
+            onChange={e => set('max_price', e.target.value)}
+            className="input-base"
+            placeholder="Max $"
           />
         </div>
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Bedrooms</label>
-          <select
-            name="bedrooms"
-            value={filters.bedrooms || ''}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-          >
-            <option value="">Any</option>
-            {[1, 2, 3, 4, 5].map(num => (
-              <option key={num} value={num}>{num}+ beds</option>
-            ))}
-          </select>
+      {/* Bedrooms */}
+      <div className="mb-5">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Bedrooms
+        </label>
+        <div className="flex gap-1.5 flex-wrap">
+          {[['Any', ''], ['Studio', '0'], ['1+', '1'], ['2+', '2'], ['3+', '3']].map(([label, val]) => (
+            <button
+              key={val}
+              onClick={() => set('bedrooms', val)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium border transition-colors ${
+                (filters.bedrooms?.toString() ?? '') === val || (val === '' && !filters.bedrooms)
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+        <span className="text-sm text-slate-500">
+          <span className="font-semibold text-slate-800">{totalCount}</span> plans
+        </span>
+        {hasFilters && (
+          <button onClick={clear} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+            Clear filters
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
-export default FilterPanel; 
+export default FilterPanel;
