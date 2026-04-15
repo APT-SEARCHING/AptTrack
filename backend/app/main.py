@@ -2,10 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.api_v1.api import api_router
-from fastapi_utils.tasks import repeat_every
-from app.db.session import get_db
-from app.services.scraper import IrvineApartmentsScraper
-from sqlalchemy.orm import Session
 
 app = FastAPI(
     title="Rental Price Tracker",
