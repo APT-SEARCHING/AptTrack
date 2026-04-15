@@ -72,8 +72,20 @@ def task_refresh_apartment_data(self):
 
     db = SessionLocal()
     try:
-        # Import here to avoid heavy Playwright startup at module load time
-        from tests.integration.agentic_scraper.agent import ApartmentAgent
+        # Import the agentic scraper. It lives in tests/ during development;
+        # in production Docker the repo root is on PYTHONPATH so both paths work.
+        try:
+            from tests.integration.agentic_scraper.agent import ApartmentAgent
+        except ImportError:
+            try:
+                from integration.agentic_scraper.agent import ApartmentAgent  # type: ignore[no-redef]
+            except ImportError:
+                logger.error(
+                    "task_refresh_apartment_data: ApartmentAgent not importable — "
+                    "ensure the repo root is on PYTHONPATH or the scraper has been "
+                    "promoted to backend/app/services/."
+                )
+                return
 
         apts = (
             db.query(Apartment.id, Apartment.source_url)

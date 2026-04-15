@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_admin
 from app.db.session import get_db
 from app.core.limiter import limiter
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
@@ -32,7 +32,7 @@ def create_apartment_plan(
     apartment_id: int,
     plan: PlanCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
@@ -72,7 +72,7 @@ def update_apartment_plan(
     plan_id: int,
     plan: PlanUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:
@@ -101,7 +101,7 @@ def delete_apartment_plan(
     apartment_id: int,
     plan_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
     if db_apartment is None:

@@ -179,13 +179,9 @@ def _send_notifications(
         if coros:
             await asyncio.gather(*coros, return_exceptions=True)
 
-    # Run in a new event loop (Celery tasks run in a sync context)
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Already inside an event loop (e.g., during testing)
-            loop.create_task(_run())
-        else:
-            loop.run_until_complete(_run())
-    except RuntimeError:
-        asyncio.run(_run())
+    # Celery workers run in a plain synchronous thread with no running event loop.
+    # asyncio.run() creates a fresh loop, runs to completion, and tears it down —
+    # guaranteeing the coroutines are actually awaited.  The old loop.create_task()
+    # path was fire-and-forget: tasks were scheduled but never awaited, so
+    # notifications were silently dropped.
+    asyncio.run(_run())

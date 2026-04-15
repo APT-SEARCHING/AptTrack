@@ -1,6 +1,6 @@
 """JWT creation/verification and password hashing."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -37,7 +37,7 @@ def create_access_token(
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     payload = data.copy()
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta
         if expires_delta is not None
         else timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -47,7 +47,7 @@ def create_access_token(
 
 
 # ---------------------------------------------------------------------------
-# FastAPI dependency: decode JWT → current User
+# FastAPI dependencies: decode JWT → current User
 # ---------------------------------------------------------------------------
 
 def get_current_user(
@@ -55,8 +55,7 @@ def get_current_user(
     db: Session = Depends(get_db),
 ):
     """Decode Bearer JWT and return the corresponding User ORM object."""
-    # Import here to avoid circular imports at module load time
-    from app.models.user import User
+    from app.models.user import User  # local import avoids circular dependency at load time
 
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,3 +78,13 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exc
     return user
+
+
+def require_admin(current_user=Depends(get_current_user)):
+    """FastAPI dependency that additionally requires ``is_admin=True``."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user

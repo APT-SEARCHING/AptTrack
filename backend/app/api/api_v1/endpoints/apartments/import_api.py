@@ -7,9 +7,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.security import get_current_user
-from app.db.session import get_db
 from app.core.limiter import limiter
+from app.core.security import require_admin
+from app.db.session import get_db
 from app.models.user import User
 from app.services.google_maps import GoogleMapsService
 
@@ -51,18 +51,12 @@ async def import_apartments_from_google_maps(
     query: LocationQuery,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: User = Depends(require_admin),
 ):
     """Trigger a Google Maps import for the given location.
 
-    Requires authentication. Only admin users may call this endpoint to
-    prevent uncontrolled API spend.
+    Requires admin access to prevent uncontrolled Google Maps API spend.
     """
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required to trigger Google Maps imports",
-        )
 
     task_id = str(uuid.uuid4())
     with task_lock:
@@ -120,7 +114,13 @@ async def _import_background_task(location: str, db: Session, task_id: str) -> N
 
         # API key read exclusively from server-side settings
         service = GoogleMapsService()
-        count, error = await service.import_apartments_to_db(location)
+        apartments_hash, error = await service.fetch_apartments_by_location(location)
+        if error:
+            raise RuntimeError(error)
+
+        from app.services.apartment_db_service import ApartmentDatabaseService
+        db_service = ApartmentDatabaseService(db)
+        count, error = await db_service.save_apartments_to_legacy_schema(apartments_hash)
 
         with task_lock:
             if error:

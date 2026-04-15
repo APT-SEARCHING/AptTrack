@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_admin
 from app.db.session import get_db
 from app.core.limiter import limiter
 from app.models.apartment import Neighborhood
@@ -34,7 +34,7 @@ def create_neighborhood(
     request: Request,
     neighborhood: NeighborhoodCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_neighborhood = Neighborhood(**neighborhood.dict())
     db.add(db_neighborhood)
@@ -63,7 +63,7 @@ def update_neighborhood(
     neighborhood_id: int,
     neighborhood: NeighborhoodUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
     if db_neighborhood is None:
@@ -83,7 +83,7 @@ def delete_neighborhood(
     request: Request,
     neighborhood_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
     if db_neighborhood is None:
