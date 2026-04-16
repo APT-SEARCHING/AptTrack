@@ -1,0 +1,25 @@
+{
+  "url": "https://www.theasherfremont.com/floorplans",
+  "domain": "www_theasherfremont_com",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theasherfremont.com/floorplans"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "The Asher",
+  "last_success": "2026-04-16T05:38:33.983581+00:00",
+  "success_count": 1
+}

@@ -32,6 +32,11 @@ MODEL = "MiniMax-M2.5"
 BASE_URL = "https://api.minimax.io/v1"
 MAX_ITERATIONS = 35
 
+# If no submit_findings has been called by this iteration, give up.
+# Prevents burning through the full 35 iterations on un-scrapeable sites.
+# Set to MAX_ITERATIONS to disable.
+EARLY_STOP_AFTER_NO_DATA = 22
+
 # MiniMax-M2.5 pricing (USD per token)
 _INPUT_PRICE_PER_TOKEN  = 0.30 / 1_000_000
 _OUTPUT_PRICE_PER_TOKEN = 1.10 / 1_000_000
@@ -645,6 +650,14 @@ class ApartmentAgent:
             navigation_steps: List[Dict[str, Any]] = []  # browser steps to cache
 
             for iteration in range(MAX_ITERATIONS):
+                # Hard stop: bail if we've had many iterations with no data yet.
+                if iteration >= EARLY_STOP_AFTER_NO_DATA and result is None:
+                    logger.info(
+                        "Hard stop at iteration %d — no data found after %d iterations",
+                        iteration + 1, EARLY_STOP_AFTER_NO_DATA,
+                    )
+                    break
+
                 logger.info("Agent iteration %d / %d", iteration + 1, MAX_ITERATIONS)
                 metrics.iterations = iteration + 1
 

@@ -68,7 +68,28 @@ def load_path(url: str) -> Optional[Dict[str, Any]]:
 
 
 def save_path(url: str, steps: List[Dict[str, Any]], apartment_name: str) -> None:
-    """Write or update the cache entry for *url*."""
+    """Write or update the cache entry for *url*.
+
+    Only caches paths that end with ``extract_all_units`` — the only action
+    whose result can be replayed without any LLM call.  Steps recorded *after*
+    the last ``extract_all_units`` (e.g., the agent verifying its findings) are
+    trimmed because they are not needed for replay and would break it.
+    """
+    # Find the last extract_all_units index and truncate there (inclusive).
+    last_eau = next(
+        (i for i in reversed(range(len(steps))) if steps[i]["action"] == "extract_all_units"),
+        None,
+    )
+    if last_eau is None:
+        logger.info(
+            "Path cache skipped for %s: no extract_all_units step found "
+            "(site needs LLM for interpretation; cannot replay offline)",
+            _domain_key(url),
+        )
+        return
+
+    steps = steps[: last_eau + 1]  # trim anything after the last EAU
+
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     key = _domain_key(url)
     cache_file = CACHE_DIR / f"{key}.json"
@@ -91,7 +112,7 @@ def save_path(url: str, steps: List[Dict[str, Any]], apartment_name: str) -> Non
     }
     cache_file.write_text(json.dumps(entry, indent=2, ensure_ascii=False))
     logger.info(
-        "Path cache saved: %s (%d steps, success_count=%d)",
+        "Path cache saved: %s (%d steps → extract_all_units, success_count=%d)",
         key, len(steps), entry["success_count"],
     )
 
