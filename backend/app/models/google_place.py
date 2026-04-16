@@ -1,6 +1,5 @@
 from app.db.base_class import Base
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, DateTime, Float, Integer, JSON, String, Text
 from sqlalchemy.sql import func
 
 
@@ -27,7 +26,7 @@ class GooglePlaceRaw(Base):
     longitude = Column(Float, nullable=True)
 
     # Full raw JSON payload from Places API
-    raw_json = Column(JSONB, nullable=False)
+    raw_json = Column(JSON, nullable=False)
 
     source = Column(String, nullable=False, default="google_places_v1")
     fetched_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

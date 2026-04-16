@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
@@ -24,7 +24,9 @@ _DEBOUNCE_HOURS = 24  # minimum gap between repeated notifications
 
 def check_all_subscriptions(db: Session) -> None:
     """Main entry point — iterate active subscriptions and notify if triggered."""
-    subs = db.query(PriceSubscription).filter(PriceSubscription.is_active.is_(True)).all()
+    subs = db.execute(
+        select(PriceSubscription).where(PriceSubscription.is_active.is_(True))
+    ).scalars().all()
     logger.info("Price checker: checking %d active subscription(s)", len(subs))
 
     for sub in subs:
@@ -71,10 +73,8 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
         f"_{reason}_"
     )
 
-    # Fire notifications (fire-and-forget via asyncio)
     _send_notifications(sub, subject, body, tg_msg, db)
 
-    # Update last_notified_at
     sub.last_notified_at = datetime.now(timezone.utc)
     db.commit()
 
@@ -82,46 +82,40 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
 def _get_latest_price(sub: PriceSubscription, db: Session) -> Optional[float]:
     """Return the most recent price relevant to this subscription."""
     if sub.plan_id is not None:
-        row = (
-            db.query(PlanPriceHistory.price)
-            .filter(PlanPriceHistory.plan_id == sub.plan_id)
+        price = db.execute(
+            select(PlanPriceHistory.price)
+            .where(PlanPriceHistory.plan_id == sub.plan_id)
             .order_by(PlanPriceHistory.recorded_at.desc())
-            .first()
-        )
-        if row:
-            return row[0]
+            .limit(1)
+        ).scalar_one_or_none()
+        if price is not None:
+            return price
         # Fallback to plan.price
-        plan = db.query(Plan.price).filter(Plan.id == sub.plan_id).first()
-        return plan[0] if plan else None
+        return db.execute(
+            select(Plan.price).where(Plan.id == sub.plan_id)
+        ).scalar_one_or_none()
 
     if sub.apartment_id is not None:
-        # Cheapest available plan for this apartment
-        row = (
-            db.query(func.min(Plan.price))
-            .filter(Plan.apartment_id == sub.apartment_id, Plan.is_available.is_(True))
-            .first()
-        )
-        return row[0] if row and row[0] is not None else None
+        return db.execute(
+            select(func.min(Plan.price))
+            .where(Plan.apartment_id == sub.apartment_id, Plan.is_available.is_(True))
+        ).scalar_one_or_none()
 
     # Area-level: average price across matching plans
-    query = (
-        db.query(func.avg(Plan.price))
+    stmt = (
+        select(func.avg(Plan.price))
         .join(Apartment, Plan.apartment_id == Apartment.id)
-        .filter(Plan.is_available.is_(True))
+        .where(Plan.is_available.is_(True))
     )
     if sub.city:
-        # Use exact case-insensitive match (cities are normalised in the DB).
-        # This lets the ix_apartments_city_lower functional index be used.
-        from sqlalchemy import func as sa_func
-        query = query.filter(sa_func.lower(Apartment.city) == sub.city.lower())
+        stmt = stmt.where(func.lower(Apartment.city) == sub.city.lower())
     if sub.zipcode:
-        query = query.filter(Apartment.zipcode == sub.zipcode)
+        stmt = stmt.where(Apartment.zipcode == sub.zipcode)
     if sub.min_bedrooms is not None:
-        query = query.filter(Plan.bedrooms >= sub.min_bedrooms)
+        stmt = stmt.where(Plan.bedrooms >= sub.min_bedrooms)
     if sub.max_bedrooms is not None:
-        query = query.filter(Plan.bedrooms <= sub.max_bedrooms)
-    row = query.first()
-    return row[0] if row and row[0] is not None else None
+        stmt = stmt.where(Plan.bedrooms <= sub.max_bedrooms)
+    return db.execute(stmt).scalar_one_or_none()
 
 
 def _is_triggered(
@@ -144,21 +138,22 @@ def _is_triggered(
 def _get_previous_price(sub: PriceSubscription, db: Session) -> Optional[float]:
     """Return the second-most-recent price for percentage-drop calculation."""
     if sub.plan_id is not None:
-        rows = (
-            db.query(PlanPriceHistory.price)
-            .filter(PlanPriceHistory.plan_id == sub.plan_id)
+        rows = db.execute(
+            select(PlanPriceHistory.price)
+            .where(PlanPriceHistory.plan_id == sub.plan_id)
             .order_by(PlanPriceHistory.recorded_at.desc())
             .limit(2)
-            .all()
-        )
+        ).all()
         return rows[1][0] if len(rows) >= 2 else None
     return None
 
 
 def _apt_label(sub: PriceSubscription, db: Session) -> str:
     if sub.apartment_id is not None:
-        apt = db.query(Apartment.title).filter(Apartment.id == sub.apartment_id).first()
-        return apt[0] if apt else f"Apartment #{sub.apartment_id}"
+        title = db.execute(
+            select(Apartment.title).where(Apartment.id == sub.apartment_id)
+        ).scalar_one_or_none()
+        return title if title else f"Apartment #{sub.apartment_id}"
     if sub.city:
         return sub.city
     return "tracked area"
@@ -171,7 +166,9 @@ def _send_notifications(
     tg_msg: str,
     db: Session,
 ) -> None:
-    user = db.query(User).filter(User.id == sub.user_id).first()
+    user = db.execute(
+        select(User).where(User.id == sub.user_id)
+    ).scalar_one_or_none()
 
     async def _run():
         coros = []
@@ -182,9 +179,4 @@ def _send_notifications(
         if coros:
             await asyncio.gather(*coros, return_exceptions=True)
 
-    # Celery workers run in a plain synchronous thread with no running event loop.
-    # asyncio.run() creates a fresh loop, runs to completion, and tears it down —
-    # guaranteeing the coroutines are actually awaited.  The old loop.create_task()
-    # path was fire-and-forget: tasks were scheduled but never awaited, so
-    # notifications were silently dropped.
     asyncio.run(_run())

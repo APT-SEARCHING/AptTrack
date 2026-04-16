@@ -1,14 +1,10 @@
 from sqlalchemy import MetaData
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 
-# Create a metadata instance
+# Shared metadata instance so Alembic can discover all tables.
 metadata = MetaData()
 
-class CustomBase:
-    @classmethod
-    def __tablename__(cls) -> str:
-        """Generate __tablename__ automatically"""
-        return cls.__name__.lower()
 
-# Create the declarative base
-Base = declarative_base(metadata=metadata, cls=CustomBase)
+class Base(DeclarativeBase):
+    """Declarative base for all ORM models (SQLAlchemy 2.0 style)."""
+    metadata = metadata

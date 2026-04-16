@@ -1,6 +1,6 @@
 fastapi==0.109.1
 uvicorn==0.27.0
-sqlalchemy<2.0.0,>=1.4.41
+sqlalchemy>=2.0,<3.0
 python-dotenv==1.0.0
 beautifulsoup4==4.12.2
 requests==2.31.0
@@ -8,14 +8,16 @@ aiohttp==3.9.1
 pytest==7.4.4
 alembic==1.13.1
 psycopg2-binary==2.9.9
-pydantic[email]==1.10.13
-fastapi-utils==0.2.1
+pydantic[email]>=2.0,<3.0
+pydantic-settings>=2.0,<3.0
+eval-type-backport>=0.2.0  # enables list[X] / X|Y syntax on Python <3.10
 # Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-multipart==0.0.9
 # Rate limiting
 slowapi==0.1.9
 # Celery
 celery[redis]==5.3.6
-redis==5.0.1 
+redis==5.0.1

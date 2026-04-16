@@ -7,6 +7,7 @@ from app.models.apartment import Neighborhood
 from app.models.user import User
 from app.schemas.apartment import NeighborhoodCreate, NeighborhoodInDB, NeighborhoodUpdate
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -20,12 +21,12 @@ def get_neighborhoods(
     city: Optional[str] = None,
     state: Optional[str] = None,
 ):
-    query = db.query(Neighborhood)
+    stmt = select(Neighborhood)
     if city:
-        query = query.filter(Neighborhood.city.ilike(f"%{city}%"))
+        stmt = stmt.where(Neighborhood.city.ilike(f"%{city}%"))
     if state:
-        query = query.filter(Neighborhood.state == state)
-    return query.all()
+        stmt = stmt.where(Neighborhood.state == state)
+    return db.execute(stmt).scalars().all()
 
 
 @router.post("/neighborhoods", response_model=NeighborhoodInDB, status_code=201)
@@ -36,7 +37,7 @@ def create_neighborhood(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_neighborhood = Neighborhood(**neighborhood.dict())
+    db_neighborhood = Neighborhood(**neighborhood.model_dump())
     db.add(db_neighborhood)
     db.commit()
     db.refresh(db_neighborhood)
@@ -50,7 +51,9 @@ def get_neighborhood(
     neighborhood_id: int = Path(..., description="The ID of the neighborhood to retrieve"),
     db: Session = Depends(get_db),
 ):
-    db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
+    db_neighborhood = db.execute(
+        select(Neighborhood).where(Neighborhood.id == neighborhood_id)
+    ).scalar_one_or_none()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
     return db_neighborhood
@@ -65,11 +68,13 @@ def update_neighborhood(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
+    db_neighborhood = db.execute(
+        select(Neighborhood).where(Neighborhood.id == neighborhood_id)
+    ).scalar_one_or_none()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
 
-    for key, value in neighborhood.dict(exclude_unset=True).items():
+    for key, value in neighborhood.model_dump(exclude_unset=True).items():
         setattr(db_neighborhood, key, value)
 
     db.commit()
@@ -85,7 +90,9 @@ def delete_neighborhood(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_neighborhood = db.query(Neighborhood).filter(Neighborhood.id == neighborhood_id).first()
+    db_neighborhood = db.execute(
+        select(Neighborhood).where(Neighborhood.id == neighborhood_id)
+    ).scalar_one_or_none()
     if db_neighborhood is None:
         raise HTTPException(status_code=404, detail="Neighborhood not found")
 

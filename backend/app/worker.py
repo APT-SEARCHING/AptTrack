@@ -84,7 +84,7 @@ def task_check_price_drops(self):
 @celery_app.task(name="app.worker.task_refresh_apartment_data", bind=True, max_retries=2)
 def task_refresh_apartment_data(self):
     """Re-scrape all tracked apartments to refresh pricing data."""
-    import asyncio
+    from sqlalchemy import select
 
     from app.db.session import SessionLocal
     from app.models.apartment import Apartment
@@ -93,34 +93,28 @@ def task_refresh_apartment_data(self):
     try:
         from app.services.scraper_agent.agent import ApartmentAgent
 
-        apts = (
-            db.query(Apartment.id, Apartment.source_url)
-            .filter(Apartment.source_url.isnot(None), Apartment.is_available.is_(True))
-            .all()
-        )
-        logger.info("task_refresh_apartment_data: refreshing %d apartment(s)", len(apts))
+        rows = db.execute(
+            select(Apartment.id, Apartment.source_url)
+            .where(Apartment.source_url.isnot(None), Apartment.is_available.is_(True))
+        ).all()
+        logger.info("task_refresh_apartment_data: refreshing %d apartment(s)", len(rows))
 
         async def _run():
-            from app.services.scraper_agent.browser_tools import BrowserSession
-
             from urllib.parse import urlparse
 
             from app.models.site_registry import ScrapeSiteRegistry
+            from app.services.scraper_agent.browser_tools import BrowserSession
 
-            # Reuse one Chromium instance for the whole batch (optimisation 1.4).
             async with BrowserSession(headless=True) as shared_browser:
                 agent = ApartmentAgent(_browser_instance=shared_browser)
-                for apt_id, url in apts:
-                    # Registry gate: only scrape domains that are active and allowed
+                for apt_id, url in rows:
                     domain = urlparse(url).netloc.lower()
-                    registry = (
-                        db.query(ScrapeSiteRegistry)
-                        .filter(
+                    registry = db.execute(
+                        select(ScrapeSiteRegistry).where(
                             ScrapeSiteRegistry.domain == domain,
                             ScrapeSiteRegistry.is_active.is_(True),
                         )
-                        .first()
-                    )
+                    ).scalar_one_or_none()
                     if registry is None:
                         logger.warning(
                             "Domain %s not in registry — skipping apt %d", domain, apt_id
@@ -145,7 +139,6 @@ def task_refresh_apartment_data(self):
                         logger.error(
                             "Failed to scrape apartment %d (%s): %s", apt_id, url, exc
                         )
-                    # Polite inter-scrape delay
                     await asyncio.sleep(5)
 
         global _current_scrape_loop
@@ -171,24 +164,22 @@ def _match_plan(apt_id: int, fp, db):
     2. Fuzzy: same bedroom count + area_sqft within 10% — handles site renames
        like "Studio A" → "S1" without breaking price-history chains.
     """
+    from sqlalchemy import select
+
     from app.models.apartment import Plan
 
     # 1. Exact match
-    plan = (
-        db.query(Plan)
-        .filter(Plan.apartment_id == apt_id, Plan.name == fp.name)
-        .first()
-    )
+    plan = db.execute(
+        select(Plan).where(Plan.apartment_id == apt_id, Plan.name == fp.name)
+    ).scalar_one_or_none()
     if plan:
         return plan
 
     # 2. Fuzzy match
     if fp.bedrooms is not None and fp.size_sqft is not None:
-        candidates = (
-            db.query(Plan)
-            .filter(Plan.apartment_id == apt_id, Plan.bedrooms == fp.bedrooms)
-            .all()
-        )
+        candidates = db.execute(
+            select(Plan).where(Plan.apartment_id == apt_id, Plan.bedrooms == fp.bedrooms)
+        ).scalars().all()
         for c in candidates:
             if c.area_sqft and abs(c.area_sqft - fp.size_sqft) / c.area_sqft < 0.10:
                 logger.debug(

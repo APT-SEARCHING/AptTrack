@@ -1,6 +1,10 @@
-from pathlib import Path
+from __future__ import annotations
 
-from pydantic import BaseSettings, validator
+from pathlib import Path
+from typing import Any
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -20,8 +24,8 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 8000
     BACKEND_RELOAD: bool = True
 
-    # CORS - handle as string and split manually
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
+    # CORS - comma-separated string in .env, validated into a list
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
     # Scraping
     SCRAPE_INTERVAL_MINUTES: int = 60
@@ -49,12 +53,16 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
-    @validator('JWT_SECRET_KEY')
-    def check_jwt_secret(cls, v, values):
-        import os, warnings
+    # MiniMax
+    MINIMAX_API_KEY: str = ""
+
+    @field_validator("JWT_SECRET_KEY")
+    @classmethod
+    def check_jwt_secret(cls, v: str) -> str:
+        import os
+        import warnings
+
         if v == "change-me-in-production":
-            # In production (BACKEND_RELOAD=false or unset) refuse to start.
-            # In dev (BACKEND_RELOAD=true) emit a loud warning instead.
             reload_flag = str(os.environ.get("BACKEND_RELOAD", "true")).lower()
             if reload_flag != "true":
                 raise ValueError(
@@ -67,33 +75,17 @@ class Settings(BaseSettings):
             )
         return v
 
-    @validator('CORS_ORIGINS')
-    def parse_cors_origins(cls, v):
-        """Convert comma-separated string to list"""
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    @validator('BACKEND_PORT', pre=True)
-    def parse_backend_port(cls, v):
-        """Convert string to int"""
-        return int(v) if isinstance(v, str) else v
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=str(Path(__file__).parent.parent.parent / ".env"),
+    )
 
-    @validator('BACKEND_RELOAD', pre=True)
-    def parse_backend_reload(cls, v):
-        """Convert string to bool"""
-        if isinstance(v, str):
-            return v.lower() == "true"
-        return v
-
-    @validator('SCRAPE_INTERVAL_MINUTES', pre=True)
-    def parse_scrape_interval(cls, v):
-        """Convert string to int"""
-        return int(v) if isinstance(v, str) else v
-
-    class Config:
-        case_sensitive = True
-        # Use the top-level .env file
-        env_file = str(Path(__file__).parent.parent.parent / ".env")
 
 settings = Settings()

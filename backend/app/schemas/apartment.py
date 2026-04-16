@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PropertyType(str, Enum):
@@ -12,14 +14,17 @@ class PropertyType(str, Enum):
     TOWNHOUSE = "townhouse"
     STUDIO = "studio"
 
+
 class PlanPriceHistoryBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     price: float
     recorded_at: datetime
 
-    class Config:
-        orm_mode = True
 
 class PlanBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     name: str
     bedrooms: float
     bathrooms: float
@@ -28,11 +33,10 @@ class PlanBase(BaseModel):
     available_from: Optional[datetime] = None
     is_available: bool = True
 
-    class Config:
-        orm_mode = True
 
 class PlanCreate(PlanBase):
     pass
+
 
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
@@ -43,28 +47,25 @@ class PlanUpdate(BaseModel):
     available_from: Optional[datetime] = None
     is_available: Optional[bool] = None
 
+
 class PlanInDB(PlanBase):
     id: int
     apartment_id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
 
 class PlanResponse(PlanInDB):
-    price_history: List[PlanPriceHistoryBase] = []
+    price_history: list[PlanPriceHistoryBase] = []
 
-    class Config:
-        orm_mode = True
 
 class ApartmentImageBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     url: str
     caption: Optional[str] = None
     is_primary: bool = False
 
-    class Config:
-        orm_mode = True
 
 class ApartmentBase(BaseModel):
     external_id: Optional[str] = None
@@ -97,8 +98,10 @@ class ApartmentBase(BaseModel):
     # Metadata
     source_url: Optional[str] = None
 
+
 class ApartmentCreate(ApartmentBase):
-    plans: Optional[List[PlanCreate]] = None
+    plans: Optional[list[PlanCreate]] = None
+
 
 class ApartmentUpdate(BaseModel):
     title: Optional[str] = None
@@ -120,33 +123,33 @@ class ApartmentUpdate(BaseModel):
     is_available: Optional[bool] = None
     source_url: Optional[str] = None
 
+
 class ApartmentInDB(ApartmentBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
 
 class ApartmentResponse(ApartmentInDB):
-    plans: List[PlanResponse] = []
-    images: List[ApartmentImageBase] = []
+    plans: list[PlanResponse] = []
+    images: list[ApartmentImageBase] = []
 
-    class Config:
-        orm_mode = True
 
 class ApartmentImageCreate(BaseModel):
     url: str
     caption: Optional[str] = None
     is_primary: bool = False
 
+
 class ApartmentImageResponse(ApartmentImageBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     apartment_id: int
     created_at: datetime
 
-    class Config:
-        orm_mode = True
 
 class NeighborhoodBase(BaseModel):
     name: str
@@ -158,8 +161,10 @@ class NeighborhoodBase(BaseModel):
     safety_score: Optional[int] = Field(None, ge=0, le=100)
     avg_price_per_sqft: Optional[float] = None
 
+
 class NeighborhoodCreate(NeighborhoodBase):
     pass
+
 
 class NeighborhoodUpdate(BaseModel):
     name: Optional[str] = None
@@ -171,17 +176,19 @@ class NeighborhoodUpdate(BaseModel):
     safety_score: Optional[int] = Field(None, ge=0, le=100)
     avg_price_per_sqft: Optional[float] = None
 
+
 class NeighborhoodInDB(NeighborhoodBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
 
 class PriceTrend(BaseModel):
     date: datetime
     avg_price: float
+
 
 class ApartmentFilter(BaseModel):
     min_price: Optional[float] = None

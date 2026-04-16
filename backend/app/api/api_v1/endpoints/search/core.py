@@ -5,6 +5,7 @@ from app.db.session import get_db
 from app.models.apartment import Apartment, Plan
 from app.schemas.apartment import ApartmentResponse
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -25,7 +26,7 @@ def search_apartments(
 ):
     search_query = f"%{query}%"
 
-    db_query = db.query(Apartment).distinct().filter(
+    stmt = select(Apartment).distinct().where(
         (Apartment.title.ilike(search_query))
         | (Apartment.description.ilike(search_query))
         | (Apartment.city.ilike(search_query))
@@ -34,14 +35,14 @@ def search_apartments(
     )
 
     if any([min_bedrooms, max_bedrooms, min_price, max_price]):
-        db_query = db_query.join(Plan)
+        stmt = stmt.join(Plan)
         if min_bedrooms is not None:
-            db_query = db_query.filter(Plan.bedrooms >= min_bedrooms)
+            stmt = stmt.where(Plan.bedrooms >= min_bedrooms)
         if max_bedrooms is not None:
-            db_query = db_query.filter(Plan.bedrooms <= max_bedrooms)
+            stmt = stmt.where(Plan.bedrooms <= max_bedrooms)
         if min_price is not None:
-            db_query = db_query.filter(Plan.price >= min_price)
+            stmt = stmt.where(Plan.price >= min_price)
         if max_price is not None:
-            db_query = db_query.filter(Plan.price <= max_price)
+            stmt = stmt.where(Plan.price <= max_price)
 
-    return db_query.offset(skip).limit(limit).all()
+    return db.execute(stmt.offset(skip).limit(limit)).scalars().all()

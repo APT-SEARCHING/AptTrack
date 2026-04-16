@@ -61,6 +61,8 @@ def _is_available(fp: FloorPlan) -> bool:
 def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
                     zipcode: str, db) -> None:
     """Upsert one Apartment + its Plans + PlanPriceHistory rows."""
+    from sqlalchemy import select
+
     from app.models.apartment import Apartment, Plan, PlanPriceHistory
 
     external_id = _slug(url)
@@ -80,7 +82,9 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
     apt_baths = min(baths) if baths else 1.0
 
     # Upsert apartment
-    apt = db.query(Apartment).filter(Apartment.external_id == external_id).first()
+    apt = db.execute(
+        select(Apartment).where(Apartment.external_id == external_id)
+    ).scalar_one_or_none()
     if apt is None:
         apt = Apartment(
             external_id=external_id,
@@ -110,9 +114,9 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
     for fp in apt_data.floor_plans:
         if fp.min_price is None:
             continue
-        plan = (db.query(Plan)
-                .filter(Plan.apartment_id == apt.id, Plan.name == fp.name)
-                .first())
+        plan = db.execute(
+            select(Plan).where(Plan.apartment_id == apt.id, Plan.name == fp.name)
+        ).scalar_one_or_none()
         if plan is None:
             plan = Plan(
                 apartment_id=apt.id,

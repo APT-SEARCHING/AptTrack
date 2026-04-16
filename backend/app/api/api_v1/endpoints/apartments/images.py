@@ -7,6 +7,7 @@ from app.models.apartment import Apartment, ApartmentImage
 from app.models.user import User
 from app.schemas.apartment import ApartmentImageCreate, ApartmentImageResponse
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -19,7 +20,9 @@ def get_apartment_images(
     apartment_id: int,
     db: Session = Depends(get_db),
 ):
-    db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
+    db_apartment = db.execute(
+        select(Apartment).where(Apartment.id == apartment_id)
+    ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
     return db_apartment.images
@@ -34,17 +37,20 @@ def add_apartment_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
+    db_apartment = db.execute(
+        select(Apartment).where(Apartment.id == apartment_id)
+    ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
 
     if image.is_primary:
-        db.query(ApartmentImage).filter(
-            ApartmentImage.apartment_id == apartment_id,
-            ApartmentImage.is_primary == True,  # noqa: E712
-        ).update({"is_primary": False})
+        db.execute(
+            update(ApartmentImage)
+            .where(ApartmentImage.apartment_id == apartment_id, ApartmentImage.is_primary == True)  # noqa: E712
+            .values(is_primary=False)
+        )
 
-    db_image = ApartmentImage(**image.dict(), apartment_id=apartment_id)
+    db_image = ApartmentImage(**image.model_dump(), apartment_id=apartment_id)
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
@@ -61,24 +67,29 @@ def update_apartment_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
+    db_apartment = db.execute(
+        select(Apartment).where(Apartment.id == apartment_id)
+    ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
 
-    db_image = db.query(ApartmentImage).filter(
-        ApartmentImage.id == image_id,
-        ApartmentImage.apartment_id == apartment_id,
-    ).first()
+    db_image = db.execute(
+        select(ApartmentImage).where(
+            ApartmentImage.id == image_id,
+            ApartmentImage.apartment_id == apartment_id,
+        )
+    ).scalar_one_or_none()
     if db_image is None:
         raise HTTPException(status_code=404, detail="Image not found")
 
     if image_update.is_primary and not db_image.is_primary:
-        db.query(ApartmentImage).filter(
-            ApartmentImage.apartment_id == apartment_id,
-            ApartmentImage.is_primary == True,  # noqa: E712
-        ).update({"is_primary": False})
+        db.execute(
+            update(ApartmentImage)
+            .where(ApartmentImage.apartment_id == apartment_id, ApartmentImage.is_primary == True)  # noqa: E712
+            .values(is_primary=False)
+        )
 
-    for key, value in image_update.dict().items():
+    for key, value in image_update.model_dump().items():
         setattr(db_image, key, value)
 
     db.commit()
@@ -95,14 +106,18 @@ def delete_apartment_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    db_apartment = db.query(Apartment).filter(Apartment.id == apartment_id).first()
+    db_apartment = db.execute(
+        select(Apartment).where(Apartment.id == apartment_id)
+    ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
 
-    db_image = db.query(ApartmentImage).filter(
-        ApartmentImage.id == image_id,
-        ApartmentImage.apartment_id == apartment_id,
-    ).first()
+    db_image = db.execute(
+        select(ApartmentImage).where(
+            ApartmentImage.id == image_id,
+            ApartmentImage.apartment_id == apartment_id,
+        )
+    ).scalar_one_or_none()
     if db_image is None:
         raise HTTPException(status_code=404, detail="Image not found")
 

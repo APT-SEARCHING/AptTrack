@@ -34,8 +34,8 @@ class Apartment(Base):
 
     # Property details
     property_type = Column(String, nullable=False, default="apartment", comment="Type of property")
-    bedrooms = Column(Float, nullable=False, index=True, comment="Number of bedrooms (can be 0.5 for studios with alcoves)")
-    bathrooms = Column(Float, nullable=False, comment="Number of bathrooms")
+    bedrooms = Column(Float, nullable=True, index=True, comment="Number of bedrooms (can be 0.5 for studios with alcoves)")
+    bathrooms = Column(Float, nullable=True, comment="Number of bathrooms")
     area_sqft = Column(Float, nullable=True, comment="Square footage of the unit")
 
     # Amenities

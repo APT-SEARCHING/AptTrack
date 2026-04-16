@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
 
 # ---------------------------------------------------------------------------
 # User schemas
@@ -13,13 +16,12 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: str
     is_active: bool
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 class Token(BaseModel):
@@ -66,6 +68,8 @@ class SubscriptionUpdate(BaseModel):
 
 
 class SubscriptionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     apartment_id: Optional[int]
@@ -82,6 +86,3 @@ class SubscriptionResponse(BaseModel):
     is_active: bool
     last_notified_at: Optional[datetime]
     created_at: datetime
-
-    class Config:
-        orm_mode = True

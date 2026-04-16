@@ -24,6 +24,8 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from sqlalchemy import select
+
 from app.db.base import *  # noqa: F401,F403 — registers all models
 from app.db.session import SessionLocal
 from app.models.site_registry import ScrapeSiteRegistry
@@ -98,11 +100,9 @@ async def main() -> None:
             print(f"  {domain}  ", end="", flush=True)
             robots = await check_robots_txt(url)
 
-            row = (
-                db.query(ScrapeSiteRegistry)
-                .filter(ScrapeSiteRegistry.domain == domain)
-                .first()
-            )
+            row = db.execute(
+                select(ScrapeSiteRegistry).where(ScrapeSiteRegistry.domain == domain)
+            ).scalar_one_or_none()
             if row is None:
                 row = ScrapeSiteRegistry(domain=domain)
                 db.add(row)
@@ -127,16 +127,17 @@ async def main() -> None:
         # Also seed any other domains present in Apartment.source_url not already covered
         from app.models.apartment import Apartment
 
-        apt_urls = (
-            db.query(Apartment.source_url)
-            .filter(Apartment.source_url.isnot(None))
+        rows = db.execute(
+            select(Apartment.source_url)
+            .where(Apartment.source_url.isnot(None))
             .distinct()
-            .all()
-        )
+        ).all()
         new_domains = 0
-        for (apt_url,) in apt_urls:
+        for (apt_url,) in rows:
             d = urlparse(apt_url).netloc.lower()
-            if not db.query(ScrapeSiteRegistry).filter(ScrapeSiteRegistry.domain == d).first():
+            if not db.execute(
+                select(ScrapeSiteRegistry).where(ScrapeSiteRegistry.domain == d)
+            ).scalar_one_or_none():
                 robots = await check_robots_txt(apt_url)
                 db.add(ScrapeSiteRegistry(
                     domain=d,

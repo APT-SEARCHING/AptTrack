@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.models.user import PriceSubscription, User
 from app.schemas.user import SubscriptionCreate, SubscriptionResponse, SubscriptionUpdate
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
@@ -19,19 +20,17 @@ def create_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # At least one targeting criterion must be set so the checker knows what to watch.
     if payload.apartment_id is None and payload.plan_id is None and payload.city is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="At least one of apartment_id, plan_id, or city must be provided",
         )
-    # At least one threshold must be set, otherwise the alert can never fire.
     if payload.target_price is None and payload.price_drop_pct is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="At least one of target_price or price_drop_pct must be provided",
         )
-    sub = PriceSubscription(**payload.dict(), user_id=current_user.id)
+    sub = PriceSubscription(**payload.model_dump(), user_id=current_user.id)
     db.add(sub)
     db.commit()
     db.refresh(sub)
@@ -45,11 +44,9 @@ def list_subscriptions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(PriceSubscription)
-        .filter(PriceSubscription.user_id == current_user.id)
-        .all()
-    )
+    return db.execute(
+        select(PriceSubscription).where(PriceSubscription.user_id == current_user.id)
+    ).scalars().all()
 
 
 @router.put("/{sub_id}", response_model=SubscriptionResponse)
@@ -62,7 +59,7 @@ def update_subscription(
     current_user: User = Depends(get_current_user),
 ):
     sub = _get_owned_or_404(sub_id, current_user.id, db)
-    for field, value in payload.dict(exclude_unset=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(sub, field, value)
     db.commit()
     db.refresh(sub)
@@ -87,11 +84,12 @@ def delete_subscription(
 # ---------------------------------------------------------------------------
 
 def _get_owned_or_404(sub_id: int, user_id: int, db: Session) -> PriceSubscription:
-    sub = (
-        db.query(PriceSubscription)
-        .filter(PriceSubscription.id == sub_id, PriceSubscription.user_id == user_id)
-        .first()
-    )
+    sub = db.execute(
+        select(PriceSubscription).where(
+            PriceSubscription.id == sub_id,
+            PriceSubscription.user_id == user_id,
+        )
+    ).scalar_one_or_none()
     if sub is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
     return sub

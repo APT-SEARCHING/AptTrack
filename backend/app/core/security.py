@@ -9,6 +9,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -73,7 +74,7 @@ def get_current_user(
     except JWTError:
         raise credentials_exc
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = db.execute(select(User).where(User.id == int(user_id))).scalar_one_or_none()
     if user is None or not user.is_active:
         raise credentials_exc
     return user

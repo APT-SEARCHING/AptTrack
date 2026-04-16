@@ -5,12 +5,17 @@ If AptTrack receives a C&D letter or formal objection from any property
 management company or website operator:
 
 1. IMMEDIATELY set is_active=False on the domain's ScrapeSiteRegistry row:
-       db.query(ScrapeSiteRegistry).filter_by(domain=domain).update({
-           "is_active": False,
-           "ceased_reason": "C&D received YYYY-MM-DD — <sender>",
-       })
+       from sqlalchemy import update
+       db.execute(
+           update(ScrapeSiteRegistry)
+           .where(ScrapeSiteRegistry.domain == domain)
+           .values(is_active=False, ceased_reason="C&D received YYYY-MM-DD — <sender>")
+       )
+       db.commit()
 2. DELETE all Apartment and Plan data originating from that domain:
-       db.query(Apartment).filter(Apartment.source_url.ilike(f"%{domain}%")).delete()
+       from sqlalchemy import delete
+       db.execute(delete(Apartment).where(Apartment.source_url.ilike(f"%{domain}%")))
+       db.commit()
 3. Respond to the sender confirming compliance within 48 hours.
 4. Log the incident in ceased_reason with date and details.
 5. Do NOT re-enable scraping for that domain without legal review.
@@ -62,14 +67,13 @@ async def check_robots_txt(url: str) -> dict:
     """Fetch and parse robots.txt for the domain of *url*.
 
     Returns a dict with keys:
-        ``allowed``   – True if our UA is permitted (or no robots.txt exists)
-        ``raw``       – raw robots.txt text, or None if not found
+        ``allowed``    – True if our UA is permitted (or no robots.txt exists)
+        ``raw``        – raw robots.txt text, or None if not found
         ``checked_at`` – UTC datetime of the check
     """
     checked_at = datetime.now(timezone.utc)
     domain = get_domain(url)
 
-    # Hard ban — never even check
     if domain in _BANNED_DOMAINS:
         logger.warning("Domain %s is hard-banned — skipping", domain)
         return {"allowed": False, "raw": None, "checked_at": checked_at}
@@ -83,17 +87,14 @@ async def check_robots_txt(url: str) -> dict:
                 robots_url, timeout=aiohttp.ClientTimeout(total=10)
             ) as resp:
                 if resp.status == 404:
-                    # No robots.txt → no restrictions
                     return {"allowed": True, "raw": None, "checked_at": checked_at}
                 raw = await resp.text()
     except Exception as exc:
-        # Network error fetching robots.txt — assume allowed, log the issue
         logger.warning("Could not fetch robots.txt for %s: %s — assuming allowed", domain, exc)
         return {"allowed": True, "raw": None, "checked_at": checked_at}
 
     rp = RobotFileParser()
     rp.parse(raw.splitlines())
-    # Check our UA first; fall back to generic "*"
     allowed = rp.can_fetch(OUR_USER_AGENT, url)
     if not allowed:
         logger.warning("robots.txt disallows %s for UA=%s", url, OUR_USER_AGENT)
@@ -103,17 +104,18 @@ async def check_robots_txt(url: str) -> dict:
 async def update_registry(url: str, db) -> Optional[bool]:
     """Check robots.txt and upsert the result into ``scrape_site_registry``.
 
-    Returns the ``allowed`` boolean, or ``None`` if the domain is not in the
-    registry and was newly inserted.
+    Returns the ``allowed`` boolean, or ``None`` if the domain was newly inserted.
     """
-    from datetime import datetime
+    from sqlalchemy import select
 
     from app.models.site_registry import ScrapeSiteRegistry
 
     domain = get_domain(url)
     result = await check_robots_txt(url)
 
-    row = db.query(ScrapeSiteRegistry).filter(ScrapeSiteRegistry.domain == domain).first()
+    row = db.execute(
+        select(ScrapeSiteRegistry).where(ScrapeSiteRegistry.domain == domain)
+    ).scalar_one_or_none()
     if row is None:
         row = ScrapeSiteRegistry(domain=domain)
         db.add(row)

@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserResponse
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @limiter.limit("5/minute")
 def register(request: Request, payload: UserCreate, db: Session = Depends(get_db)):
     """Create a new account and return a JWT."""
-    if db.query(User).filter(User.email == payload.email).first():
+    if db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
@@ -47,7 +48,7 @@ def login(
     Accepts ``application/x-www-form-urlencoded`` with ``username`` (email)
     and ``password`` fields — standard OAuth2 password flow.
     """
-    user = db.query(User).filter(User.email == form.username).first()
+    user = db.execute(select(User).where(User.email == form.username)).scalar_one_or_none()
     if not user or not verify_password(form.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
