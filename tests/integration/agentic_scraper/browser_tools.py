@@ -21,6 +21,87 @@ _PRICING_KEYWORDS = [
     "available", "price", "rent", "floor", "unit", "home",
 ]
 
+# ---------------------------------------------------------------------------
+# RentCafe FloorPlan V2 plan-card parser
+# ---------------------------------------------------------------------------
+# Used by properties built on the RentCafe/Yardi CMS (The Ryden, Atlas Oakland,
+# The Asher Fremont, etc.).  Each ``units_grid--item`` element represents one
+# floor-plan type with aggregated pricing.
+
+_RENTCAFE_SKIP = re.compile(
+    r"^(View Units|Virtual Tour|Video|sq\.?\s*ft\.?|"
+    r"Request a Tour|Contact Us|click here|to start over\.?)$",
+    re.I,
+)
+
+
+def _parse_rentcafe_card_lines(lines: List[str]) -> dict:
+    """Parse one ``units_grid--item`` text block into a unit dict.
+
+    Expected line sequence (some fields may be absent):
+    ``PlanName → N BR / N.0 BA (or "Studio") → , sqft → sq ft →
+      [Virtual Tour] → [Video] → View Units → from $X* →
+      Base Rent $X • N mo. → N Available [Date / "Now"]``
+
+    Returns an empty dict for UI-placeholder items (e.g. "No results match…").
+    """
+    if not lines:
+        return {}
+    # "No results match the selected filters" placeholder — drop it
+    if re.search(r"no results\s+match|click here", lines[0], re.I):
+        return {}
+
+    unit: dict = {}
+    for line in lines:
+        if _RENTCAFE_SKIP.match(line):
+            continue
+
+        # Plan name — first non-skipped line
+        if "plan_name" not in unit:
+            unit["plan_name"] = line
+            if re.search(r"\bstudio\b", line, re.I):
+                unit.setdefault("bedrooms", 0)
+            continue
+
+        # Bed/bath: "1 BR / 1.0 BA"
+        m = re.match(r"(\d+)\s*BR\s*/\s*([\d.]+)\s*BA", line, re.I)
+        if m:
+            unit["bedrooms"] = int(m.group(1))
+            unit["bathrooms"] = float(m.group(2))
+            continue
+
+        # Studio standalone: "Studio" or "Studio/1BA"
+        if re.match(r"^studio\b", line, re.I):
+            unit.setdefault("bedrooms", 0)
+            m_ba = re.search(r"([\d.]+)\s*BA", line, re.I)
+            if m_ba:
+                unit["bathrooms"] = float(m_ba.group(1))
+            continue
+
+        # Sqft: ", 690" or ", 694 - 775" (take the smaller value)
+        m = re.match(r",\s*([\d,]+)(?:\s*[-\u2013]\s*([\d,]+))?", line)
+        if m:
+            unit["size_sqft"] = int(m.group(1).replace(",", ""))
+            continue
+
+        # Base rent (preferred price): "Base Rent $2,895 • 12 mo."
+        m = re.search(r"Base Rent\s+\$?([\d,]+)", line, re.I)
+        if m:
+            unit["price"] = int(m.group(1).replace(",", ""))
+            continue
+
+        # Starting price fallback: "from $2,901*"
+        m = re.search(r"from\s+\$?([\d,]+)", line, re.I)
+        if m and "price" not in unit:
+            unit["price"] = int(m.group(1).replace(",", ""))
+            continue
+
+        # Availability
+        if re.search(r"\bavailable\b|\bwaitlist\b|\bno units\b", line, re.I):
+            unit["availability"] = line
+
+    return unit
+
 
 class BrowserSession:
     """Async context manager that wraps a headless Chromium browser.
@@ -290,7 +371,43 @@ class BrowserSession:
             except Exception:
                 continue
 
+        # --- Step 3: fall back to RentCafe plan-card format on outer page ---
+        # Handles properties whose SightMap is map-view only (no DOM unit list)
+        # but whose main page uses the RentCafe FloorPlan V2 widget.
+        if not units:
+            units = await self._scrape_rentcafe_cards()
+
         return {"units": units, "total": len(units)}
+
+    async def _scrape_rentcafe_cards(self) -> List[dict]:
+        """Parse RentCafe ``units_grid--item`` plan cards from the outer page.
+
+        Always reads from the main frame, so it works even when
+        ``_active_frame`` points at a SightMap iframe.
+        """
+        try:
+            html = await self.page.main_frame.content()
+        except Exception:
+            return []
+        soup = BeautifulSoup(html, "html.parser")
+        for t in soup(["script", "style"]):
+            t.decompose()
+
+        # Grid layout (most common) → table layout (fallback)
+        items = soup.find_all(class_=re.compile(r"\bunits_grid--item\b", re.I))
+        if not items:
+            items = soup.find_all(class_=re.compile(r"\bunits_table--item\b", re.I))
+        if not items:
+            return []
+
+        units: List[dict] = []
+        for item in items:
+            raw = item.get_text(separator="\n", strip=True).replace("\xa0", " ")
+            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+            unit = _parse_rentcafe_card_lines(lines)
+            if unit.get("plan_name"):
+                units.append(unit)
+        return units
 
     # ------------------------------------------------------------------
     # Helpers
