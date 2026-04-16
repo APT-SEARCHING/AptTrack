@@ -90,26 +90,49 @@ class BrowserSession:
         except Exception as exc:
             return {"error": str(exc), "url": url, "text": "", "links": [], "buttons": [], "iframes": []}
 
-    async def read_iframe(self, keyword: str) -> dict:
+    async def read_iframe(self, keyword: str, timeout: float = 10.0, _replay: bool = False) -> dict:
         """Switch the active frame to the first iframe whose src contains *keyword*.
 
         After this call all subsequent tool calls (click_button, scroll_down,
         get_page_content) operate inside that iframe until navigate_to resets it.
 
         Returns the iframe's page state so the agent can see its content.
+
+        Polls for up to *timeout* seconds so that lazy-loaded iframes (e.g.
+        SightMap widgets that inject after initial page load) are found even
+        when called immediately after navigate_to (as during cache replay).
+
+        _replay=True uses a longer wait (frame-level networkidle + extra sleep)
+        so that SightMap's async API calls complete before extract_all_units runs.
+        During live agent runs the LLM's own processing time covers this gap.
         """
         try:
-            for frame in self.page.frames:
-                if keyword.lower() in frame.url.lower():
-                    self._active_frame = frame
-                    await asyncio.sleep(2)  # let the widget settle
-                    state = await self._page_state()
-                    state["active_frame"] = frame.url
-                    return state
-            # Not found — list available frames to help the agent
+            poll_interval = 0.5
+            elapsed = 0.0
+            while elapsed <= timeout:
+                for frame in self.page.frames:
+                    if keyword.lower() in frame.url.lower():
+                        self._active_frame = frame
+                        if _replay:
+                            # During replay there is no LLM delay between steps —
+                            # wait for the iframe's own XHR traffic to settle.
+                            try:
+                                await frame.wait_for_load_state("networkidle", timeout=15_000)
+                            except Exception:
+                                await asyncio.sleep(3)
+                            await asyncio.sleep(3)  # extra buffer
+                        else:
+                            await self._settle()
+                            await asyncio.sleep(2)
+                        state = await self._page_state()
+                        state["active_frame"] = frame.url
+                        return state
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+            # Not found after waiting — list available frames to help the agent
             available = [f.url for f in self.page.frames if f.url and f.url != "about:blank"]
             return {
-                "error": f"No iframe found matching {keyword!r}",
+                "error": f"No iframe found matching {keyword!r} (waited {timeout:.0f}s)",
                 "available_iframes": available,
             }
         except Exception as exc:
@@ -222,7 +245,14 @@ class BrowserSession:
             return found
 
         # --- Step 1: collect what's visible without any clicks ---
+        # Retry up to 3 times with increasing waits — SightMap's React widget
+        # may still be fetching unit data when we first call this.
         visible = await _scrape_visible_units()
+        for _wait in (4, 6):
+            if visible:
+                break
+            await asyncio.sleep(_wait)
+            visible = await _scrape_visible_units()
         for u in visible:
             key = u.get("unit_number", "")
             if key and key not in seen_units:

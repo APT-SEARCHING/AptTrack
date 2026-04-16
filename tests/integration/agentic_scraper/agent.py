@@ -554,7 +554,7 @@ class ApartmentAgent:
                 elif action == "scroll_down":
                     last_result = await browser.scroll_down()
                 elif action == "read_iframe":
-                    last_result = await browser.read_iframe(args.get("keyword", ""))
+                    last_result = await browser.read_iframe(args.get("keyword", ""), _replay=True)
                 elif action == "extract_all_units":
                     last_result = await browser.extract_all_units()
                 else:
@@ -563,6 +563,7 @@ class ApartmentAgent:
 
                 if isinstance(last_result, dict) and last_result.get("error"):
                     logger.info("Replay step %r failed: %s", action, last_result["error"])
+                    print(f"    [cache] replay failed at step '{action}': {last_result['error'][:120]}")
                     return None
             except Exception as exc:
                 logger.info("Replay step %r raised: %s", action, exc)
@@ -570,9 +571,10 @@ class ApartmentAgent:
 
         # If final step was extract_all_units, convert directly — 0 LLM calls.
         if isinstance(last_result, dict) and "units" in last_result:
-            data = _parse_units_to_apartment_data(
-                last_result["units"], apartment_name, url
-            )
+            units = last_result["units"]
+            if not units:
+                print(f"    [cache] replay: extract_all_units returned 0 units — invalidating")
+            data = _parse_units_to_apartment_data(units, apartment_name, url)
             if data and data.floor_plans:
                 return data
 
@@ -725,6 +727,11 @@ class ApartmentAgent:
 
                         if name == "extract_all_units":
                             tool_result = await browser.extract_all_units()
+                            # Track whether EAU actually yielded units so save_path
+                            # can skip caching sites where EAU returns nothing.
+                            navigation_steps[-1]["_eau_units"] = len(
+                                tool_result.get("units", []) if isinstance(tool_result, dict) else []
+                            )
                         elif name == "navigate_to":
                             tool_result = await browser.navigate_to(args.get("url", ""))
                         elif name == "read_iframe":

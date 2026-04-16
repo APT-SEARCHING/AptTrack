@@ -75,20 +75,28 @@ def save_path(url: str, steps: List[Dict[str, Any]], apartment_name: str) -> Non
     the last ``extract_all_units`` (e.g., the agent verifying its findings) are
     trimmed because they are not needed for replay and would break it.
     """
-    # Find the last extract_all_units index and truncate there (inclusive).
+    # Find the last extract_all_units index that actually returned units.
+    # EAU steps with _eau_units == 0 cannot be replayed (the site's SightMap
+    # either wasn't ready or uses a format the parser doesn't handle).
     last_eau = next(
-        (i for i in reversed(range(len(steps))) if steps[i]["action"] == "extract_all_units"),
+        (
+            i for i in reversed(range(len(steps)))
+            if steps[i]["action"] == "extract_all_units"
+            and steps[i].get("_eau_units", 1) > 0  # default 1 for old entries
+        ),
         None,
     )
     if last_eau is None:
         logger.info(
-            "Path cache skipped for %s: no extract_all_units step found "
+            "Path cache skipped for %s: no extract_all_units step with units found "
             "(site needs LLM for interpretation; cannot replay offline)",
             _domain_key(url),
         )
         return
 
-    steps = steps[: last_eau + 1]  # trim anything after the last EAU
+    steps = steps[: last_eau + 1]  # trim anything after the last productive EAU
+    # Strip internal bookkeeping keys before persisting.
+    steps = [{k: v for k, v in s.items() if not k.startswith("_")} for s in steps]
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     key = _domain_key(url)

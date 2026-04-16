@@ -99,8 +99,8 @@ async def main():
     if not api_key:
         print("ERROR: MINIMAX_API_KEY not set"); sys.exit(1)
 
-    print(f"Scraping {len(APARTMENTS)} Bay Area apartments (max 3 concurrent)…\n")
-    sem = asyncio.Semaphore(3)  # 3 concurrent to avoid rate limits
+    print(f"Scraping {len(APARTMENTS)} Bay Area apartments (max 6 concurrent)…\n")
+    sem = asyncio.Semaphore(6)  # 6 concurrent — bottleneck is LLM API latency, not local CPU
     tasks = [scrape_one(name, url, api_key, sem) for name, url in APARTMENTS]
     results = await asyncio.gather(*tasks)
 
