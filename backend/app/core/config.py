@@ -1,10 +1,25 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Tuple, Type
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+
+
+class _CommaSplittingEnvSource(EnvSettingsSource):
+    """EnvSettingsSource that falls back to comma-splitting for list[str] fields
+    instead of raising a SettingsError when the value is not valid JSON."""
+
+    def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            # Comma-separated string → list (e.g. CORS_ORIGINS env var)
+            if isinstance(value, str):
+                return [v.strip() for v in value.split(",") if v.strip()]
+            raise
 
 
 class Settings(BaseSettings):
@@ -86,6 +101,22 @@ class Settings(BaseSettings):
         case_sensitive=True,
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+    ) -> Tuple[Any, ...]:
+        return (
+            init_settings,
+            _CommaSplittingEnvSource(settings_cls),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
 
 settings = Settings()
