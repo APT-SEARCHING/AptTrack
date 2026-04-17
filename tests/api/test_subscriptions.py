@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 BASE = "/api/v1/subscriptions"
 APTS_BASE = "/api/v1/apartments"
@@ -192,3 +193,206 @@ class TestDeleteSubscription:
     def test_delete_not_found(self, client: TestClient, user_headers):
         resp = client.delete(f"{BASE}/99999", headers=user_headers)
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Baseline price capture (Phase A, Bug-2 pre-requisite)
+# ---------------------------------------------------------------------------
+
+def _seed_apartment_with_plan(db: Session, price: float = 3000.0) -> tuple:
+    """Insert an Apartment + Plan directly and return (apartment_id, plan_id)."""
+    from app.models.apartment import Apartment, Plan
+
+    apt = Apartment(
+        title="Baseline Test Apts", city="San Jose", state="CA",
+        zipcode="95110", property_type="apartment", is_available=True,
+    )
+    db.add(apt)
+    db.flush()
+
+    plan = Plan(
+        apartment_id=apt.id, name="1BR", bedrooms=1, bathrooms=1,
+        area_sqft=600, price=price, is_available=True,
+    )
+    db.add(plan)
+    db.flush()
+    return apt.id, plan.id
+
+
+def _seed_price_history(db: Session, plan_id: int, prices: list) -> None:
+    """Insert PlanPriceHistory rows newest-first (prices[0] is most recent)."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.apartment import PlanPriceHistory
+
+    now = datetime.now(timezone.utc)
+    for i, price in enumerate(prices):
+        db.add(PlanPriceHistory(
+            plan_id=plan_id,
+            price=price,
+            recorded_at=now - timedelta(days=i),
+        ))
+    db.flush()
+
+
+class TestCreateSubscriptionBaseline:
+    """Verify that create_subscription correctly captures baseline_price."""
+
+    def test_explicit_baseline_from_frontend(
+        self, client: TestClient, db: Session, admin_headers, user_headers
+    ):
+        """Frontend passes baseline_price explicitly — must be stored as-is."""
+        apt_id, _ = _seed_apartment_with_plan(db, price=3000.0)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "target_price": 2500.0,
+                "baseline_price": 3100.0,  # frontend-supplied
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["baseline_price"] == 3100.0
+        assert data["baseline_recorded_at"] is not None
+
+    def test_inferred_baseline_from_price_history(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """No baseline_price supplied — server infers from latest PlanPriceHistory."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=3000.0)
+        _seed_price_history(db, plan_id, prices=[2900.0, 3000.0, 3100.0])
+
+        resp = client.post(
+            BASE,
+            json={"plan_id": plan_id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        # Most recent history price is 2900.0 (index 0 = newest)
+        assert data["baseline_price"] == 2900.0
+        assert data["baseline_recorded_at"] is not None
+
+    def test_inferred_baseline_falls_back_to_plan_price(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """No price history → server falls back to Plan.price."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=2750.0)
+        # No PlanPriceHistory rows seeded
+
+        resp = client.post(
+            BASE,
+            json={"plan_id": plan_id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["baseline_price"] == 2750.0
+
+    def test_baseline_none_when_no_price_data(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Plan exists with no price and no history — baseline should be None."""
+        from app.models.apartment import Apartment, Plan
+
+        apt = Apartment(
+            title="No Price Apts", city="Oakland", state="CA",
+            zipcode="94612", property_type="apartment", is_available=True,
+        )
+        db.add(apt)
+        db.flush()
+        plan = Plan(
+            apartment_id=apt.id, name="TBD", bedrooms=1, bathrooms=1,
+            area_sqft=500, price=None, is_available=True,
+        )
+        db.add(plan)
+        db.flush()
+
+        resp = client.post(
+            BASE,
+            json={"plan_id": plan.id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["baseline_price"] is None
+        assert data["baseline_recorded_at"] is None
+
+    def test_inferred_baseline_apartment_level(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Apartment-level sub infers baseline as min available plan price."""
+        from app.models.apartment import Apartment, Plan
+
+        apt = Apartment(
+            title="Multi Plan Apts", city="Fremont", state="CA",
+            zipcode="94538", property_type="apartment", is_available=True,
+        )
+        db.add(apt)
+        db.flush()
+        for price in [2800.0, 3200.0, 3600.0]:
+            db.add(Plan(
+                apartment_id=apt.id, name=f"Plan {price}", bedrooms=1,
+                bathrooms=1, area_sqft=600, price=price, is_available=True,
+            ))
+        db.flush()
+
+        resp = client.post(
+            BASE,
+            json={"apartment_id": apt.id, "price_drop_pct": 10.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        # Min available plan price
+        assert resp.json()["baseline_price"] == 2800.0
+
+    def test_inferred_baseline_area_level(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Area-level sub (city only) infers baseline as avg price across matching plans."""
+        from app.models.apartment import Apartment, Plan
+
+        for price in [2000.0, 4000.0]:
+            apt = Apartment(
+                title=f"Area Apt {price}", city="Hayward", state="CA",
+                zipcode="94541", property_type="apartment", is_available=True,
+            )
+            db.add(apt)
+            db.flush()
+            db.add(Plan(
+                apartment_id=apt.id, name="1BR", bedrooms=1, bathrooms=1,
+                area_sqft=600, price=price, is_available=True,
+            ))
+        db.flush()
+
+        resp = client.post(
+            BASE,
+            json={"city": "Hayward", "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+        # avg(2000, 4000) = 3000
+        assert resp.json()["baseline_price"] == 3000.0
+
+    def test_update_does_not_change_baseline(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """PUT /subscriptions/{id} must not expose or alter baseline_price."""
+        apt_id, _ = _seed_apartment_with_plan(db, price=3000.0)
+        created = client.post(
+            BASE,
+            json={"apartment_id": apt_id, "target_price": 2500.0, "notify_email": True},
+            headers=user_headers,
+        ).json()
+        original_baseline = created["baseline_price"]
+
+        updated = client.put(
+            f"{BASE}/{created['id']}",
+            json={"target_price": 2000.0},
+            headers=user_headers,
+        ).json()
+
+        assert updated["target_price"] == 2000.0
+        assert updated["baseline_price"] == original_baseline

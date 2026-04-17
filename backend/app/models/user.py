@@ -56,6 +56,14 @@ class PriceSubscription(Base):
     notify_telegram = Column(Boolean, default=False, nullable=False)
     telegram_chat_id = Column(String, nullable=True)
 
+    # Baseline price — captured at subscription-creation time.
+    # Used as denominator for price_drop_pct and as the "last known price
+    # above target" seed for target_price crossing detection.
+    baseline_price = Column(Float, nullable=True,
+        comment="Price at subscription-creation time")
+    baseline_recorded_at = Column(DateTime(timezone=True), nullable=True,
+        comment="When baseline_price was captured")
+
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     last_notified_at = Column(DateTime(timezone=True), nullable=True)

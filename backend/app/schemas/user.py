@@ -48,6 +48,11 @@ class SubscriptionCreate(BaseModel):
     target_price: Optional[float] = None
     price_drop_pct: Optional[float] = Field(None, ge=0, le=100)
 
+    # Baseline — frontend may pass the currently displayed price so the
+    # server doesn't need an extra DB round-trip.  If omitted, the endpoint
+    # infers it from the latest price history.
+    baseline_price: Optional[float] = None
+
     # Channels
     notify_email: bool = True
     notify_telegram: bool = False
@@ -80,6 +85,8 @@ class SubscriptionResponse(BaseModel):
     max_bedrooms: Optional[float]
     target_price: Optional[float]
     price_drop_pct: Optional[float]
+    baseline_price: Optional[float]
+    baseline_recorded_at: Optional[datetime]
     notify_email: bool
     notify_telegram: bool
     telegram_chat_id: Optional[str]
