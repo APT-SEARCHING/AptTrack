@@ -8,6 +8,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+# Fixed-offset stand-in for America/Los_Angeles (PST = UTC-8).
+# Using a fixed offset avoids a zoneinfo / pytz dependency in tests.
+_PT = timezone(timedelta(hours=-8))
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -277,3 +281,66 @@ class TestPriceDropPct:
 
         assert sub.is_active is False
         assert sub.trigger_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Bug #3: debounce last_notified_at timezone handling
+# ---------------------------------------------------------------------------
+
+class TestDebounceTimezone:
+    """Verify _check_subscription correctly computes debounce age regardless of
+    whether last_notified_at is naive, UTC-aware, or non-UTC-aware."""
+
+    def _sub_already_triggered(
+        self, db: Session, last_notified: datetime
+    ) -> PriceSubscription:
+        """Create a subscription that would trigger (price just crossed below target)
+        but has last_notified_at set to *last_notified* to test debounce."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2800.0)
+        _add_history(db, plan_id, prices=[2800.0, 3200.0])
+        sub = _make_sub(db, user.id, plan_id, target_price=3000.0, baseline_price=3200.0)
+        sub.last_notified_at = last_notified
+        db.flush()
+        return sub
+
+    def test_aware_utc_recent_debounces(self, db: Session):
+        """Aware UTC datetime 1 hour ago → within 24h window → debounced."""
+        recent = datetime.now(timezone.utc) - timedelta(hours=1)
+        sub = self._sub_already_triggered(db, last_notified=recent)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+
+    def test_aware_non_utc_recent_debounces(self, db: Session):
+        """Aware PT datetime 1 hour ago → still within 24h after astimezone → debounced."""
+        recent_pt = datetime.now(_PT) - timedelta(hours=1)
+        sub = self._sub_already_triggered(db, last_notified=recent_pt)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+
+    def test_naive_recent_debounces(self, db: Session):
+        """Naive datetime 1 hour ago → assumed UTC → within 24h → debounced."""
+        recent_naive = datetime.utcnow() - timedelta(hours=1)
+        assert recent_naive.tzinfo is None
+        sub = self._sub_already_triggered(db, last_notified=recent_naive)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+
+    def test_aware_utc_old_does_not_debounce(self, db: Session):
+        """Aware UTC datetime 25 hours ago → outside 24h window → fires."""
+        old = datetime.now(timezone.utc) - timedelta(hours=25)
+        sub = self._sub_already_triggered(db, last_notified=old)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_called_once()

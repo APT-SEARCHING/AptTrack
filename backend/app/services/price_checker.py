@@ -57,7 +57,9 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
     if sub.last_notified_at is not None:
         last = sub.last_notified_at
         if last.tzinfo is None:
-            last = last.replace(tzinfo=timezone.utc)
+            last = last.replace(tzinfo=timezone.utc)  # legacy naive rows — assume UTC
+        else:
+            last = last.astimezone(timezone.utc)  # normalise any non-UTC aware tz
         age = datetime.now(timezone.utc) - last
         if age < timedelta(hours=_DEBOUNCE_HOURS):
             logger.debug("Subscription %d debounced (last notified %s ago)", sub.id, age)
