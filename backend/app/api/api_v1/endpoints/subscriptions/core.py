@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -7,11 +8,9 @@ from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import PriceSubscription, User
 from app.schemas.user import SubscriptionCreate, SubscriptionResponse, SubscriptionUpdate
-from app.services.price_checker import _make_unsub_token
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-import hmac
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 
@@ -58,6 +57,7 @@ def create_subscription(
         user_id=current_user.id,
         baseline_price=baseline_price,
         baseline_recorded_at=baseline_recorded_at,
+        unsubscribe_token=secrets.token_urlsafe(16),
     )
     db.add(sub)
     db.commit()
@@ -105,29 +105,6 @@ def delete_subscription(
     sub = _get_owned_or_404(sub_id, current_user.id, db)
     db.delete(sub)
     db.commit()
-
-
-@router.get("/unsubscribe")
-def unsubscribe_by_token(
-    sub_id: int,
-    token: str,
-    db: Session = Depends(get_db),
-):
-    """One-click unsubscribe link included in alert emails (CAN-SPAM).
-
-    No auth required — the HMAC token in the URL is the credential.
-    """
-    expected = _make_unsub_token(sub_id)
-    if not hmac.compare_digest(token, expected):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid unsubscribe token")
-    sub = db.execute(
-        select(PriceSubscription).where(PriceSubscription.id == sub_id)
-    ).scalar_one_or_none()
-    if sub is None:
-        return {"message": "Already unsubscribed"}
-    sub.is_active = False
-    db.commit()
-    return {"message": "You have been unsubscribed from this alert"}
 
 
 # ---------------------------------------------------------------------------

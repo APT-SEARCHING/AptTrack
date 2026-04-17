@@ -5,10 +5,8 @@ It queries every active PriceSubscription, computes the latest
 relevant price, and fires notifications when thresholds are crossed.
 """
 
-import hashlib
-import hmac as _hmac
-import logging
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -189,14 +187,6 @@ def _is_triggered(
 # Notification content
 # ---------------------------------------------------------------------------
 
-def _make_unsub_token(sub_id: int) -> str:
-    """HMAC-SHA256 token for the one-click unsubscribe link (CAN-SPAM)."""
-    from app.core.config import settings
-    key = settings.JWT_SECRET_KEY.encode()
-    msg = f"unsub:{sub_id}".encode()
-    return _hmac.new(key, msg, hashlib.sha256).hexdigest()
-
-
 def _render_alert_context(
     sub: PriceSubscription,
     latest_price: float,
@@ -219,6 +209,7 @@ def _render_alert_context(
         "plan_spec": None,
         "thirty_day_low": None,
         "unsub_url": None,
+        "unsub_all_url": None,
         "alerts_url": f"{settings.APP_BASE_URL}/alerts",
     }
 
@@ -230,12 +221,16 @@ def _render_alert_context(
     if sub.baseline_recorded_at:
         ctx["was_date"] = sub.baseline_recorded_at.strftime("%b %-d")
 
-    # Unsubscribe link
-    token = _make_unsub_token(sub.id)
-    ctx["unsub_url"] = (
-        f"{settings.APP_BASE_URL}/api/v1/subscriptions/unsubscribe"
-        f"?sub_id={sub.id}&token={token}"
-    )
+    # Unsubscribe links (use stored tokens; fall back gracefully if not yet set)
+    if sub.unsubscribe_token:
+        ctx["unsub_url"] = f"{settings.APP_BASE_URL}/unsubscribe/{sub.unsubscribe_token}"
+
+    # "Unsubscribe from all alerts" — requires fetching the user's token
+    user = db.execute(select(User).where(User.id == sub.user_id)).scalar_one_or_none()
+    if user and user.unsubscribe_all_token:
+        ctx["unsub_all_url"] = (
+            f"{settings.APP_BASE_URL}/unsubscribe/all/{user.unsubscribe_all_token}"
+        )
 
     # Resolve apartment
     apt: Optional[Apartment] = None
@@ -412,11 +407,13 @@ def _build_body_plaintext(ctx: Dict[str, Any], sub: PriceSubscription) -> str:
         "",
         pause_note,
     ]
+    unsub_lines = []
     if ctx["unsub_url"]:
-        sections += [
-            "",
-            f"To unsubscribe from this alert:\n  \u2192 {ctx['unsub_url']}",
-        ]
+        unsub_lines.append(f"Unsubscribe from this alert:\n  \u2192 {ctx['unsub_url']}")
+    if ctx["unsub_all_url"]:
+        unsub_lines.append(f"Unsubscribe from all AptTrack alerts:\n  \u2192 {ctx['unsub_all_url']}")
+    if unsub_lines:
+        sections += [""] + unsub_lines
     sections += [
         sep,
         "AptTrack \u00b7 Bay Area rental price transparency",

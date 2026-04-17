@@ -21,6 +21,8 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Stable token for one-click "unsubscribe from all alerts" link in emails
+    unsubscribe_all_token = Column(String, unique=True, nullable=True, index=True)
 
     subscriptions = relationship(
         "PriceSubscription",
@@ -63,6 +65,9 @@ class PriceSubscription(Base):
         comment="Price at subscription-creation time")
     baseline_recorded_at = Column(DateTime(timezone=True), nullable=True,
         comment="When baseline_price was captured")
+
+    # Stable token for one-click unsubscribe link in emails (CAN-SPAM)
+    unsubscribe_token = Column(String, unique=True, nullable=True, index=True)
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)

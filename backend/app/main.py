@@ -5,6 +5,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.api_v1.api import api_router
+from app.api.unsubscribe import router as unsubscribe_router
 from app.core.config import settings
 from app.core.limiter import limiter  # shared singleton
 
@@ -34,6 +35,7 @@ app.add_middleware(
 # Routes
 # ---------------------------------------------------------------------------
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(unsubscribe_router)  # /unsubscribe/* — no prefix, returns HTML
 
 
 @app.get("/health")

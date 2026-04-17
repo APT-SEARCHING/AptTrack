@@ -3,6 +3,7 @@ import { Routes, Route, Link } from 'react-router-dom';
 import ListingsPage from './pages/ListingsPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import AlertsPage from './pages/AlertsPage';
+import UnsubscribePage from './pages/UnsubscribePage';
 import AuthModal from './components/AuthModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -77,6 +78,8 @@ const App: React.FC = () => (
           <Route path="/" element={<ListingsPage />} />
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/unsubscribe/all/:token" element={<UnsubscribePage variant="all" />} />
+          <Route path="/unsubscribe/:token" element={<UnsubscribePage variant="one" />} />
         </Routes>
       </main>
       <footer className="bg-slate-900 text-slate-500 text-xs text-center py-4 mt-12">

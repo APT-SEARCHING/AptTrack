@@ -1,3 +1,5 @@
+import secrets
+
 from app.core.limiter import limiter
 from app.core.security import (
     create_access_token,
@@ -28,6 +30,7 @@ def register(request: Request, payload: UserCreate, db: Session = Depends(get_db
     user = User(
         email=payload.email,
         hashed_password=hash_password(payload.password),
+        unsubscribe_all_token=secrets.token_urlsafe(16),
     )
     db.add(user)
     db.commit()
