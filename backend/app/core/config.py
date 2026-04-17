@@ -5,21 +5,31 @@ from pathlib import Path
 from typing import Any, Tuple, Type
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource, SettingsConfigDict
+
+
+def _comma_split_decode(field_name: str, field: Any, value: Any) -> Any:
+    """Decode a list[str] field from either JSON or a comma-separated string."""
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, ValueError):
+        if isinstance(value, str):
+            return [v.strip() for v in value.split(",") if v.strip()]
+        raise
 
 
 class _CommaSplittingEnvSource(EnvSettingsSource):
-    """EnvSettingsSource that falls back to comma-splitting for list[str] fields
-    instead of raising a SettingsError when the value is not valid JSON."""
+    """EnvSettingsSource that falls back to comma-splitting for list[str] fields."""
 
     def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, ValueError):
-            # Comma-separated string → list (e.g. CORS_ORIGINS env var)
-            if isinstance(value, str):
-                return [v.strip() for v in value.split(",") if v.strip()]
-            raise
+        return _comma_split_decode(field_name, field, value)
+
+
+class _CommaSplittingDotEnvSource(DotEnvSettingsSource):
+    """DotEnvSettingsSource that falls back to comma-splitting for list[str] fields."""
+
+    def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:
+        return _comma_split_decode(field_name, field, value)
 
 
 class Settings(BaseSettings):
@@ -60,6 +70,7 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@apttrack.app"
     TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_ADMIN_CHAT_ID: str = ""  # chat_id for nightly scrape-digest messages
 
     # API
     API_BASE_URL: str = "http://localhost:8000/api/v1"
@@ -100,6 +111,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=True,
         env_file=str(Path(__file__).parent.parent.parent / ".env"),
+        extra="ignore",
     )
 
     @classmethod
@@ -114,7 +126,7 @@ class Settings(BaseSettings):
         return (
             init_settings,
             _CommaSplittingEnvSource(settings_cls),
-            dotenv_settings,
+            _CommaSplittingDotEnvSource(settings_cls),
             file_secret_settings,
         )
 
