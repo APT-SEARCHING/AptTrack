@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import api, { ApartmentSummary, ListingsFilter } from '../services/api';
+import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import FilterPanel from '../components/FilterPanel';
+import MapView from '../components/MapView';
 
 // ── Apartment complex card ────────────────────────────────────────────────────
 
@@ -25,9 +26,11 @@ const bedLabel = (min: number, max: number) => {
 
 const ApartmentCard: React.FC<{ apt: ApartmentSummary }> = ({ apt }) => {
   const c = cityStyle(apt.city);
-  const priceRange = apt.min_price === apt.max_price
-    ? `$${apt.min_price.toLocaleString()}`
-    : `$${apt.min_price.toLocaleString()} – $${apt.max_price.toLocaleString()}`;
+  const priceRange = apt.min_price == null
+    ? 'Contact for pricing'
+    : apt.min_price === apt.max_price
+      ? `$${apt.min_price.toLocaleString()}`
+      : `$${apt.min_price.toLocaleString()} – $${(apt.max_price ?? apt.min_price).toLocaleString()}`;
 
   return (
     <Link to={`/listings/${apt.id}`} className="block group">
@@ -56,7 +59,7 @@ const ApartmentCard: React.FC<{ apt: ApartmentSummary }> = ({ apt }) => {
           {/* Price */}
           <div className="mb-4">
             <span className="text-2xl font-bold text-slate-900">{priceRange}</span>
-            <span className="text-slate-400 text-sm">/mo</span>
+            {apt.min_price != null && <span className="text-slate-400 text-sm">/mo</span>}
           </div>
 
           {/* Footer: specs + cta */}
@@ -96,6 +99,7 @@ const ListingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ListingsFilter>({});
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   useEffect(() => {
     setLoading(true);
@@ -109,14 +113,14 @@ const ListingsPage: React.FC = () => {
   // client-side filter by bedrooms (since API filters by min_bedrooms on plans)
   const filtered = useMemo(() => {
     let result = apts;
-    if (filters.min_price) result = result.filter(a => a.max_price >= filters.min_price!);
-    if (filters.max_price) result = result.filter(a => a.min_price <= filters.max_price!);
+    if (filters.min_price) result = result.filter(a => a.max_price != null && a.max_price >= filters.min_price!);
+    if (filters.max_price) result = result.filter(a => a.min_price != null && a.min_price <= filters.max_price!);
     if (filters.bedrooms !== undefined)
       result = result.filter(a => a.max_beds >= filters.bedrooms!);
     return result;
   }, [apts, filters]);
 
-  const allPrices = apts.flatMap(a => [a.min_price, a.max_price]).filter(Boolean);
+  const allPrices = apts.flatMap(a => [a.min_price, a.max_price]).filter((p): p is number => p != null && p > 0);
   const avgPrice = allPrices.length
     ? Math.round(allPrices.reduce((s, p) => s + p, 0) / allPrices.length)
     : 0;
@@ -163,6 +167,38 @@ const ListingsPage: React.FC = () => {
             <p className="text-sm text-slate-500">
               {loading ? 'Loading…' : `${filtered.length} apartment${filtered.length !== 1 ? 's' : ''}`}
             </p>
+            <div className="flex items-center gap-3">
+            {/* Sort */}
+            <select
+              value={filters.sort ?? 'price_asc'}
+              onChange={e => setFilters(f => ({ ...f, sort: e.target.value as SortOption }))}
+              className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <option value="price_asc">Price: low to high</option>
+              <option value="price_desc">Price: high to low</option>
+              <option value="updated_desc">Recently updated</option>
+              <option value="name_asc">Name A–Z</option>
+            </select>
+            {/* List / Map toggle */}
+            <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                ☰ List
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  viewMode === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                🗺 Map
+              </button>
+            </div>
+            </div>
           </div>
 
           {/* Mobile filters */}
@@ -185,6 +221,8 @@ const ListingsPage: React.FC = () => {
               <p className="text-lg font-medium text-slate-600">No apartments match your filters</p>
               <p className="text-sm mt-1">Try a different city or price range</p>
             </div>
+          ) : viewMode === 'map' ? (
+            <MapView apartments={filtered} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {filtered.map(apt => <ApartmentCard key={apt.id} apt={apt} />)}

@@ -160,6 +160,8 @@ export interface SubscriptionResponse {
   latest_price: number | null;
 }
 
+export type SortOption = 'price_asc' | 'price_desc' | 'updated_desc' | 'name_asc';
+
 export interface ListingsFilter {
   location?: string;
   min_price?: number;
@@ -167,6 +169,7 @@ export interface ListingsFilter {
   bedrooms?: number;
   skip?: number;
   limit?: number;
+  sort?: SortOption;
 }
 
 const _AMI_PATTERN = /\bami\b|\d+%\s*ami|area median income|income.restricted|income.qualified|lihtc|section 8/i;
@@ -310,6 +313,7 @@ const api = {
       min_bedrooms: filters.bedrooms,
       skip: filters.skip ?? 0,
       limit: filters.limit ?? 100,
+      sort: filters.sort ?? 'price_asc',
     };
     const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
     return apts.map(aptToSummary).filter(a => a.plan_count > 0 && !a._isAffordableHousing);

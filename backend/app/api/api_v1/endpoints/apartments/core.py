@@ -6,11 +6,14 @@ from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import User
 from app.schemas.apartment import ApartmentCreate, ApartmentResponse, ApartmentUpdate
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.orm import Session
 
 router = APIRouter()
+
+
+_SORT_OPTIONS = {"price_asc", "price_desc", "updated_desc", "name_asc"}
 
 
 @router.get("/apartments", response_model=List[ApartmentResponse])
@@ -28,7 +31,11 @@ def get_apartments(
     max_price: Optional[float] = None,
     property_type: Optional[str] = None,
     is_available: Optional[bool] = None,
+    sort: str = Query(default="price_asc", description="price_asc | price_desc | updated_desc | name_asc"),
 ):
+    if sort not in _SORT_OPTIONS:
+        raise HTTPException(status_code=422, detail=f"sort must be one of {sorted(_SORT_OPTIONS)}")
+
     stmt = select(Apartment)
 
     if city:
@@ -52,6 +59,28 @@ def get_apartments(
         stmt = stmt.where(Apartment.property_type == property_type)
     if is_available is not None:
         stmt = stmt.where(Apartment.is_available == is_available)
+
+    # price_asc / price_desc: sort by the minimum available plan price for each
+    # apartment.  Apartments with no priced plans sort last (NULLs last).
+    if sort in ("price_asc", "price_desc"):
+        price_subq = (
+            select(
+                Plan.apartment_id,
+                func.min(Plan.price).label("min_price"),
+            )
+            .where(Plan.is_available.is_(True), Plan.price.isnot(None))
+            .group_by(Plan.apartment_id)
+            .subquery()
+        )
+        stmt = stmt.outerjoin(price_subq, Apartment.id == price_subq.c.apartment_id)
+        if sort == "price_asc":
+            stmt = stmt.order_by(asc(func.coalesce(price_subq.c.min_price, 999_999_999)))
+        else:
+            stmt = stmt.order_by(desc(func.coalesce(price_subq.c.min_price, 0)))
+    elif sort == "updated_desc":
+        stmt = stmt.order_by(desc(Apartment.updated_at))
+    elif sort == "name_asc":
+        stmt = stmt.order_by(asc(Apartment.title))
 
     return db.execute(stmt.offset(skip).limit(limit)).scalars().all()
 
