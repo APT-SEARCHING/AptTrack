@@ -27,6 +27,17 @@ def create_subscription(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="At least one of apartment_id, plan_id, or city must be provided",
         )
+    if any(
+        v is not None
+        for v in (payload.city, payload.zipcode, payload.min_bedrooms, payload.max_bedrooms)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Area-level subscriptions are temporarily disabled. "
+                "Subscribe to a specific apartment or plan instead."
+            ),
+        )
     if payload.target_price is None and payload.price_drop_pct is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

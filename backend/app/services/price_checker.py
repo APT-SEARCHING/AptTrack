@@ -95,17 +95,13 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
 def _get_latest_price(sub: PriceSubscription, db: Session) -> Optional[float]:
     """Return the most recent price relevant to this subscription."""
     if sub.plan_id is not None:
-        price = db.execute(
+        # Only use recorded price history — Plan.price is a stale seed column
+        # and could trigger false alerts. Return None if no history yet.
+        return db.execute(
             select(PlanPriceHistory.price)
             .where(PlanPriceHistory.plan_id == sub.plan_id)
             .order_by(PlanPriceHistory.recorded_at.desc())
             .limit(1)
-        ).scalar_one_or_none()
-        if price is not None:
-            return price
-        # Fallback to plan.price
-        return db.execute(
-            select(Plan.price).where(Plan.id == sub.plan_id)
         ).scalar_one_or_none()
 
     if sub.apartment_id is not None:

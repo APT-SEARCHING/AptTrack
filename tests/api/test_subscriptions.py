@@ -79,14 +79,15 @@ class TestCreateSubscription:
         assert resp.status_code == 201
         assert resp.json()["price_drop_pct"] == 5.0
 
-    def test_create_with_city_scope(self, client: TestClient, user_headers):
+    def test_create_with_city_scope_rejected(self, client: TestClient, user_headers):
+        """Area-level subscriptions are disabled (bug #5) — city alone → 422."""
         resp = client.post(
             BASE,
             json={"city": "Oakland", "target_price": 2000.0, "notify_email": True},
             headers=user_headers,
         )
-        assert resp.status_code == 201
-        assert resp.json()["city"] == "Oakland"
+        assert resp.status_code == 422
+        assert "temporarily disabled" in resp.json()["detail"]
 
     def test_pct_drop_out_of_range(self, client: TestClient, admin_headers, user_headers):
         apt_id = _make_apartment(client, admin_headers)
@@ -193,6 +194,79 @@ class TestDeleteSubscription:
     def test_delete_not_found(self, client: TestClient, user_headers):
         resp = client.delete(f"{BASE}/99999", headers=user_headers)
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Bug #5: area-level subscription fields rejected at API layer
+# ---------------------------------------------------------------------------
+
+class TestAreaLevelRejected:
+    """Any payload containing city, zipcode, min_bedrooms, or max_bedrooms
+    must be rejected with 422 (area-level subscriptions temporarily disabled)."""
+
+    def test_city_rejected(self, client: TestClient, user_headers):
+        resp = client.post(
+            BASE,
+            json={"city": "San Jose", "target_price": 2000.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+        assert "temporarily disabled" in resp.json()["detail"]
+
+    def test_zipcode_rejected(self, client: TestClient, admin_headers, user_headers):
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "zipcode": "94102",
+                "target_price": 2000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+        assert "temporarily disabled" in resp.json()["detail"]
+
+    def test_min_bedrooms_rejected(self, client: TestClient, admin_headers, user_headers):
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "min_bedrooms": 1.0,
+                "target_price": 2000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_max_bedrooms_rejected(self, client: TestClient, admin_headers, user_headers):
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "max_bedrooms": 2.0,
+                "target_price": 2000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_apartment_without_area_fields_accepted(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """Apartment-level sub with no area fields must still work."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={"apartment_id": apt_id, "target_price": 2000.0, "notify_email": True},
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
 
 
 # ---------------------------------------------------------------------------
@@ -347,34 +421,6 @@ class TestCreateSubscriptionBaseline:
         assert resp.status_code == 201
         # Min available plan price
         assert resp.json()["baseline_price"] == 2800.0
-
-    def test_inferred_baseline_area_level(
-        self, client: TestClient, db: Session, user_headers
-    ):
-        """Area-level sub (city only) infers baseline as avg price across matching plans."""
-        from app.models.apartment import Apartment, Plan
-
-        for price in [2000.0, 4000.0]:
-            apt = Apartment(
-                title=f"Area Apt {price}", city="Hayward", state="CA",
-                zipcode="94541", property_type="apartment", is_available=True,
-            )
-            db.add(apt)
-            db.flush()
-            db.add(Plan(
-                apartment_id=apt.id, name="1BR", bedrooms=1, bathrooms=1,
-                area_sqft=600, price=price, is_available=True,
-            ))
-        db.flush()
-
-        resp = client.post(
-            BASE,
-            json={"city": "Hayward", "price_drop_pct": 5.0, "notify_email": True},
-            headers=user_headers,
-        )
-        assert resp.status_code == 201
-        # avg(2000, 4000) = 3000
-        assert resp.json()["baseline_price"] == 3000.0
 
     def test_update_does_not_change_baseline(
         self, client: TestClient, db: Session, user_headers

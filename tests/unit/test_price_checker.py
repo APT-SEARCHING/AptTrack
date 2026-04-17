@@ -344,3 +344,38 @@ class TestDebounceTimezone:
             _check_subscription(sub, db)
 
         mock_notify.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Bug #4: no PlanPriceHistory → _get_latest_price returns None → early return
+# ---------------------------------------------------------------------------
+
+class TestNoHistoryEarlyReturn:
+
+    def test_plan_with_no_history_does_not_trigger(self, db: Session):
+        """Plan exists with a price set on Plan.price but zero PlanPriceHistory rows.
+        _get_latest_price must return None (not Plan.price), so no alert fires."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2500.0)
+        # Deliberately add NO history rows
+        sub = _make_sub(db, user.id, plan_id, target_price=3000.0, baseline_price=3000.0)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+        assert sub.is_active is True
+        assert sub.trigger_count == 0
+
+    def test_plan_with_history_still_triggers(self, db: Session):
+        """Confirm the removal of the fallback didn't break the normal path."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2800.0)
+        _add_history(db, plan_id, prices=[2800.0, 3200.0])
+        sub = _make_sub(db, user.id, plan_id, target_price=3000.0, baseline_price=3200.0)
+
+        with patch("app.services.price_checker._send_notifications"):
+            _check_subscription(sub, db)
+
+        assert sub.is_active is False
+        assert sub.trigger_count == 1
