@@ -87,15 +87,18 @@ export interface Listing {
 export interface ApartmentSummary {
   id: number;
   title: string;
+  _isAffordableHousing?: boolean;
   location: string;
   city: string;
   source_url: string | null;
   plan_count: number;
   available_count: number;
-  min_price: number;
-  max_price: number;
+  min_price: number | null;
+  max_price: number | null;
   min_beds: number;
   max_beds: number;
+  latitude: number | null;
+  longitude: number | null;
   _raw: ApartmentResponse;
 }
 
@@ -141,11 +144,20 @@ export interface SubscriptionResponse {
   city: string | null;
   target_price: number | null;
   price_drop_pct: number | null;
+  baseline_price: number | null;
+  baseline_recorded_at: string | null;
   notify_email: boolean;
   notify_telegram: boolean;
   is_active: boolean;
   last_notified_at: string | null;
+  trigger_count: number;
   created_at: string;
+  // Enriched fields (populated on list, null on create)
+  apartment_title: string | null;
+  apartment_city: string | null;
+  plan_name: string | null;
+  plan_spec: string | null;
+  latest_price: number | null;
 }
 
 export interface ListingsFilter {
@@ -157,13 +169,25 @@ export interface ListingsFilter {
   limit?: number;
 }
 
+const _AMI_PATTERN = /\bami\b|\d+%\s*ami|area median income|income.restricted|income.qualified|lihtc|section 8/i;
+const _AFFORDABLE_TITLE_PATTERN = /housing authority|affordable housing|community development corp|habitat for humanity|public housing/i;
+
 function aptToSummary(apt: ApartmentResponse): ApartmentSummary {
-  const available = apt.plans.filter(p => p.is_available && p.price > 0);
-  const prices = available.map(p => p.price);
+  // Use all plans (not just available) for price range — available plans may all be
+  // waitlisted/unavailable even though prices are known (e.g. affordable housing).
+  const pricedPlans = apt.plans.filter(p => p.price != null && p.price > 0);
+  const prices = pricedPlans.map(p => p.price as number);
   const beds = apt.plans.map(p => p.bedrooms);
   const location = apt.address
     ? `${apt.address}, ${apt.city}, ${apt.state}`
     : `${apt.city}, ${apt.state}`;
+  const availableCount = apt.plans.filter(p => p.is_available).length;
+
+  // Detect affordable / income-restricted housing by plan names or apartment title
+  const isAffordableHousing =
+    _AFFORDABLE_TITLE_PATTERN.test(apt.title) ||
+    apt.plans.some(p => _AMI_PATTERN.test(p.name));
+
   return {
     id: apt.id,
     title: apt.title,
@@ -171,12 +195,15 @@ function aptToSummary(apt: ApartmentResponse): ApartmentSummary {
     city: apt.city,
     source_url: apt.source_url,
     plan_count: apt.plans.length,
-    available_count: available.length,
-    min_price: prices.length ? Math.min(...prices) : 0,
-    max_price: prices.length ? Math.max(...prices) : 0,
+    available_count: availableCount,
+    min_price: prices.length ? Math.min(...prices) : null,
+    max_price: prices.length ? Math.max(...prices) : null,
     min_beds: beds.length ? Math.min(...beds) : 0,
     max_beds: beds.length ? Math.max(...beds) : 0,
+    latitude: (apt as any).latitude ?? null,
+    longitude: (apt as any).longitude ?? null,
     _raw: apt,
+    _isAffordableHousing: isAffordableHousing,
   };
 }
 
@@ -285,7 +312,7 @@ const api = {
       limit: filters.limit ?? 100,
     };
     const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
-    return apts.map(aptToSummary).filter(a => a.plan_count > 0);
+    return apts.map(aptToSummary).filter(a => a.plan_count > 0 && !a._isAffordableHousing);
   },
 
   async getListings(filters: ListingsFilter = {}): Promise<Listing[]> {

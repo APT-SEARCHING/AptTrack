@@ -71,42 +71,90 @@ const AlertsPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {subs.map(sub => (
-            <div key={sub.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {sub.apartment_id && (
-                    <Link
-                      to={`/listings/${sub.apartment_id}`}
-                      className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors text-sm"
-                    >
-                      Apartment #{sub.apartment_id}
-                    </Link>
-                  )}
-                  {sub.city && (
-                    <span className="text-sm text-slate-700 font-semibold">{sub.city}</span>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sub.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {sub.is_active ? 'Active' : 'Paused'}
-                  </span>
+          {subs.map(sub => {
+            const title = sub.apartment_title ?? (sub.apartment_id ? `Apartment #${sub.apartment_id}` : sub.city ?? 'Alert');
+            const location = sub.apartment_city ?? sub.city;
+            const baselineDate = sub.baseline_recorded_at
+              ? new Date(sub.baseline_recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : null;
+
+            return (
+              <div key={sub.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                {/* Header row */}
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {sub.apartment_id ? (
+                        <Link
+                          to={`/listings/${sub.apartment_id}`}
+                          className="font-semibold text-slate-900 hover:text-indigo-600 transition-colors"
+                        >
+                          {title}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-slate-900">{title}</span>
+                      )}
+                      {location && (
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {location}
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sub.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {sub.is_active ? 'Active' : 'Paused'}
+                      </span>
+                    </div>
+                    {/* Plan name + spec */}
+                    {(sub.plan_name || sub.plan_spec) && (
+                      <p className="text-sm text-slate-500 mt-0.5">
+                        {sub.plan_name}
+                        {sub.plan_spec && <span className="text-slate-400"> · {sub.plan_spec}</span>}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => remove(sub.id)}
+                    className="shrink-0 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
+                  >
+                    Remove
+                  </button>
                 </div>
+
+                {/* Price row */}
+                {(sub.latest_price != null || sub.baseline_price != null) && (
+                  <div className="flex items-baseline gap-4 mb-2">
+                    {sub.latest_price != null && (
+                      <span className="text-lg font-semibold text-slate-800">
+                        ${sub.latest_price.toLocaleString()}<span className="text-sm font-normal text-slate-400">/mo</span>
+                      </span>
+                    )}
+                    {sub.baseline_price != null && (
+                      <span className="text-sm text-slate-400">
+                        was ${sub.baseline_price.toLocaleString()}{baselineDate && ` (${baselineDate})`}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Alert condition */}
                 <p className="text-sm text-slate-500">
-                  {sub.target_price && `Notify when price below $${sub.target_price.toLocaleString()}/mo`}
-                  {sub.price_drop_pct && `Notify on ${sub.price_drop_pct}% price drop`}
+                  {sub.target_price != null && sub.price_drop_pct != null
+                    ? `Alert below $${sub.target_price.toLocaleString()}/mo or on ${sub.price_drop_pct}% drop`
+                    : sub.target_price != null
+                    ? `Alert when below $${sub.target_price.toLocaleString()}/mo`
+                    : sub.price_drop_pct != null
+                    ? `Alert on ${sub.price_drop_pct}% drop from baseline`
+                    : null}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Created {new Date(sub.created_at).toLocaleDateString()}
-                  {sub.last_notified_at && ` · Last notified ${new Date(sub.last_notified_at).toLocaleDateString()}`}
+
+                {/* Footer meta */}
+                <p className="text-xs text-slate-400 mt-1.5">
+                  Created {new Date(sub.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {sub.last_notified_at && ` · Notified ${new Date(sub.last_notified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                  {sub.trigger_count > 0 && ` · Fired ${sub.trigger_count}×`}
                 </p>
               </div>
-              <button
-                onClick={() => remove(sub.id)}
-                className="shrink-0 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

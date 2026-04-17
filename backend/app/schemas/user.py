@@ -94,3 +94,10 @@ class SubscriptionResponse(BaseModel):
     last_notified_at: Optional[datetime]
     trigger_count: int
     created_at: datetime
+
+    # Enriched fields — populated by list_subscriptions, None on create/update
+    apartment_title: Optional[str] = None
+    apartment_city: Optional[str] = None
+    plan_name: Optional[str] = None
+    plan_spec: Optional[str] = None   # e.g. "1BR · 1BA · 520 sqft"
+    latest_price: Optional[float] = None
