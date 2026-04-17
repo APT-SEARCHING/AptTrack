@@ -432,6 +432,19 @@ const api = {
     return res.json();
   },
 
+  async updateSubscription(token: string, subId: number, patch: Partial<SubscriptionCreate> & { is_active?: boolean }): Promise<SubscriptionResponse> {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${subId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+    return res.json();
+  },
+
   async deleteSubscription(token: string, subId: number): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/subscriptions/${subId}`, {
       method: 'DELETE',

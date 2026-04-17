@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { SubscriptionResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,9 @@ const AlertsPage: React.FC = () => {
   const [subs, setSubs] = useState<SubscriptionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // transient per-row feedback: subId → 'paused' | 'resumed' | 'error'
+  const [feedback, setFeedback] = useState<Record<number, string>>({});
+  const feedbackTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const load = () => {
     if (!token) return;
@@ -24,6 +27,31 @@ const AlertsPage: React.FC = () => {
     if (!token) return;
     await api.deleteSubscription(token, id);
     setSubs(prev => prev.filter(s => s.id !== id));
+  };
+
+  const togglePause = async (sub: SubscriptionResponse) => {
+    if (!token) return;
+    const nextActive = !sub.is_active;
+
+    // Optimistic update
+    setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: nextActive } : s));
+
+    try {
+      await api.updateSubscription(token, sub.id, { is_active: nextActive });
+      showFeedback(sub.id, nextActive ? 'resumed' : 'paused');
+    } catch {
+      // Rollback
+      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: sub.is_active } : s));
+      showFeedback(sub.id, 'error');
+    }
+  };
+
+  const showFeedback = (id: number, kind: string) => {
+    clearTimeout(feedbackTimers.current[id]);
+    setFeedback(prev => ({ ...prev, [id]: kind }));
+    feedbackTimers.current[id] = setTimeout(() => {
+      setFeedback(prev => { const next = { ...prev }; delete next[id]; return next; });
+    }, 1500);
   };
 
   if (!token) {
@@ -77,6 +105,21 @@ const AlertsPage: React.FC = () => {
             const baselineDate = sub.baseline_recorded_at
               ? new Date(sub.baseline_recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : null;
+            const fb = feedback[sub.id];
+
+            // Pause/Resume button label: transient feedback overrides the default
+            const pauseLabel = fb === 'paused' ? 'Paused ✓'
+              : fb === 'resumed' ? 'Resumed ✓'
+              : fb === 'error' ? 'Error'
+              : sub.is_active ? 'Pause' : 'Resume';
+
+            const pauseColors = fb === 'error'
+              ? 'text-red-500 border-red-300'
+              : fb
+              ? 'text-emerald-600 border-emerald-300'
+              : sub.is_active
+              ? 'text-slate-400 hover:text-amber-600 border-slate-200 hover:border-amber-300'
+              : 'text-indigo-500 hover:text-indigo-700 border-indigo-200 hover:border-indigo-400';
 
             return (
               <div key={sub.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -111,12 +154,22 @@ const AlertsPage: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => remove(sub.id)}
-                    className="shrink-0 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
-                  >
-                    Remove
-                  </button>
+
+                  {/* Action buttons */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => togglePause(sub)}
+                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${pauseColors}`}
+                    >
+                      {pauseLabel}
+                    </button>
+                    <button
+                      onClick={() => remove(sub.id)}
+                      className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
 
                 {/* Price row */}
