@@ -49,7 +49,7 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
     # so we don't double-query if both target_price and price_drop_pct are set.
     prev_price = _get_immediately_previous_price(sub, db)
 
-    triggered, reason = _is_triggered(sub, latest_price, prev_price, db)
+    triggered, reason = _is_triggered(sub, latest_price, prev_price)
     if not triggered:
         return
 
@@ -154,15 +154,20 @@ def _is_triggered(
     sub: PriceSubscription,
     latest_price: float,
     prev_price: Optional[float],
-    db: Session,
 ) -> tuple:
     """Return (triggered: bool, reason: str).
 
-    Bug #1 fix: target_price fires only on the ≥→< crossing, not on every
-    run while price stays below target.
+    target_price (Bug #1): fires only on the ≥→< crossing.
       - prev_price >= target AND latest < target  →  trigger (just crossed)
       - prev_price <  target AND latest < target  →  skip   (already below)
       - prev_price is None (no history)           →  trigger (treat as first crossing)
+
+    price_drop_pct (Bug #2): anchored to sub.baseline_price (subscription-time
+    snapshot), not the previous scrape.  Fires when the cumulative drop from
+    baseline reaches the threshold.
+      - baseline_price is None                    →  skip with warning (no anchor)
+      - drop = (baseline - latest) / baseline * 100
+      - pct=0 triggers whenever latest_price <= baseline_price (any drop)
     """
     if sub.target_price is not None and latest_price < sub.target_price:
         if prev_price is None or prev_price >= sub.target_price:
@@ -172,34 +177,24 @@ def _is_triggered(
             )
 
     if sub.price_drop_pct is not None:
-        prev = _get_previous_price(sub, db)  # Bug #2 will replace this with baseline
-        if prev is not None and prev > 0:
-            drop = (prev - latest_price) / prev * 100
+        if sub.baseline_price is None:
+            logger.warning(
+                "Subscription %d has price_drop_pct but no baseline_price — skipping",
+                sub.id,
+            )
+        else:
+            drop = (sub.baseline_price - latest_price) / sub.baseline_price * 100
             if drop >= sub.price_drop_pct:
+                date_str = ""
+                if sub.baseline_recorded_at is not None:
+                    date_str = f" ({sub.baseline_recorded_at.strftime('%b %-d')})"
                 return (
                     True,
-                    f"price dropped {drop:.1f}% (was ${prev:,.0f}, now ${latest_price:,.0f})",
+                    f"price dropped {drop:.1f}% — was ${sub.baseline_price:,.0f} when you"
+                    f" subscribed{date_str}, now ${latest_price:,.0f}",
                 )
 
     return False, ""
-
-
-def _get_previous_price(sub: PriceSubscription, db: Session) -> Optional[float]:
-    """Return the second-most-recent price for percentage-drop calculation.
-
-    NOTE: This is the pre-Bug-#2 baseline — it compares against the prior
-    scrape rather than the subscription-time snapshot.  Bug #2 will replace
-    this with sub.baseline_price.
-    """
-    if sub.plan_id is not None:
-        rows = db.execute(
-            select(PlanPriceHistory.price)
-            .where(PlanPriceHistory.plan_id == sub.plan_id)
-            .order_by(PlanPriceHistory.recorded_at.desc())
-            .limit(2)
-        ).all()
-        return rows[1][0] if len(rows) >= 2 else None
-    return None
 
 
 def _apt_label(sub: PriceSubscription, db: Session) -> str:

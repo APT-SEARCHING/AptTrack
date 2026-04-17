@@ -18,7 +18,7 @@ from app.core.security import hash_password
 from app.db.base_class import Base
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import PriceSubscription, User
-from app.services.price_checker import _check_subscription, check_all_subscriptions
+from app.services.price_checker import _check_subscription, check_all_subscriptions, _is_triggered
 
 
 # ---------------------------------------------------------------------------
@@ -191,3 +191,89 @@ class TestTargetPriceCrossing:
 
         mock_notify.assert_not_called()
         assert sub.trigger_count == 1  # unchanged
+
+
+# ---------------------------------------------------------------------------
+# Bug #2: price_drop_pct uses baseline_price as anchor
+# ---------------------------------------------------------------------------
+
+class TestPriceDropPct:
+
+    def test_drop_meets_threshold_triggers(self, db: Session):
+        """10% actual drop against a 10% threshold → triggered, auto-paused."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2700.0)
+        _add_history(db, plan_id, prices=[2700.0])
+        sub = _make_sub(db, user.id, plan_id, price_drop_pct=10.0, baseline_price=3000.0)
+        sub.baseline_recorded_at = datetime(2026, 3, 15, tzinfo=timezone.utc)
+        db.flush()
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_called_once()
+        assert sub.is_active is False
+        assert sub.trigger_count == 1
+        # Reason string must show baseline amount, baseline date, current price.
+        # _send_notifications(sub, subject, body, tg_msg, db) → body is at index [2]
+        body = mock_notify.call_args[0][2]
+        assert "3,000" in body
+        assert "2,700" in body
+        assert "Mar" in body
+
+    def test_drop_below_threshold_does_not_trigger(self, db: Session):
+        """5% actual drop against a 10% threshold → not triggered."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2850.0)
+        _add_history(db, plan_id, prices=[2850.0])
+        sub = _make_sub(db, user.id, plan_id, price_drop_pct=10.0, baseline_price=3000.0)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+        assert sub.is_active is True
+        assert sub.trigger_count == 0
+
+    def test_baseline_none_skips_with_warning(self, db: Session):
+        """No baseline_price → skip without notification, log a warning."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2700.0)
+        _add_history(db, plan_id, prices=[2700.0])
+        sub = _make_sub(db, user.id, plan_id, price_drop_pct=5.0, baseline_price=None)
+
+        with patch("app.services.price_checker._send_notifications") as mock_notify, \
+             patch("app.services.price_checker.logger") as mock_logger:
+            _check_subscription(sub, db)
+
+        mock_notify.assert_not_called()
+        assert sub.is_active is True
+        mock_logger.warning.assert_called_once()
+        assert "baseline_price" in mock_logger.warning.call_args[0][0]
+
+    def test_pct_zero_triggers_on_any_drop(self, db: Session):
+        """pct=0: drop >= 0 satisfied when latest_price <= baseline → triggers.
+        Documented: pct=0 means 'alert on any price decrease (or no change)'."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=2999.0)
+        _add_history(db, plan_id, prices=[2999.0])
+        sub = _make_sub(db, user.id, plan_id, price_drop_pct=0.0, baseline_price=3000.0)
+
+        with patch("app.services.price_checker._send_notifications"):
+            _check_subscription(sub, db)
+
+        assert sub.is_active is False
+        assert sub.trigger_count == 1
+
+    def test_pct_zero_triggers_on_exact_equal(self, db: Session):
+        """pct=0 with latest == baseline: 0% drop satisfies drop >= 0 → triggers."""
+        user = _make_user(db)
+        _, plan_id = _make_plan(db, price=3000.0)
+        _add_history(db, plan_id, prices=[3000.0])
+        sub = _make_sub(db, user.id, plan_id, price_drop_pct=0.0, baseline_price=3000.0)
+
+        with patch("app.services.price_checker._send_notifications"):
+            _check_subscription(sub, db)
+
+        assert sub.is_active is False
+        assert sub.trigger_count == 1
