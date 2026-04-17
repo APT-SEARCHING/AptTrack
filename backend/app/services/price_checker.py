@@ -5,10 +5,12 @@ It queries every active PriceSubscription, computes the latest
 relevant price, and fires notifications when thresholds are crossed.
 """
 
-import asyncio
+import hashlib
+import hmac as _hmac
 import logging
+import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -65,22 +67,10 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
             logger.debug("Subscription %d debounced (last notified %s ago)", sub.id, age)
             return
 
-    # Build notification message
-    apt_label = _apt_label(sub, db)
-    subject = f"AptTrack: price drop alert for {apt_label}"
-    body = (
-        f"Hi,\n\n"
-        f"A price drop was detected for {apt_label}.\n"
-        f"Current price: ${latest_price:,.0f}/mo\n"
-        f"Reason: {reason}\n\n"
-        f"Log in to AptTrack to review your subscriptions.\n"
-    )
-    tg_msg = (
-        f"*AptTrack price alert*\n"
-        f"Property: {apt_label}\n"
-        f"Current price: ${latest_price:,.0f}/mo\n"
-        f"_{reason}_"
-    )
+    ctx = _render_alert_context(sub, latest_price, db)
+    subject = _build_subject(ctx, sub)
+    body = _build_body_plaintext(ctx, sub)
+    tg_msg = _build_telegram_msg(ctx, sub)
 
     _send_notifications(sub, subject, body, tg_msg, db)
 
@@ -195,15 +185,308 @@ def _is_triggered(
     return False, ""
 
 
-def _apt_label(sub: PriceSubscription, db: Session) -> str:
+# ---------------------------------------------------------------------------
+# Notification content
+# ---------------------------------------------------------------------------
+
+def _make_unsub_token(sub_id: int) -> str:
+    """HMAC-SHA256 token for the one-click unsubscribe link (CAN-SPAM)."""
+    from app.core.config import settings
+    key = settings.JWT_SECRET_KEY.encode()
+    msg = f"unsub:{sub_id}".encode()
+    return _hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+def _render_alert_context(
+    sub: PriceSubscription,
+    latest_price: float,
+    db: Session,
+) -> Dict[str, Any]:
+    """Gather all displayable fields for a price-drop notification."""
+    from app.core.config import settings
+
+    ctx: Dict[str, Any] = {
+        "now_price": latest_price,
+        "was_price": sub.baseline_price,
+        "was_date": None,
+        "drop_pct": None,
+        "apartment_title": "your tracked property",
+        "apartment_id": None,
+        "apartment_url_internal": None,
+        "apartment_url_external": None,
+        "city_state": None,
+        "plan_name": None,
+        "plan_spec": None,
+        "thirty_day_low": None,
+        "unsub_url": None,
+        "alerts_url": f"{settings.APP_BASE_URL}/alerts",
+    }
+
+    # Cumulative drop percentage from baseline
+    if sub.baseline_price:
+        ctx["drop_pct"] = (sub.baseline_price - latest_price) / sub.baseline_price * 100
+
+    # Baseline capture date
+    if sub.baseline_recorded_at:
+        ctx["was_date"] = sub.baseline_recorded_at.strftime("%b %-d")
+
+    # Unsubscribe link
+    token = _make_unsub_token(sub.id)
+    ctx["unsub_url"] = (
+        f"{settings.APP_BASE_URL}/api/v1/subscriptions/unsubscribe"
+        f"?sub_id={sub.id}&token={token}"
+    )
+
+    # Resolve apartment
+    apt: Optional[Apartment] = None
     if sub.apartment_id is not None:
-        title = db.execute(
-            select(Apartment.title).where(Apartment.id == sub.apartment_id)
+        apt = db.execute(
+            select(Apartment).where(Apartment.id == sub.apartment_id)
         ).scalar_one_or_none()
-        return title if title else f"Apartment #{sub.apartment_id}"
-    if sub.city:
-        return sub.city
-    return "tracked area"
+    elif sub.plan_id is not None:
+        apt = db.execute(
+            select(Apartment)
+            .join(Plan, Plan.apartment_id == Apartment.id)
+            .where(Plan.id == sub.plan_id)
+        ).scalar_one_or_none()
+
+    if apt:
+        ctx["apartment_title"] = apt.title
+        ctx["apartment_id"] = apt.id
+        ctx["apartment_url_internal"] = f"{settings.APP_BASE_URL}/apartments/{apt.id}"
+        ctx["apartment_url_external"] = apt.source_url or None
+        if apt.city and apt.state:
+            ctx["city_state"] = f"{apt.city}, {apt.state}"
+
+    # Resolve plan details
+    if sub.plan_id is not None:
+        plan = db.execute(
+            select(Plan).where(Plan.id == sub.plan_id)
+        ).scalar_one_or_none()
+        if plan:
+            ctx["plan_name"] = plan.name
+            ctx["plan_spec"] = _fmt_plan_spec(plan)
+
+            ctx["thirty_day_low"] = db.execute(
+                select(func.min(PlanPriceHistory.price))
+                .where(
+                    PlanPriceHistory.plan_id == sub.plan_id,
+                    PlanPriceHistory.recorded_at >= datetime.now(timezone.utc) - timedelta(days=30),
+                )
+            ).scalar_one_or_none()
+
+    elif sub.apartment_id is not None:
+        # 30-day low across all available plans for this apartment
+        ctx["thirty_day_low"] = db.execute(
+            select(func.min(PlanPriceHistory.price))
+            .join(Plan, PlanPriceHistory.plan_id == Plan.id)
+            .where(
+                Plan.apartment_id == sub.apartment_id,
+                PlanPriceHistory.recorded_at >= datetime.now(timezone.utc) - timedelta(days=30),
+            )
+        ).scalar_one_or_none()
+
+    return ctx
+
+
+def _fmt_plan_spec(plan: Plan) -> Optional[str]:
+    """Format '1 bed / 1 bath / 520 sqft' from a Plan row."""
+    parts = []
+    if plan.bedrooms is not None:
+        if plan.bedrooms == 0:
+            parts.append("Studio")
+        else:
+            b = int(plan.bedrooms) if plan.bedrooms == int(plan.bedrooms) else plan.bedrooms
+            parts.append(f"{b} bed")
+    if plan.bathrooms is not None:
+        ba = int(plan.bathrooms) if plan.bathrooms == int(plan.bathrooms) else plan.bathrooms
+        parts.append(f"{ba} bath")
+    if plan.area_sqft:
+        parts.append(f"{int(plan.area_sqft):,} sqft")
+    return " / ".join(parts) if parts else None
+
+
+def _build_subject(ctx: Dict[str, Any], sub: PriceSubscription) -> str:
+    title = ctx["apartment_title"]
+    now = ctx["now_price"]
+    if ctx["drop_pct"] is not None and ctx["drop_pct"] > 0 and ctx["was_price"]:
+        return (
+            f"\U0001f514 {title} dropped to ${now:,.0f}/mo"
+            f" (\u2212{ctx['drop_pct']:.1f}% from ${ctx['was_price']:,.0f})"
+        )
+    if sub.target_price is not None:
+        return (
+            f"\U0001f514 {title} now below your ${sub.target_price:,.0f} target"
+            f" (${now:,.0f}/mo)"
+        )
+    return f"\U0001f514 Price drop alert: {title} (${now:,.0f}/mo)"
+
+
+def _build_body_plaintext(ctx: Dict[str, Any], sub: PriceSubscription) -> str:
+    title = ctx["apartment_title"]
+    now = ctx["now_price"]
+    was = ctx["was_price"]
+    drop_pct = ctx["drop_pct"]
+
+    # Opening line
+    if drop_pct is not None and drop_pct > 0 and was:
+        open_line = (
+            f"{ctx['plan_name'] or title} dropped from ${was:,.0f} to ${now:,.0f}/mo"
+            f" (\u2212{drop_pct:.1f}%)."
+        )
+    elif sub.target_price is not None:
+        open_line = (
+            f"{title} is now ${now:,.0f}/mo \u2014 below your ${sub.target_price:,.0f} target."
+        )
+    else:
+        open_line = f"{title} has a new price: ${now:,.0f}/mo."
+
+    # Property / plan block
+    location = ctx["city_state"] or ""
+    prop_line = f"  Property  : {title}" + (f" \u00b7 {location}" if location else "")
+
+    spec_line = ""
+    if ctx["plan_name"]:
+        spec = ctx["plan_spec"] or ""
+        spec_line = f"  Plan      : {ctx['plan_name']}" + (f" \u00b7 {spec}" if spec else "")
+
+    was_line = ""
+    if was:
+        was_str = f"${was:,.0f}/mo"
+        if ctx["was_date"]:
+            was_str += f" (your baseline, {ctx['was_date']})"
+        was_line = f"  Was       : {was_str}"
+
+    now_line = f"  Now       : ${now:,.0f}/mo"
+
+    low_line = ""
+    if ctx["thirty_day_low"] is not None:
+        low_line = f"  30-day low: ${ctx['thirty_day_low']:,.0f}/mo"
+
+    detail_lines = "\n".join(
+        line for line in [prop_line, spec_line, was_line, now_line, low_line] if line
+    )
+
+    # CTA links
+    cta_parts = []
+    if ctx["apartment_url_internal"]:
+        cta_parts.append(f"  View in AptTrack  \u2192 {ctx['apartment_url_internal']}")
+    if ctx["apartment_url_external"]:
+        cta_parts.append(f"  Official listing  \u2192 {ctx['apartment_url_external']}")
+    cta_block = "\n".join(cta_parts)
+
+    # Why + pause note
+    if drop_pct is not None and drop_pct > 0 and was:
+        why = (
+            f"Why you got this: price dropped {drop_pct:.1f}% from your"
+            f" ${was:,.0f} baseline"
+            + (f" (set {ctx['was_date']})" if ctx["was_date"] else "")
+            + "."
+        )
+    elif sub.target_price is not None:
+        why = f"Why you got this: price crossed below your ${sub.target_price:,.0f} target."
+    else:
+        why = "Why you got this: a price drop matched your alert settings."
+
+    pause_note = (
+        "We've paused this alert so you won't get duplicate notifications.\n"
+        f"To re-arm it, visit AptTrack Alerts: {ctx['alerts_url']}"
+    )
+
+    sep = "\u2500" * 54
+
+    sections = [
+        f"Price drop alert \u2014 {title}",
+        "=" * (len(f"Price drop alert \u2014 {title}")),
+        "",
+        open_line,
+        "",
+        detail_lines,
+    ]
+    if cta_block:
+        sections += ["", cta_block]
+    sections += [
+        "",
+        sep,
+        why,
+        "",
+        pause_note,
+    ]
+    if ctx["unsub_url"]:
+        sections += [
+            "",
+            f"To unsubscribe from this alert:\n  \u2192 {ctx['unsub_url']}",
+        ]
+    sections += [
+        sep,
+        "AptTrack \u00b7 Bay Area rental price transparency",
+    ]
+
+    return "\n".join(sections)
+
+
+def _build_telegram_msg(ctx: Dict[str, Any], sub: PriceSubscription) -> str:
+    title = ctx["apartment_title"]
+    now = ctx["now_price"]
+    was = ctx["was_price"]
+    drop_pct = ctx["drop_pct"]
+
+    # Headline
+    if drop_pct is not None and drop_pct > 0 and was:
+        headline = (
+            f"\U0001f514 *{title}* dropped to ${now:,.0f}/mo"
+            f" (\u2212{drop_pct:.1f}%)"
+        )
+    elif sub.target_price is not None:
+        headline = (
+            f"\U0001f514 *{title}* now below ${sub.target_price:,.0f} target"
+            f" (${now:,.0f}/mo)"
+        )
+    else:
+        headline = f"\U0001f514 *{title}* new price: ${now:,.0f}/mo"
+
+    # Detail line
+    detail_parts = []
+    if ctx["plan_spec"]:
+        detail_parts.append(ctx["plan_spec"])
+    if ctx["city_state"]:
+        detail_parts.append(ctx["city_state"])
+    detail_line = "\U0001f4cb " + " \u00b7 ".join(detail_parts) if detail_parts else ""
+
+    # Price line
+    price_parts = []
+    if was:
+        was_str = f"Was ${was:,.0f}"
+        if ctx["was_date"]:
+            was_str += f" ({ctx['was_date']})"
+        price_parts.append(was_str)
+    price_parts.append(f"now ${now:,.0f}")
+    if ctx["thirty_day_low"] is not None:
+        price_parts.append(f"30d low ${ctx['thirty_day_low']:,.0f}")
+    price_line = "\U0001f4c9 " + " \u2192 ".join(price_parts[:2])
+    if ctx["thirty_day_low"] is not None:
+        price_line += f" \u00b7 {price_parts[-1]}"
+
+    # Links
+    link_parts = []
+    if ctx["apartment_url_internal"]:
+        link_parts.append(f"[AptTrack]({ctx['apartment_url_internal']})")
+    if ctx["apartment_url_external"]:
+        link_parts.append(f"[Official listing]({ctx['apartment_url_external']})")
+    links_line = " \u00b7 ".join(link_parts) if link_parts else ""
+
+    pause_note = "_Alert paused. Re-arm at AptTrack Alerts._"
+
+    lines = [headline]
+    if detail_line:
+        lines.append(detail_line)
+    lines.append(price_line)
+    if links_line:
+        lines.append("")
+        lines.append(links_line)
+    lines += ["", pause_note]
+
+    return "\n".join(lines)
 
 
 def _send_notifications(

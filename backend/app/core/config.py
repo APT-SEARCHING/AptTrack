@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     BACKEND_RELOAD: bool = True
+    # Frontend base URL used in notification links (no trailing slash)
+    APP_BASE_URL: str = "http://localhost:3000"
 
     # CORS - comma-separated string in .env, validated into a list
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
