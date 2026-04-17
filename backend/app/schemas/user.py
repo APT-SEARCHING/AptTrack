@@ -92,4 +92,5 @@ class SubscriptionResponse(BaseModel):
     telegram_chat_id: Optional[str]
     is_active: bool
     last_notified_at: Optional[datetime]
+    trigger_count: int
     created_at: datetime

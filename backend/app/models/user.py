@@ -67,6 +67,8 @@ class PriceSubscription(Base):
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     last_notified_at = Column(DateTime(timezone=True), nullable=True)
+    trigger_count = Column(Integer, default=0, nullable=False,
+        comment="Number of times a notification has been fired for this subscription")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
