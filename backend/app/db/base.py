@@ -5,3 +5,5 @@ from app.models.apartment import Apartment, ApartmentImage, Neighborhood, Plan, 
 from app.models.google_place import GoogleApartment, GooglePlaceRaw  # noqa: F401
 from app.models.user import PriceSubscription, User  # noqa: F401
 from app.models.site_registry import ScrapeSiteRegistry  # noqa: F401
+from app.models.scrape_run import ScrapeRun  # noqa: F401
+from app.models.notification_event import NotificationEvent  # noqa: F401

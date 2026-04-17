@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # Notification services
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = "noreply@apttrack.app"
+    # ECDSA public key from SendGrid dashboard → Settings → Mail Settings →
+    # Event Webhook → Signature Verification.  Paste the full PEM block.
+    # If empty, the webhook endpoint accepts all requests (dev/test only).
+    SENDGRID_WEBHOOK_VERIFICATION_KEY: str = ""
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_ADMIN_CHAT_ID: str = ""  # chat_id for nightly scrape-digest messages
 

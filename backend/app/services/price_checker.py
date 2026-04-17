@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
+from app.models.notification_event import NotificationEvent
 from app.models.user import PriceSubscription, User
 from app.services.notification import send_email_alert, send_telegram_alert
 
@@ -70,7 +71,7 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
     body = _build_body_plaintext(ctx, sub)
     tg_msg = _build_telegram_msg(ctx, sub)
 
-    _send_notifications(sub, subject, body, tg_msg, db)
+    _send_notifications(sub, subject, body, tg_msg, latest_price, reason, db)
 
     # Auto-pause after firing so the same crossing doesn't re-notify every day.
     # User must re-activate manually to re-arm.
@@ -491,19 +492,65 @@ def _send_notifications(
     subject: str,
     body: str,
     tg_msg: str,
+    trigger_price: float,
+    trigger_reason: str,
     db: Session,
 ) -> None:
+    """Dispatch notifications and persist a NotificationEvent row for each channel."""
     user = db.execute(
         select(User).where(User.id == sub.user_id)
     ).scalar_one_or_none()
 
-    async def _run():
-        coros = []
-        if sub.notify_email and user and user.email:
-            coros.append(send_email_alert(user.email, subject, body))
-        if sub.notify_telegram and sub.telegram_chat_id:
-            coros.append(send_telegram_alert(sub.telegram_chat_id, tg_msg))
-        if coros:
-            await asyncio.gather(*coros, return_exceptions=True)
+    # Resolve trigger_type from the reason string produced by _is_triggered
+    trigger_type: Optional[str] = None
+    if "target" in trigger_reason:
+        trigger_type = "target_price"
+    elif "%" in trigger_reason:
+        trigger_type = "price_drop_pct"
 
-    asyncio.run(_run())
+    async def _run():
+        tasks = []
+        labels = []
+        if sub.notify_email and user and user.email:
+            tasks.append(send_email_alert(user.email, subject, body))
+            labels.append("email")
+        if sub.notify_telegram and sub.telegram_chat_id:
+            tasks.append(send_telegram_alert(sub.telegram_chat_id, tg_msg))
+            labels.append("telegram")
+        if not tasks:
+            return []
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return list(zip(labels, results))
+
+    pairs = asyncio.run(_run())
+
+    for channel, result in pairs:
+        # result is either the (external_id, status, is_403) tuple or an Exception
+        if isinstance(result, Exception):
+            external_id, status, is_403 = None, "failed", False
+            err_msg = str(result)
+        else:
+            external_id, status, is_403 = result
+            err_msg = None
+
+        db.add(NotificationEvent(
+            subscription_id=sub.id,
+            user_id=sub.user_id,
+            channel=channel,
+            status=status,
+            external_id=external_id,
+            trigger_type=trigger_type,
+            trigger_price=trigger_price,
+            baseline_price=sub.baseline_price,
+            subject=subject if channel == "email" else tg_msg[:200],
+            error_message=err_msg,
+        ))
+
+        # 403 = user blocked the bot; disable the channel so we stop spamming
+        if is_403 and channel == "telegram":
+            sub.notify_telegram = False
+            logger.warning(
+                "Disabled telegram notifications for subscription %d (bot blocked)", sub.id
+            )
+
+    db.commit()
