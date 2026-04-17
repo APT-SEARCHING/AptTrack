@@ -170,6 +170,12 @@ export interface ListingsFilter {
   skip?: number;
   limit?: number;
   sort?: SortOption;
+  // Advanced filters
+  pets_allowed?: boolean;
+  has_parking?: boolean;
+  min_sqft?: number;
+  max_sqft?: number;
+  available_before?: string; // ISO date string YYYY-MM-DD
 }
 
 const _AMI_PATTERN = /\bami\b|\d+%\s*ami|area median income|income.restricted|income.qualified|lihtc|section 8/i;
@@ -314,6 +320,11 @@ const api = {
       skip: filters.skip ?? 0,
       limit: filters.limit ?? 100,
       sort: filters.sort ?? 'price_asc',
+      pets_allowed: filters.pets_allowed,
+      has_parking: filters.has_parking,
+      min_sqft: filters.min_sqft,
+      max_sqft: filters.max_sqft,
+      available_before: filters.available_before,
     };
     const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
     return apts.map(aptToSummary).filter(a => a.plan_count > 0 && !a._isAffordableHousing);

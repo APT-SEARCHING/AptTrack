@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ListingsFilter } from '../services/api';
 
 interface Props {
@@ -8,21 +8,33 @@ interface Props {
 }
 
 const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) => {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const set = (key: keyof ListingsFilter, value: string) => {
     onFilterChange({
       ...filters,
-      [key]: value === '' ? undefined : key.includes('price') || key === 'bedrooms'
+      [key]: value === '' ? undefined : key.includes('price') || key === 'bedrooms' || key.includes('sqft')
         ? parseFloat(value)
         : value,
     });
   };
 
+  const setBool = (key: keyof ListingsFilter, checked: boolean) => {
+    onFilterChange({ ...filters, [key]: checked || undefined });
+  };
+
   const clear = () => onFilterChange({});
+
+  const advancedKeys: (keyof ListingsFilter)[] = ['pets_allowed', 'has_parking', 'min_sqft', 'max_sqft', 'available_before'];
+  const hasAdvanced = advancedKeys.some(k => filters[k] !== undefined && filters[k] !== '');
   const hasFilters = Object.values(filters).some(v => v !== undefined && v !== '');
+
+  // Keep advanced open if any advanced filter is active
+  const effectiveOpen = advancedOpen || hasAdvanced;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      {/* Search */}
+      {/* City */}
       <div className="mb-4">
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
           City
@@ -84,14 +96,93 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
         </div>
       </div>
 
+      {/* Advanced toggle */}
+      <button
+        onClick={() => setAdvancedOpen(o => !o)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-indigo-600 transition-colors mb-3 w-full"
+      >
+        <span className={`transition-transform duration-150 inline-block ${effectiveOpen ? 'rotate-90' : ''}`}>▶</span>
+        Advanced
+        {hasAdvanced && (
+          <span className="ml-auto bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5 text-xs font-semibold">
+            {advancedKeys.filter(k => filters[k] !== undefined).length}
+          </span>
+        )}
+      </button>
+
+      {effectiveOpen && (
+        <div className="space-y-4 pt-3 border-t border-slate-100">
+          {/* Boolean amenities */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Amenities
+            </label>
+            <div className="space-y-2">
+              {([
+                ['pets_allowed', 'Pets allowed'],
+                ['has_parking',  'Parking included'],
+              ] as [keyof ListingsFilter, string][]).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={!!filters[key]}
+                    onChange={e => setBool(key, e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
+                  />
+                  <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">
+                    {label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Sqft range */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Size (sqft)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={filters.min_sqft || ''}
+                onChange={e => set('min_sqft', e.target.value)}
+                className="input-base"
+                placeholder="Min"
+              />
+              <input
+                type="number"
+                value={filters.max_sqft || ''}
+                onChange={e => set('max_sqft', e.target.value)}
+                className="input-base"
+                placeholder="Max"
+              />
+            </div>
+          </div>
+
+          {/* Available before */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+              Available before
+            </label>
+            <input
+              type="date"
+              value={filters.available_before || ''}
+              onChange={e => onFilterChange({ ...filters, available_before: e.target.value || undefined })}
+              className="input-base w-full"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-4">
         <span className="text-sm text-slate-500">
-          <span className="font-semibold text-slate-800">{totalCount}</span> plans
+          <span className="font-semibold text-slate-800">{totalCount}</span> complexes
         </span>
         {hasFilters && (
           <button onClick={clear} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
-            Clear filters
+            Clear all
           </button>
         )}
       </div>

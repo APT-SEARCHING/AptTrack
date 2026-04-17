@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 
 from app.core.limiter import limiter
@@ -7,7 +8,7 @@ from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import User
 from app.schemas.apartment import ApartmentCreate, ApartmentResponse, ApartmentUpdate
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import asc, desc, func, select
+from sqlalchemy import asc, desc, exists, func, select
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -31,6 +32,11 @@ def get_apartments(
     max_price: Optional[float] = None,
     property_type: Optional[str] = None,
     is_available: Optional[bool] = None,
+    pets_allowed: Optional[bool] = None,
+    has_parking: Optional[bool] = None,
+    min_sqft: Optional[float] = None,
+    max_sqft: Optional[float] = None,
+    available_before: Optional[date] = None,
     sort: str = Query(default="price_asc", description="price_asc | price_desc | updated_desc | name_asc"),
 ):
     if sort not in _SORT_OPTIONS:
@@ -43,7 +49,20 @@ def get_apartments(
     if zipcode:
         stmt = stmt.where(Apartment.zipcode == zipcode)
 
-    if any([min_bedrooms, max_bedrooms, min_price, max_price]):
+    # Apartment-level boolean filters — direct WHERE, use the new indexes
+    if pets_allowed is not None:
+        stmt = stmt.where(Apartment.pets_allowed.is_(pets_allowed))
+    if has_parking is not None:
+        stmt = stmt.where(Apartment.has_parking.is_(has_parking))
+
+    if property_type:
+        stmt = stmt.where(Apartment.property_type == property_type)
+    if is_available is not None:
+        stmt = stmt.where(Apartment.is_available == is_available)
+
+    # Plan-level filters: join once if any are needed, then .distinct()
+    plan_filters = [min_bedrooms, max_bedrooms, min_price, max_price, min_sqft, max_sqft, available_before]
+    if any(f is not None for f in plan_filters):
         stmt = stmt.join(Plan)
         if min_bedrooms is not None:
             stmt = stmt.where(Plan.bedrooms >= min_bedrooms)
@@ -53,12 +72,16 @@ def get_apartments(
             stmt = stmt.where(Plan.price >= min_price)
         if max_price is not None:
             stmt = stmt.where(Plan.price <= max_price)
+        if min_sqft is not None:
+            stmt = stmt.where(Plan.area_sqft >= min_sqft)
+        if max_sqft is not None:
+            stmt = stmt.where(Plan.area_sqft <= max_sqft)
+        if available_before is not None:
+            stmt = stmt.where(
+                Plan.available_from.isnot(None),
+                Plan.available_from <= available_before,
+            )
         stmt = stmt.distinct()
-
-    if property_type:
-        stmt = stmt.where(Apartment.property_type == property_type)
-    if is_available is not None:
-        stmt = stmt.where(Apartment.is_available == is_available)
 
     # price_asc / price_desc: sort by the minimum available plan price for each
     # apartment.  Apartments with no priced plans sort last (NULLs last).
