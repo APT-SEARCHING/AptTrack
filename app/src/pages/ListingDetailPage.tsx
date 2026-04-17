@@ -23,9 +23,11 @@ const ListingDetailPage: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [alertPlan, setAlertPlan] = useState<PlanResponse | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const { token } = useAuth();
 
-  const openAlertForPlan = (plan: PlanResponse) => {
+  const openAlertForPlan = (e: React.MouseEvent, plan: PlanResponse) => {
+    e.stopPropagation();
     if (!token) { setShowAuth(true); return; }
     setAlertPlan(plan);
     setShowAlert(true);
@@ -34,7 +36,15 @@ const ListingDetailPage: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     api.getListing(Number(id))
-      .then(setListing)
+      .then(data => {
+        setListing(data);
+        // default selection: first plan by price
+        const plans = data._raw?.plans ?? [];
+        if (plans.length > 0) {
+          const sorted = [...plans].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+          setSelectedPlanId(sorted[0].id);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
@@ -58,15 +68,22 @@ const ListingDetailPage: React.FC = () => {
   }
 
   const apt = listing._raw;
-  const allPlans: PlanResponse[] = (apt?.plans ?? []).sort((a, b) => a.price - b.price);
-  const chartData = listing.price_history.map(h => ({
+  const allPlans: PlanResponse[] = (apt?.plans ?? []).sort((a, b) => {
+    if (a.price == null && b.price == null) return 0;
+    if (a.price == null) return 1;
+    if (b.price == null) return -1;
+    return a.price - b.price;
+  });
+
+  const selectedPlan = allPlans.find(p => p.id === selectedPlanId) ?? allPlans[0] ?? null;
+  const chartData = (selectedPlan?.price_history ?? []).map(h => ({
     date: new Date(h.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     price: h.price,
   }));
 
-  const prices = allPlans.map(p => p.price).filter(Boolean);
-  const minP = prices.length ? Math.min(...prices) : 0;
-  const maxP = prices.length ? Math.max(...prices) : 0;
+  const prices = allPlans.map(p => p.price).filter((p): p is number => p != null);
+  const minP = prices.length ? Math.min(...prices) : null;
+  const maxP = prices.length ? Math.max(...prices) : null;
   const availCount = allPlans.filter(p => p.is_available).length;
 
   return (
@@ -88,12 +105,12 @@ const ListingDetailPage: React.FC = () => {
           <div className="flex flex-col items-end gap-2 shrink-0">
             <div className="text-right">
               <span className="text-3xl font-bold text-indigo-600">
-                ${minP.toLocaleString()}
+                {minP != null ? `$${minP.toLocaleString()}` : 'Contact'}
               </span>
-              {maxP > minP && (
+              {minP != null && maxP != null && maxP > minP && (
                 <span className="text-slate-400 text-sm"> – ${maxP.toLocaleString()}</span>
               )}
-              <span className="text-slate-400 text-sm">/mo</span>
+              {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -120,7 +137,7 @@ const ListingDetailPage: React.FC = () => {
         <div className="grid grid-cols-3 gap-3 mt-6">
           <StatPill label="Floor plans" value={String(allPlans.length)} />
           <StatPill label="Available now" value={`${availCount} / ${allPlans.length}`} />
-          <StatPill label="From" value={`$${minP.toLocaleString()}`} />
+          <StatPill label="From" value={minP != null ? `$${minP.toLocaleString()}` : 'Contact'} />
         </div>
       </div>
 
@@ -130,7 +147,51 @@ const ListingDetailPage: React.FC = () => {
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="font-semibold text-slate-900">Floor Plans</h2>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile card grid (hidden on md+) */}
+          <div className="md:hidden divide-y divide-slate-50">
+            {allPlans.map(plan => {
+              const isSelected = plan.id === selectedPlan?.id;
+              const spec = [
+                plan.bedrooms === 0 ? 'Studio' : plan.bedrooms != null ? `${plan.bedrooms} bd` : null,
+                plan.bathrooms != null ? `${plan.bathrooms} ba` : null,
+                plan.area_sqft != null ? `${plan.area_sqft.toLocaleString()} sqft` : null,
+              ].filter(Boolean).join(' · ');
+              return (
+                <div
+                  key={plan.id}
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={`p-4 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="font-semibold text-slate-900 text-sm leading-snug">{plan.name}</span>
+                    <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
+                      plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {plan.is_available ? 'Available' : 'Unavailable'}
+                    </span>
+                  </div>
+                  {spec && <p className="text-xs text-slate-400 mb-3">{spec}</p>}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-bold text-slate-900">
+                      {plan.price != null
+                        ? <>{`$${plan.price.toLocaleString()}`}<span className="text-xs font-normal text-slate-400">/mo</span></>
+                        : <span className="text-slate-400 text-base font-normal">Contact</span>}
+                    </span>
+                    <button
+                      onClick={e => openAlertForPlan(e, plan)}
+                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Set alert
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table (hidden below md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
@@ -144,40 +205,47 @@ const ListingDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {allPlans.map(plan => (
-                  <tr key={plan.id} className={`hover:bg-slate-50 transition-colors ${plan.name === listing.plan_name ? 'bg-indigo-50' : ''}`}>
-                    <td className="px-4 py-3 font-mono font-semibold text-slate-700">
-                      {plan.name}
-                      {plan.name === listing.plan_name && (
-                        <span className="ml-2 text-xs text-indigo-500 font-sans">selected</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {plan.bedrooms === 0 ? 'Studio' : plan.bedrooms}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{plan.bathrooms}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {plan.area_sqft ? plan.area_sqft.toLocaleString() : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      ${plan.price.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`badge ${plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                        {plan.is_available ? 'Available' : 'Unavailable'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <button
-                        title="Set price alert for this plan"
-                        onClick={() => openAlertForPlan(plan)}
-                        className="text-slate-400 hover:text-indigo-600 transition-colors text-base leading-none"
-                      >
-                        🔔
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {allPlans.map(plan => {
+                  const isSelected = plan.id === selectedPlan?.id;
+                  return (
+                    <tr
+                      key={plan.id}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
+                        {plan.name}
+                        {isSelected && (
+                          <span className="ml-2 text-xs text-indigo-500 font-sans">selected</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                        {plan.bedrooms === 0 ? 'Studio' : plan.bedrooms}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{plan.bathrooms}</td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                        {plan.area_sqft ? plan.area_sqft.toLocaleString() : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
+                        {plan.price != null ? `$${plan.price.toLocaleString()}` : <span className="text-slate-400 font-normal">Contact</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`badge ${plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                          {plan.is_available ? 'Available' : 'Unavailable'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <button
+                          title="Set price alert for this plan"
+                          onClick={(e) => openAlertForPlan(e, plan)}
+                          className="text-slate-400 hover:text-indigo-600 transition-colors text-base leading-none"
+                        >
+                          🔔
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -185,8 +253,34 @@ const ListingDetailPage: React.FC = () => {
 
         {/* Price history chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <h2 className="font-semibold text-slate-900 mb-1">Price History</h2>
-          <p className="text-xs text-slate-400 mb-4">Plan {listing.plan_name}</p>
+          <h2 className="font-semibold text-slate-900 mb-3">Price History</h2>
+
+          {/* Plan switcher pills */}
+          {allPlans.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+              {allPlans.map(plan => {
+                const active = plan.id === selectedPlan?.id;
+                return (
+                  <button
+                    key={plan.id}
+                    onClick={() => setSelectedPlanId(plan.id)}
+                    className={`shrink-0 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors whitespace-nowrap ${
+                      active
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                    }`}
+                  >
+                    {plan.name}
+                    {plan.price != null && (
+                      <span className={`ml-1.5 ${active ? 'text-indigo-200' : 'text-slate-400'}`}>
+                        ${plan.price.toLocaleString()}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -231,7 +325,7 @@ const ListingDetailPage: React.FC = () => {
         <AlertModal
           apartmentId={apt.id}
           apartmentTitle={listing.title}
-          currentPrice={alertPlan ? alertPlan.price : minP}
+          currentPrice={alertPlan ? (alertPlan.price ?? undefined) : (minP ?? undefined)}
           planId={alertPlan?.id}
           planName={alertPlan?.name}
           onClose={() => { setShowAlert(false); setAlertPlan(null); }}
