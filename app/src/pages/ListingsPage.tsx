@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import FilterPanel from '../components/FilterPanel';
 import MapView from '../components/MapView';
+import AuthModal from '../components/AuthModal';
+import { useAuth } from '../context/AuthContext';
 
 // ── Apartment complex card ────────────────────────────────────────────────────
 
@@ -24,7 +26,13 @@ const bedLabel = (min: number, max: number) => {
   return `${lo} – ${max} bd`;
 };
 
-const ApartmentCard: React.FC<{ apt: ApartmentSummary }> = ({ apt }) => {
+export interface ApartmentCardProps {
+  apt: ApartmentSummary;
+  favorited?: boolean;
+  onFavoriteClick?: (e: React.MouseEvent) => void;
+}
+
+export const ApartmentCard: React.FC<ApartmentCardProps> = ({ apt, favorited = false, onFavoriteClick }) => {
   const c = cityStyle(apt.city);
   const priceRange = apt.min_price == null
     ? 'Contact for pricing'
@@ -39,15 +47,26 @@ const ApartmentCard: React.FC<{ apt: ApartmentSummary }> = ({ apt }) => {
         <div className={`h-1 ${c.dot} opacity-60`} />
 
         <div className="p-5">
-          {/* Header: city badge */}
+          {/* Header: city badge + heart */}
           <div className="flex items-center justify-between mb-3">
             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${c.bg} ${c.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
               {apt.city}
             </span>
-            <span className="text-xs text-slate-400">
-              {apt.available_count} / {apt.plan_count} available
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">
+                {apt.available_count} / {apt.plan_count} available
+              </span>
+              {onFavoriteClick && (
+                <button
+                  onClick={onFavoriteClick}
+                  title={favorited ? 'Remove from favorites' : 'Save to favorites'}
+                  className={`text-lg leading-none transition-colors ${favorited ? 'text-rose-500 hover:text-rose-400' : 'text-slate-300 hover:text-rose-400'}`}
+                >
+                  {favorited ? '♥' : '♡'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Name */}
@@ -95,11 +114,19 @@ const Skeleton = () => (
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 const ListingsPage: React.FC = () => {
+  const { token, isFavorite, toggleFavorite } = useAuth();
   const [apts, setApts] = useState<ApartmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ListingsFilter>({});
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [showAuth, setShowAuth] = useState(false);
+
+  const handleFavorite = (e: React.MouseEvent, aptId: number) => {
+    e.preventDefault(); // don't navigate into the card
+    if (!token) { setShowAuth(true); return; }
+    toggleFavorite(aptId);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -225,11 +252,19 @@ const ListingsPage: React.FC = () => {
             <MapView apartments={filtered} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map(apt => <ApartmentCard key={apt.id} apt={apt} />)}
+              {filtered.map(apt => (
+                <ApartmentCard
+                  key={apt.id}
+                  apt={apt}
+                  favorited={isFavorite(apt.id)}
+                  onFavoriteClick={e => handleFavorite(e, apt.id)}
+                />
+              ))}
             </div>
           )}
         </div>
       </div>
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </div>
   );
 };

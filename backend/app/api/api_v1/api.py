@@ -6,6 +6,7 @@ from app.api.api_v1.endpoints import (
 )
 from app.api.api_v1.endpoints.admin import router as admin_router
 from app.api.api_v1.endpoints.auth import router as auth_router
+from app.api.api_v1.endpoints.favorites import router as favorites_router
 from app.api.api_v1.endpoints.subscriptions import router as subscriptions_router
 from app.api.api_v1.endpoints.webhooks import router as webhooks_router
 from fastapi import APIRouter
@@ -23,6 +24,7 @@ api_router.include_router(search.router, tags=["search"])
 
 # Authenticated endpoints
 api_router.include_router(subscriptions_router)
+api_router.include_router(favorites_router)
 
 # Admin endpoints
 api_router.include_router(admin_router)

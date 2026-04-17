@@ -457,6 +457,30 @@ const api = {
     if (!res.ok) throw new Error('Failed to delete subscription');
   },
 
+  async getFavorites(token: string): Promise<number[]> {
+    const res = await fetch(`${API_BASE_URL}/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to load favorites');
+    return res.json();
+  },
+
+  async addFavorite(token: string, apartmentId: number): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/favorites/${apartmentId}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to add favorite');
+  },
+
+  async removeFavorite(token: string, apartmentId: number): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/favorites/${apartmentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to remove favorite');
+  },
+
   async getPriceTrends(location?: string, days: number = 30): Promise<PriceTrend[]> {
     if (USE_MOCK) {
       await new Promise(r => setTimeout(r, 300));

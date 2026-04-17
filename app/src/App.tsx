@@ -3,6 +3,7 @@ import { Routes, Route, Link } from 'react-router-dom';
 import ListingsPage from './pages/ListingsPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import AlertsPage from './pages/AlertsPage';
+import FavoritesPage from './pages/FavoritesPage';
 import UnsubscribePage from './pages/UnsubscribePage';
 import AuthModal from './components/AuthModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -14,6 +15,13 @@ const NavActions: React.FC = () => {
   if (user) {
     return (
       <div className="flex items-center gap-3 text-sm">
+        <Link
+          to="/favorites"
+          className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors"
+        >
+          <span>♥</span>
+          <span className="hidden sm:inline">Saved</span>
+        </Link>
         <Link
           to="/alerts"
           className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors"
@@ -78,6 +86,7 @@ const App: React.FC = () => (
           <Route path="/" element={<ListingsPage />} />
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/unsubscribe/all/:token" element={<UnsubscribePage variant="all" />} />
           <Route path="/unsubscribe/:token" element={<UnsubscribePage variant="one" />} />
         </Routes>
