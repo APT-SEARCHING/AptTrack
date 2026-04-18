@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
+import { medianApartmentPrice } from '../utils/medianPrice';
 import FilterPanel from '../components/FilterPanel';
 import MapView from '../components/MapView';
 import AuthModal from '../components/AuthModal';
@@ -147,10 +148,7 @@ const ListingsPage: React.FC = () => {
     return result;
   }, [apts, filters]);
 
-  const allPrices = apts.flatMap(a => [a.min_price, a.max_price]).filter((p): p is number => p != null && p > 0);
-  const avgPrice = allPrices.length
-    ? Math.round(allPrices.reduce((s, p) => s + p, 0) / allPrices.length)
-    : 0;
+  const medianPrice = Math.round(medianApartmentPrice(apts));
   const totalPlans = apts.reduce((s, a) => s + a.plan_count, 0);
 
   return (
@@ -170,7 +168,7 @@ const ListingsPage: React.FC = () => {
           {[
             { label: 'Complexes',  value: apts.length.toString() },
             { label: 'Floor plans', value: totalPlans.toString() },
-            { label: 'Avg rent',   value: `$${avgPrice.toLocaleString()}` },
+            { label: 'Median rent', value: `$${medianPrice.toLocaleString()}` },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4">
               <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">{s.label}</p>
