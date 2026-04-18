@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     # MiniMax
     MINIMAX_API_KEY: str = ""
 
+    # Demo subscription created on new user registration
+    DEFAULT_DEMO_CITY: str = "San Jose"
+
     @field_validator("JWT_SECRET_KEY")
     @classmethod
     def check_jwt_secret(cls, v: str) -> str:

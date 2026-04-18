@@ -541,6 +541,71 @@ class TestCreateSubscriptionBaseline:
 
 
 # ---------------------------------------------------------------------------
+# Phase 3B.2: Demo subscription created on user registration
+# ---------------------------------------------------------------------------
+
+class TestRegisterDemoSubscription:
+    """Verify that registering a new user auto-creates an is_demo=True subscription
+    when a suitable plan exists, and that registration succeeds even when it doesn't."""
+
+    def test_register_creates_demo_subscription_when_plan_exists(
+        self, client: TestClient, db: Session
+    ):
+        """A 1BR plan in DEFAULT_DEMO_CITY → demo sub created with is_demo=True."""
+        from app.models.apartment import Apartment, Plan
+
+        apt = Apartment(
+            title="Demo Seed Apts", city="San Jose", state="CA",
+            zipcode="95110", property_type="apartment", is_available=True,
+        )
+        db.add(apt)
+        db.flush()
+        plan = Plan(
+            apartment_id=apt.id, name="1BR-Demo", bedrooms=1.0, bathrooms=1.0,
+            area_sqft=650, price=2750.0, is_available=True,
+        )
+        db.add(plan)
+        db.commit()
+
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"email": "demo_test@test.example", "password": "testpassword123"},
+        )
+        assert resp.status_code == 201
+        token = resp.json()["access_token"]
+
+        subs = client.get(
+            "/api/v1/subscriptions",
+            headers={"Authorization": f"Bearer {token}"},
+        ).json()
+
+        assert len(subs) == 1
+        s = subs[0]
+        assert s["is_demo"] is True
+        assert s["plan_id"] == plan.id
+        assert s["price_drop_pct"] == 5.0
+        assert s["baseline_price"] == 2750.0
+        assert s["is_active"] is True
+
+    def test_register_succeeds_without_demo_when_no_plan_exists(
+        self, client: TestClient, db: Session
+    ):
+        """Registration must not fail when the DB has no 1BR plans — demo sub skipped."""
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"email": "no_plan@test.example", "password": "testpassword123"},
+        )
+        assert resp.status_code == 201
+        token = resp.json()["access_token"]
+
+        subs = client.get(
+            "/api/v1/subscriptions",
+            headers={"Authorization": f"Bearer {token}"},
+        ).json()
+        assert subs == []
+
+
+# ---------------------------------------------------------------------------
 # Phase 3C.7: target_price >= baseline_price rejected at create time
 # ---------------------------------------------------------------------------
 

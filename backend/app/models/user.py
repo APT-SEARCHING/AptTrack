@@ -71,6 +71,8 @@ class PriceSubscription(Base):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
+    is_demo = Column(Boolean, default=False, nullable=False,
+        comment="Auto-created demo subscription shown to new users")
     last_notified_at = Column(DateTime(timezone=True), nullable=True)
     trigger_count = Column(Integer, default=0, nullable=False,
         comment="Number of times a notification has been fired for this subscription")

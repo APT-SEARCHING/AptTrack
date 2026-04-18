@@ -68,6 +68,35 @@ async def send_email_alert(to_email: str, subject: str, body: str) -> _NotifResu
         return (None, "failed", False)
 
 
+async def send_welcome_email(
+    to_email: str,
+    apartment_title: str,
+    plan_name: str,
+    price: float,
+    city: str,
+) -> None:
+    """Send a welcome email to a newly registered user.
+
+    Includes details of the auto-created demo subscription so they know
+    what to expect. Fire-and-forget — never raises.
+    """
+    subject = "Your AptTrack rent tracker is live"
+    body = (
+        f"Hi,\n\n"
+        f"You're signed up for AptTrack — it watches Bay Area apartment prices "
+        f"and emails you when they drop.\n\n"
+        f"We've set up a sample alert so you can see how it works:\n\n"
+        f"  {apartment_title} ({city}) · {plan_name} · ${price:,.0f}/mo\n"
+        f"  Fires if the price drops 5% or more\n\n"
+        f"You'll get an email if it triggers. Visit {settings.APP_BASE_URL}/alerts "
+        f"to edit or delete it.\n\n"
+        f"To track a specific apartment, go to {settings.APP_BASE_URL}/listings, "
+        f'click any floor plan, and hit "Set Price Alert."\n\n'
+        f"— AptTrack\n"
+    )
+    await send_email_alert(to_email, subject, body)
+
+
 async def send_telegram_alert(chat_id: str, message: str) -> _NotifResult:
     """Send a message via the Telegram Bot API.
 

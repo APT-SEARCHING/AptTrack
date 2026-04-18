@@ -215,6 +215,26 @@ class SimilarResponse(BaseModel):
     similar: List[SimilarApartment] = []
 
 
+class TopDropItem(BaseModel):
+    plan_id: int
+    apartment_id: int
+    apartment_title: str
+    plan_name: str
+    previous_price: float
+    current_price: float
+    drop_pct: float
+
+
+class CheapestItem(BaseModel):
+    plan_id: int
+    apartment_id: int
+    apartment_title: str
+    plan_name: str
+    price: float
+    bedrooms: float
+    area_sqft: Optional[float] = None
+
+
 class ApartmentFilter(BaseModel):
     min_price: Optional[float] = None
     max_price: Optional[float] = None

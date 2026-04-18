@@ -204,6 +204,7 @@ def _enrich(
         "notify_telegram": sub.notify_telegram,
         "telegram_chat_id": sub.telegram_chat_id,
         "is_active": sub.is_active,
+        "is_demo": sub.is_demo,
         "last_notified_at": sub.last_notified_at,
         "trigger_count": sub.trigger_count,
         "created_at": sub.created_at,

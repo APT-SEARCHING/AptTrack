@@ -174,6 +174,7 @@ export interface SubscriptionResponse {
   notify_email: boolean;
   notify_telegram: boolean;
   is_active: boolean;
+  is_demo: boolean;
   last_notified_at: string | null;
   trigger_count: number;
   created_at: string;
@@ -183,6 +184,26 @@ export interface SubscriptionResponse {
   plan_name: string | null;
   plan_spec: string | null;
   latest_price: number | null;
+}
+
+export interface TopDropItem {
+  plan_id: number;
+  apartment_id: number;
+  apartment_title: string;
+  plan_name: string;
+  previous_price: number;
+  current_price: number;
+  drop_pct: number;
+}
+
+export interface CheapestItem {
+  plan_id: number;
+  apartment_id: number;
+  apartment_title: string;
+  plan_name: string;
+  price: number;
+  bedrooms: number;
+  area_sqft: number | null;
 }
 
 export type SortOption = 'price_asc' | 'price_desc' | 'updated_desc' | 'name_asc';
@@ -519,6 +540,14 @@ const api = {
 
   async getSimilarApartments(id: number): Promise<SimilarResponse> {
     return apiFetch<SimilarResponse>(`/apartments/${id}/similar`);
+  },
+
+  async getTopDrops(days: number = 7, limit: number = 5): Promise<TopDropItem[]> {
+    return apiFetch<TopDropItem[]>('/stats/top-drops', { days, limit });
+  },
+
+  async getCheapest(city?: string, bedrooms?: number, limit: number = 5): Promise<CheapestItem[]> {
+    return apiFetch<CheapestItem[]>('/stats/cheapest', { city, bedrooms, limit });
   },
 
   async getPriceTrends(location?: string, days: number = 30): Promise<PriceTrend[]> {

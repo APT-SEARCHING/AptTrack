@@ -98,11 +98,42 @@ const AlertsPage: React.FC = () => {
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
       ) : subs.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
-          <p className="text-5xl mb-4">🔕</p>
-          <p className="text-lg font-medium text-slate-600">No alerts yet</p>
-          <p className="text-sm mt-1">Go to an apartment listing and click "Set Alert".</p>
-          <Link to="/" className="inline-block mt-4 text-indigo-600 hover:underline text-sm">Browse listings →</Link>
+        <div className="py-12">
+          <h2 className="text-xl font-semibold text-slate-800 mb-1">Start tracking Bay Area rent</h2>
+          <p className="text-slate-500 text-sm mb-6">
+            Set a price alert on any apartment — we'll email you when it drops.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([
+              {
+                label: 'Biggest price drops this week',
+                sub: 'See which apartments dropped most recently',
+                to: '/listings?sort=dropped',
+              },
+              {
+                label: 'Cheapest 1BR in SF right now',
+                sub: 'Sorted by current asking price',
+                to: '/listings?location=San+Francisco&bedrooms=1',
+              },
+              {
+                label: 'Browse by city',
+                sub: 'San Jose, Oakland, Fremont, and more',
+                to: '/listings',
+              },
+            ] as const).map(card => (
+              <Link
+                key={card.to}
+                to={card.to}
+                className="block rounded-xl border border-slate-200 bg-white p-4 hover:border-indigo-300 hover:shadow-sm transition-all text-left"
+              >
+                <p className="font-medium text-slate-800 text-sm">{card.label}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{card.sub}</p>
+              </Link>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-6">
+            Click any apartment → floor plan → "Set Price Alert" to create your first alert.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -141,6 +172,11 @@ const AlertsPage: React.FC = () => {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sub.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                         {sub.is_active ? 'Active' : 'Paused'}
                       </span>
+                      {sub.is_demo && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700">
+                          Sample
+                        </span>
+                      )}
                     </div>
                     {/* Plan name + spec */}
                     {(sub.plan_name || sub.plan_spec) && (
@@ -200,6 +236,9 @@ const AlertsPage: React.FC = () => {
                   Created {new Date(sub.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {sub.last_notified_at && ` · Notified ${new Date(sub.last_notified_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                   {sub.trigger_count > 0 && ` · Fired ${sub.trigger_count}×`}
+                  {sub.is_demo && (
+                    <> · Sample alert — <button onClick={() => remove(sub.id)} className="underline hover:text-red-400 transition-colors">delete</button> when ready to add your own</>
+                  )}
                 </p>
               </div>
             );

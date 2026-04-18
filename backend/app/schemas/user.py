@@ -58,6 +58,9 @@ class SubscriptionCreate(BaseModel):
     notify_telegram: bool = False
     telegram_chat_id: Optional[str] = None
 
+    # Set True only by the server when auto-creating a demo subscription on register
+    is_demo: bool = False
+
     @model_validator(mode="after")
     def _validate_target_below_baseline(self) -> SubscriptionCreate:
         if self.target_price is not None and self.baseline_price is not None:
@@ -101,6 +104,7 @@ class SubscriptionResponse(BaseModel):
     notify_telegram: bool
     telegram_chat_id: Optional[str]
     is_active: bool
+    is_demo: bool
     last_notified_at: Optional[datetime]
     trigger_count: int
     created_at: datetime
