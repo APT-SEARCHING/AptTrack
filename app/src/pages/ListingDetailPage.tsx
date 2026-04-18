@@ -10,9 +10,9 @@ import AlertModal from '../components/AlertModal';
 import AuthModal from '../components/AuthModal';
 
 const StatPill: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="bg-slate-50 rounded-xl px-4 py-3 text-center">
-    <p className="text-xs text-slate-400 uppercase tracking-wider mb-0.5">{label}</p>
-    <p className="font-bold text-slate-900">{value}</p>
+  <div className="bg-slate-50 rounded-xl px-2 sm:px-4 py-3 text-center">
+    <p className="text-xs text-slate-400 uppercase tracking-wider mb-0.5 truncate">{label}</p>
+    <p className="font-bold text-slate-900 text-sm sm:text-base">{value}</p>
   </div>
 );
 
@@ -169,8 +169,8 @@ const ListingDetailPage: React.FC = () => {
               <span>📍</span> {listing.location}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="text-right">
+          <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
+            <div className="sm:text-right">
               <span className="text-3xl font-bold text-indigo-600">
                 {minP != null ? `$${minP.toLocaleString()}` : 'Contact'}
               </span>
@@ -184,7 +184,7 @@ const ListingDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => {
                   if (token) { setAlertPlan(null); setShowAlert(true); }
@@ -213,7 +213,7 @@ const ListingDetailPage: React.FC = () => {
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-3 mt-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-6">
           <StatPill label="Floor plans" value={String(allPlans.length)} />
           <StatPill label="Available now" value={`${availCount} / ${allPlans.length}`} />
           <StatPill label="From" value={minP != null ? `$${minP.toLocaleString()}` : 'Contact'} />

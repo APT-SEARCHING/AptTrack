@@ -155,13 +155,13 @@ const AlertsPage: React.FC = () => {
                   <div className="shrink-0 flex items-center gap-2">
                     <button
                       onClick={() => togglePause(sub)}
-                      className={`text-xs border rounded-lg px-3 py-1.5 transition-colors ${pauseColors}`}
+                      className={`text-xs border rounded-lg px-3 py-2 transition-colors ${pauseColors}`}
                     >
                       {pauseLabel}
                     </button>
                     <button
                       onClick={() => remove(sub.id)}
-                      className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
+                      className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 rounded-lg px-3 py-2 transition-colors"
                     >
                       Remove
                     </button>

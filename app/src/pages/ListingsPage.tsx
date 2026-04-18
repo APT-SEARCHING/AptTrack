@@ -164,15 +164,15 @@ const ListingsPage: React.FC = () => {
 
       {/* Stats */}
       {!loading && apts.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-8">
           {[
             { label: 'Complexes',  value: apts.length.toString() },
             { label: 'Floor plans', value: totalPlans.toString() },
             { label: 'Median rent', value: `$${medianPrice.toLocaleString()}` },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-5 py-4">
-              <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">{s.label}</p>
-              <p className="text-2xl font-bold text-slate-900">{s.value}</p>
+            <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-3 sm:px-5 py-3 sm:py-4">
+              <p className="text-xs text-slate-400 uppercase tracking-wider mb-1 truncate">{s.label}</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900">{s.value}</p>
             </div>
           ))}
         </div>
@@ -188,41 +188,41 @@ const ListingsPage: React.FC = () => {
 
         {/* Main */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <p className="text-sm text-slate-500">
               {loading ? 'Loading…' : `${filtered.length} apartment${filtered.length !== 1 ? 's' : ''}`}
             </p>
-            <div className="flex items-center gap-3">
-            {/* Sort */}
-            <select
-              value={filters.sort ?? 'price_asc'}
-              onChange={e => setFilters(f => ({ ...f, sort: e.target.value as SortOption }))}
-              className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            >
-              <option value="price_asc">Price: low to high</option>
-              <option value="price_desc">Price: high to low</option>
-              <option value="updated_desc">Recently updated</option>
-              <option value="name_asc">Name A–Z</option>
-            </select>
-            {/* List / Map toggle */}
-            <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Sort */}
+              <select
+                value={filters.sort ?? 'price_asc'}
+                onChange={e => setFilters(f => ({ ...f, sort: e.target.value as SortOption }))}
+                className="flex-1 sm:flex-none text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
-                ☰ List
-              </button>
-              <button
-                onClick={() => setViewMode('map')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  viewMode === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                🗺 Map
-              </button>
-            </div>
+                <option value="price_asc">Price: low to high</option>
+                <option value="price_desc">Price: high to low</option>
+                <option value="updated_desc">Recently updated</option>
+                <option value="name_asc">Name A–Z</option>
+              </select>
+              {/* List / Map toggle */}
+              <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1 shrink-0">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  ☰ List
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  🗺 Map
+                </button>
+              </div>
             </div>
           </div>
 

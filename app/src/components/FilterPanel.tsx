@@ -56,19 +56,19 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
           Monthly Rent
         </label>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <input
             type="number"
             value={filters.min_price || ''}
             onChange={e => set('min_price', e.target.value)}
-            className="input-base"
+            className="input-base min-w-0"
             placeholder="Min $"
           />
           <input
             type="number"
             value={filters.max_price || ''}
             onChange={e => set('max_price', e.target.value)}
-            className="input-base"
+            className="input-base min-w-0"
             placeholder="Max $"
           />
         </div>
@@ -142,19 +142,19 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
               Size (sqft)
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
                 value={filters.min_sqft || ''}
                 onChange={e => set('min_sqft', e.target.value)}
-                className="input-base"
+                className="input-base min-w-0"
                 placeholder="Min"
               />
               <input
                 type="number"
                 value={filters.max_sqft || ''}
                 onChange={e => set('max_sqft', e.target.value)}
-                className="input-base"
+                className="input-base min-w-0"
                 placeholder="Max"
               />
             </div>
