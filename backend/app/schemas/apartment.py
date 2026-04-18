@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +29,7 @@ class PlanBase(BaseModel):
     bedrooms: float
     bathrooms: float
     area_sqft: Optional[float] = None
-    price: float
+    price: Optional[float] = None
     available_from: Optional[datetime] = None
     is_available: bool = True
 
@@ -188,6 +188,28 @@ class NeighborhoodInDB(NeighborhoodBase):
 class PriceTrend(BaseModel):
     date: datetime
     avg_price: float
+
+
+class SimilarApartment(BaseModel):
+    id: int
+    title: str
+    city: str
+    location: str
+    source_url: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_beds: float
+    max_beds: float
+    plan_count: int
+    available_count: int
+
+
+class SimilarResponse(BaseModel):
+    city_median_price: Optional[float] = None
+    pct_vs_median: Optional[float] = None
+    similar: List[SimilarApartment] = []
 
 
 class ApartmentFilter(BaseModel):

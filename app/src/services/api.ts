@@ -107,6 +107,28 @@ export interface PriceTrend {
   avg_price: number;
 }
 
+export interface SimilarApartment {
+  id: number;
+  title: string;
+  city: string;
+  location: string;
+  source_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  min_beds: number;
+  max_beds: number;
+  plan_count: number;
+  available_count: number;
+}
+
+export interface SimilarResponse {
+  city_median_price: number | null;
+  pct_vs_median: number | null;
+  similar: SimilarApartment[];
+}
+
 // ---------------------------------------------------------------------------
 // Auth types
 // ---------------------------------------------------------------------------
@@ -490,6 +512,10 @@ const api = {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error('Failed to remove favorite');
+  },
+
+  async getSimilarApartments(id: number): Promise<SimilarResponse> {
+    return apiFetch<SimilarResponse>(`/apartments/${id}/similar`);
   },
 
   async getPriceTrends(location?: string, days: number = 30): Promise<PriceTrend[]> {

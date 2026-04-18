@@ -4,7 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import api, { Listing, PlanResponse } from '../services/api';
+import api, { Listing, PlanResponse, SimilarApartment, SimilarResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AlertModal from '../components/AlertModal';
 import AuthModal from '../components/AuthModal';
@@ -16,6 +16,61 @@ const StatPill: React.FC<{ label: string; value: string }> = ({ label, value }) 
   </div>
 );
 
+const MarketPill: React.FC<{ pct: number; city: string }> = ({ pct, city }) => {
+  const absPct = Math.abs(pct);
+  const label =
+    absPct < 0.05
+      ? `Near ${city} median`
+      : pct < 0
+      ? `${Math.round(absPct * 100)}% below ${city} median`
+      : `${Math.round(absPct * 100)}% above ${city} median`;
+  const colors =
+    absPct < 0.05
+      ? 'bg-slate-100 text-slate-500'
+      : pct < 0
+      ? 'bg-emerald-100 text-emerald-700'
+      : 'bg-amber-100 text-amber-700';
+  return (
+    <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full ${colors}`}>
+      {label}
+    </span>
+  );
+};
+
+const SimilarCard: React.FC<{ apt: SimilarApartment }> = ({ apt }) => {
+  const bedLabel =
+    apt.min_beds === apt.max_beds
+      ? apt.min_beds === 0 ? 'Studio' : `${apt.min_beds} bd`
+      : apt.min_beds === 0
+      ? `Studio – ${apt.max_beds} bd`
+      : `${apt.min_beds} – ${apt.max_beds} bd`;
+
+  const priceLabel =
+    apt.min_price == null
+      ? 'Contact'
+      : apt.min_price === apt.max_price
+      ? `$${apt.min_price.toLocaleString()}`
+      : `$${apt.min_price.toLocaleString()} – $${(apt.max_price ?? apt.min_price).toLocaleString()}`;
+
+  return (
+    <Link to={`/listings/${apt.id}`} className="block group shrink-0 w-56">
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm group-hover:shadow-md group-hover:border-indigo-200 transition-all duration-200 p-4">
+        <p className="font-semibold text-slate-900 text-sm leading-tight mb-1 group-hover:text-indigo-700 transition-colors line-clamp-2">
+          {apt.title}
+        </p>
+        <p className="text-xs text-slate-400 mb-3 truncate">{apt.location}</p>
+        <p className="text-base font-bold text-slate-900 mb-1">{priceLabel}</p>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-400">{bedLabel} · {apt.plan_count} plans</span>
+          <span className="text-xs font-medium text-indigo-500 group-hover:text-indigo-700 transition-colors">
+            View →
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+};
+
 const ListingDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [listing, setListing] = useState<Listing | null>(null);
@@ -24,6 +79,7 @@ const ListingDetailPage: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [alertPlan, setAlertPlan] = useState<PlanResponse | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [similar, setSimilar] = useState<SimilarResponse | null>(null);
   const { token } = useAuth();
 
   const openAlertForPlan = (e: React.MouseEvent, plan: PlanResponse) => {
@@ -34,8 +90,10 @@ const ListingDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
+    const aptId = Number(id);
     setLoading(true);
-    api.getListing(Number(id))
+    setSimilar(null);
+    api.getListing(aptId)
       .then(data => {
         setListing(data);
         // default selection: first plan by price
@@ -47,6 +105,8 @@ const ListingDetailPage: React.FC = () => {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+    // Fire-and-forget: similar section renders when ready, doesn't block the page
+    api.getSimilarApartments(aptId).then(setSimilar).catch(() => {});
   }, [id]);
 
   if (loading) {
@@ -111,6 +171,11 @@ const ListingDetailPage: React.FC = () => {
                 <span className="text-slate-400 text-sm"> – ${maxP.toLocaleString()}</span>
               )}
               {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
+              {similar?.pct_vs_median != null && apt && (
+                <div className="mt-1">
+                  <MarketPill pct={similar.pct_vs_median} city={apt.city} />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -320,6 +385,33 @@ const ListingDetailPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Similar apartments */}
+      {similar && similar.similar.length > 0 && apt && (
+        <div className="mt-8">
+          <div className="flex items-baseline gap-3 mb-4">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Similar in {apt.city}
+            </h2>
+            {similar.city_median_price != null && (
+              <span className="text-sm text-slate-400">
+                Median {apt.city} {
+                  // find primary bedroom count from first similar card (or first plan)
+                  (() => {
+                    const beds = allPlans[0]?.bedrooms;
+                    return beds === 0 ? 'studio' : beds != null ? `${beds}bd` : '';
+                  })()
+                }: ${Math.round(similar.city_median_price).toLocaleString()}/mo
+              </span>
+            )}
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+            {similar.similar.map(apt => (
+              <SimilarCard key={apt.id} apt={apt} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {showAlert && apt && (
         <AlertModal
