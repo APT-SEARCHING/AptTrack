@@ -3,10 +3,11 @@ import { useAuth } from '../context/AuthContext';
 
 interface Props {
   onClose: () => void;
+  onSuccess?: () => void;
   defaultMode?: 'login' | 'register';
 }
 
-const AuthModal: React.FC<Props> = ({ onClose, defaultMode = 'login' }) => {
+const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' }) => {
   const [mode, setMode] = useState<'login' | 'register'>(defaultMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +25,7 @@ const AuthModal: React.FC<Props> = ({ onClose, defaultMode = 'login' }) => {
       } else {
         await register(email, password);
       }
+      onSuccess?.();
       onClose();
     } catch (err: any) {
       // Parse error message from backend

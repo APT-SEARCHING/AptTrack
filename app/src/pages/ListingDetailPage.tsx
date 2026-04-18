@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -81,10 +81,17 @@ const ListingDetailPage: React.FC = () => {
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [similar, setSimilar] = useState<SimilarResponse | null>(null);
   const { token } = useAuth();
+  // Stores the action to resume after a successful login from this page
+  const authSuccessRef = useRef<(() => void) | null>(null);
 
   const openAlertForPlan = (e: React.MouseEvent, plan: PlanResponse) => {
     e.stopPropagation();
-    if (!token) { setShowAuth(true); return; }
+    if (!token) {
+      setAlertPlan(plan); // set now so onSuccess can open the right plan
+      authSuccessRef.current = () => { setShowAuth(false); setShowAlert(true); };
+      setShowAuth(true);
+      return;
+    }
     setAlertPlan(plan);
     setShowAlert(true);
   };
@@ -179,7 +186,14 @@ const ListingDetailPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { if (token) { setAlertPlan(null); setShowAlert(true); } else setShowAuth(true); }}
+                onClick={() => {
+                  if (token) { setAlertPlan(null); setShowAlert(true); }
+                  else {
+                    setAlertPlan(null);
+                    authSuccessRef.current = () => { setShowAuth(false); setShowAlert(true); };
+                    setShowAuth(true);
+                  }
+                }}
                 className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
               >
                 <span>🔔</span> Set Alert
@@ -425,7 +439,13 @@ const ListingDetailPage: React.FC = () => {
         />
       )}
       {showAuth && (
-        <AuthModal onClose={() => setShowAuth(false)} />
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => {
+            authSuccessRef.current?.();
+            authSuccessRef.current = null;
+          }}
+        />
       )}
     </div>
   );

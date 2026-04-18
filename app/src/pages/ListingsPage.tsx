@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import { medianApartmentPrice } from '../utils/medianPrice';
@@ -122,10 +122,15 @@ const ListingsPage: React.FC = () => {
   const [filters, setFilters] = useState<ListingsFilter>({});
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showAuth, setShowAuth] = useState(false);
+  const pendingFavoriteRef = useRef<number | null>(null);
 
   const handleFavorite = (e: React.MouseEvent, aptId: number) => {
     e.preventDefault(); // don't navigate into the card
-    if (!token) { setShowAuth(true); return; }
+    if (!token) {
+      pendingFavoriteRef.current = aptId;
+      setShowAuth(true);
+      return;
+    }
     toggleFavorite(aptId);
   };
 
@@ -262,7 +267,18 @@ const ListingsPage: React.FC = () => {
           )}
         </div>
       </div>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => {
+            setShowAuth(false);
+            if (pendingFavoriteRef.current != null) {
+              toggleFavorite(pendingFavoriteRef.current);
+              pendingFavoriteRef.current = null;
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
