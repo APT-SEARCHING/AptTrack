@@ -14,7 +14,7 @@ interface Props {
 }
 
 const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, planId, planName, onClose, onCreated }) => {
-  const { token } = useAuth();
+  const { token, activeAlertsCount, updateAlertCount } = useAuth();
   const [type, setType] = useState<'price' | 'pct'>('price');
   const [targetPrice, setTargetPrice] = useState(currentPrice != null ? String(Math.floor(currentPrice * 0.95)) : '');
   const [pctDrop, setPctDrop] = useState('5');
@@ -38,6 +38,7 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
         payload.price_drop_pct = parseFloat(pctDrop);
       }
       await api.createSubscription(token, payload);
+      updateAlertCount(activeAlertsCount + 1);
       toast.success('Alert created! We\'ll email you when the price drops.');
       onCreated();
       onClose();

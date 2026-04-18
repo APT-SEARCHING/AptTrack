@@ -10,7 +10,7 @@ import AuthModal from './components/AuthModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const NavActions: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, activeAlertsCount } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
 
   if (user) {
@@ -27,7 +27,18 @@ const NavActions: React.FC = () => {
           to="/alerts"
           className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors"
         >
-          <span>🔔</span>
+          <span className="relative">
+            🔔
+            {activeAlertsCount > 0 && (
+              <span
+                key={activeAlertsCount}
+                className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none animate-bounce"
+                style={{ animationIterationCount: 3, animationDuration: '0.4s' }}
+              >
+                {activeAlertsCount > 99 ? '99+' : activeAlertsCount}
+              </span>
+            )}
+          </span>
           <span className="hidden sm:inline">My Alerts</span>
         </Link>
         <span className="text-slate-600 hidden sm:inline">|</span>

@@ -6,6 +6,7 @@ interface AuthState {
   user: UserProfile | null;
   loading: boolean;
   favoriteIds: Set<number>;
+  activeAlertsCount: number;
 }
 
 interface AuthContextValue extends AuthState {
@@ -14,6 +15,7 @@ interface AuthContextValue extends AuthState {
   logout: () => void;
   toggleFavorite: (apartmentId: number) => Promise<void>;
   isFavorite: (apartmentId: number) => boolean;
+  updateAlertCount: (n: number) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -22,43 +24,56 @@ const TOKEN_KEY = 'apttrack_token';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({
-    token: null, user: null, loading: true, favoriteIds: new Set(),
+    token: null, user: null, loading: true, favoriteIds: new Set(), activeAlertsCount: 0,
   });
 
-  // On mount: restore token, fetch profile + favorites in parallel
+  // On mount: restore token, fetch profile + favorites + alert count in parallel
   useEffect(() => {
     const saved = localStorage.getItem(TOKEN_KEY);
     if (!saved) { setState(s => ({ ...s, loading: false })); return; }
-    Promise.all([api.getMe(saved), api.getFavorites(saved)])
-      .then(([user, ids]) =>
-        setState({ token: saved, user, loading: false, favoriteIds: new Set(ids) })
+    Promise.all([api.getMe(saved), api.getFavorites(saved), api.getSubscriptions(saved)])
+      .then(([user, ids, subs]) =>
+        setState({
+          token: saved, user, loading: false,
+          favoriteIds: new Set(ids),
+          activeAlertsCount: subs.filter(s => s.is_active).length,
+        })
       )
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
-        setState({ token: null, user: null, loading: false, favoriteIds: new Set() });
+        setState({ token: null, user: null, loading: false, favoriteIds: new Set(), activeAlertsCount: 0 });
       });
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const { access_token } = await api.login(email, password);
-    const [user, ids] = await Promise.all([
+    const [user, ids, subs] = await Promise.all([
       api.getMe(access_token),
       api.getFavorites(access_token),
+      api.getSubscriptions(access_token),
     ]);
     localStorage.setItem(TOKEN_KEY, access_token);
-    setState({ token: access_token, user, loading: false, favoriteIds: new Set(ids) });
+    setState({
+      token: access_token, user, loading: false,
+      favoriteIds: new Set(ids),
+      activeAlertsCount: subs.filter(s => s.is_active).length,
+    });
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
     const { access_token } = await api.register(email, password);
     const user = await api.getMe(access_token);
     localStorage.setItem(TOKEN_KEY, access_token);
-    setState({ token: access_token, user, loading: false, favoriteIds: new Set() });
+    setState({ token: access_token, user, loading: false, favoriteIds: new Set(), activeAlertsCount: 0 });
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    setState({ token: null, user: null, loading: false, favoriteIds: new Set() });
+    setState({ token: null, user: null, loading: false, favoriteIds: new Set(), activeAlertsCount: 0 });
+  }, []);
+
+  const updateAlertCount = useCallback((n: number) => {
+    setState(s => ({ ...s, activeAlertsCount: n }));
   }, []);
 
   const toggleFavorite = useCallback(async (apartmentId: number) => {
@@ -92,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, toggleFavorite, isFavorite }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, toggleFavorite, isFavorite, updateAlertCount }}>
       {children}
     </AuthContext.Provider>
   );

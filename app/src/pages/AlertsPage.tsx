@@ -5,7 +5,7 @@ import api, { SubscriptionResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const AlertsPage: React.FC = () => {
-  const { token, user } = useAuth();
+  const { token, user, updateAlertCount } = useAuth();
   const [subs, setSubs] = useState<SubscriptionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +14,7 @@ const AlertsPage: React.FC = () => {
     if (!token) return;
     setLoading(true);
     api.getSubscriptions(token)
-      .then(setSubs)
+      .then(data => { setSubs(data); updateAlertCount(data.filter(s => s.is_active).length); })
       .catch(err => setError(String(err)))
       .finally(() => setLoading(false));
   };
@@ -25,7 +25,11 @@ const AlertsPage: React.FC = () => {
     if (!token) return;
     try {
       await api.deleteSubscription(token, id);
-      setSubs(prev => prev.filter(s => s.id !== id));
+      setSubs(prev => {
+        const next = prev.filter(s => s.id !== id);
+        updateAlertCount(next.filter(s => s.is_active).length);
+        return next;
+      });
       toast.success('Alert removed');
     } catch {
       toast.error('Could not remove alert');
@@ -37,14 +41,22 @@ const AlertsPage: React.FC = () => {
     const nextActive = !sub.is_active;
 
     // Optimistic update
-    setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: nextActive } : s));
+    setSubs(prev => {
+      const next = prev.map(s => s.id === sub.id ? { ...s, is_active: nextActive } : s);
+      updateAlertCount(next.filter(s => s.is_active).length);
+      return next;
+    });
 
     try {
       await api.updateSubscription(token, sub.id, { is_active: nextActive });
       toast.success(nextActive ? 'Alert resumed' : 'Alert paused');
     } catch {
       // Rollback
-      setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: sub.is_active } : s));
+      setSubs(prev => {
+        const rolled = prev.map(s => s.id === sub.id ? { ...s, is_active: sub.is_active } : s);
+        updateAlertCount(rolled.filter(s => s.is_active).length);
+        return rolled;
+      });
       toast.error('Something went wrong');
     }
   };
