@@ -137,8 +137,11 @@ def update_subscription(
     current_user: User = Depends(get_current_user),
 ):
     sub = _get_owned_or_404(sub_id, current_user.id, db)
+    was_active = sub.is_active
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(sub, field, value)
+    if was_active is False and sub.is_active is True:
+        _refresh_baseline(sub, db)
     db.commit()
     db.refresh(sub)
     return sub
@@ -228,6 +231,23 @@ def _fmt_plan_spec(plan: Plan) -> Optional[str]:
     if plan.area_sqft:
         parts.append(f"{int(plan.area_sqft):,} sqft")
     return " · ".join(parts) if parts else None
+
+
+def _refresh_baseline(sub: PriceSubscription, db: Session) -> None:
+    """Refresh baseline_price on re-arm (False → True toggle).
+
+    Pulls the current price from PlanPriceHistory so price_drop_pct is
+    anchored to now, not to whatever stale baseline existed when the sub
+    was first created. Always clears last_notified_at so the debounce
+    window resets cleanly for the new arm period.
+    """
+    from app.services.price_checker import _get_latest_price
+
+    new_baseline = _get_latest_price(sub, db)
+    if new_baseline is not None:
+        sub.baseline_price = new_baseline
+        sub.baseline_recorded_at = datetime.now(timezone.utc)
+    sub.last_notified_at = None
 
 
 def _infer_baseline(payload: SubscriptionCreate, db: Session) -> Optional[float]:

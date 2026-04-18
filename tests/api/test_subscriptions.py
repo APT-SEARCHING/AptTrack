@@ -163,6 +163,102 @@ class TestUpdateSubscription:
         resp = client.put(f"{BASE}/99999", json={"target_price": 1000.0}, headers=user_headers)
         assert resp.status_code == 404
 
+    def test_rearm_refreshes_baseline_when_history_exists(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Toggling paused → active resets baseline to latest price history entry."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=3000.0)
+        _seed_price_history(db, plan_id, prices=[2800.0, 3000.0])  # 2800 is newest
+
+        created = client.post(
+            BASE,
+            json={"plan_id": plan_id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        ).json()
+        assert created["baseline_price"] == 2800.0
+
+        # Pause it
+        client.put(f"{BASE}/{created['id']}", json={"is_active": False}, headers=user_headers)
+
+        # Seed a newer price so we can verify the baseline actually updates
+        _seed_price_history(db, plan_id, prices=[2600.0])  # now newest is 2600
+
+        # Re-arm
+        resp = client.put(
+            f"{BASE}/{created['id']}", json={"is_active": True}, headers=user_headers
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["is_active"] is True
+        assert data["baseline_price"] == 2600.0
+        assert data["last_notified_at"] is None
+
+    def test_rearm_keeps_baseline_when_no_history(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Re-arm with no price history: baseline stays unchanged, last_notified_at clears."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=3000.0)
+        # No history seeded — baseline inferred from Plan.price at create time
+        created = client.post(
+            BASE,
+            json={"plan_id": plan_id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        ).json()
+        original_baseline = created["baseline_price"]
+
+        client.put(f"{BASE}/{created['id']}", json={"is_active": False}, headers=user_headers)
+        resp = client.put(
+            f"{BASE}/{created['id']}", json={"is_active": True}, headers=user_headers
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["baseline_price"] == original_baseline  # unchanged — no history to pull
+        assert data["last_notified_at"] is None
+
+    def test_deactivate_does_not_change_baseline(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Toggling active → paused must NOT refresh baseline (only re-arm does)."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=3000.0)
+        _seed_price_history(db, plan_id, prices=[3000.0])
+        created = client.post(
+            BASE,
+            json={"plan_id": plan_id, "price_drop_pct": 5.0, "notify_email": True},
+            headers=user_headers,
+        ).json()
+        original_baseline = created["baseline_price"]
+
+        _seed_price_history(db, plan_id, prices=[2500.0])  # new price available, but shouldn't matter
+
+        resp = client.put(
+            f"{BASE}/{created['id']}", json={"is_active": False}, headers=user_headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["baseline_price"] == original_baseline
+
+    def test_unrelated_update_does_not_change_baseline(
+        self, client: TestClient, db: Session, user_headers
+    ):
+        """Updating target_price while staying active must NOT touch baseline."""
+        apt_id, plan_id = _seed_apartment_with_plan(db, price=3000.0)
+        _seed_price_history(db, plan_id, prices=[3000.0])
+        created = client.post(
+            BASE,
+            json={"plan_id": plan_id, "target_price": 2500.0, "notify_email": True},
+            headers=user_headers,
+        ).json()
+        original_baseline = created["baseline_price"]
+
+        _seed_price_history(db, plan_id, prices=[2800.0])
+
+        resp = client.put(
+            f"{BASE}/{created['id']}", json={"target_price": 2200.0}, headers=user_headers
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["target_price"] == 2200.0
+        assert data["baseline_price"] == original_baseline
+
 
 # ---------------------------------------------------------------------------
 # DELETE /subscriptions/{id}
