@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import { medianApartmentPrice } from '../utils/medianPrice';
+import { cityStyle } from '../utils/cityColors';
 import FilterPanel from '../components/FilterPanel';
-import MapView from '../components/MapView';
 import AuthModal from '../components/AuthModal';
 import { useAuth } from '../context/AuthContext';
 
+// Leaflet (~450 KB) is split into its own chunk and only loaded when the user
+// opens the map view for the first time.
+const MapView = lazy(() => import('../components/MapView'));
+
 // ── Apartment complex card ────────────────────────────────────────────────────
-
-const CITY_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  'San Jose':      { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-400' },
-  'San Francisco': { bg: 'bg-sky-50',     text: 'text-sky-700',     dot: 'bg-sky-400' },
-  'Oakland':       { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400' },
-  'Palo Alto':     { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
-  'Fremont':       { bg: 'bg-rose-50',    text: 'text-rose-700',    dot: 'bg-rose-400' },
-  'Hayward':       { bg: 'bg-orange-50',  text: 'text-orange-700',  dot: 'bg-orange-400' },
-};
-
-const cityStyle = (city: string) =>
-  CITY_COLORS[city] ?? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' };
 
 const bedLabel = (min: number, max: number) => {
   if (min === max) return min === 0 ? 'Studio' : `${min} bd`;
@@ -255,7 +247,13 @@ const ListingsPage: React.FC = () => {
               <p className="text-sm mt-1">Try a different city or price range</p>
             </div>
           ) : viewMode === 'map' ? (
-            <MapView apartments={filtered} />
+            <Suspense fallback={
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 h-[620px] flex items-center justify-center text-slate-400 text-sm">
+                Loading map…
+              </div>
+            }>
+              <MapView apartments={filtered} />
+            </Suspense>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {filtered.map(apt => (
