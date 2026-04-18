@@ -152,6 +152,8 @@ const ListingDetailPage: React.FC = () => {
   const minP = prices.length ? Math.min(...prices) : null;
   const maxP = prices.length ? Math.max(...prices) : null;
   const availCount = allPlans.filter(p => p.is_available).length;
+  const hasFloor = allPlans.some(p => p.floor_level != null);
+  const hasFacing = allPlans.some(p => p.facing != null);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -235,6 +237,8 @@ const ListingDetailPage: React.FC = () => {
                 plan.bedrooms === 0 ? 'Studio' : plan.bedrooms != null ? `${plan.bedrooms} bd` : null,
                 plan.bathrooms != null ? `${plan.bathrooms} ba` : null,
                 plan.area_sqft != null ? `${plan.area_sqft.toLocaleString()} sqft` : null,
+                plan.floor_level != null ? `Fl. ${plan.floor_level}` : null,
+                plan.facing ?? null,
               ].filter(Boolean).join(' · ');
               return (
                 <div
@@ -290,6 +294,8 @@ const ListingDetailPage: React.FC = () => {
                   <th className="text-left px-4 py-3">Beds</th>
                   <th className="text-left px-4 py-3">Baths</th>
                   <th className="text-left px-4 py-3">Sqft</th>
+                  {hasFloor && <th className="text-left px-4 py-3">Floor</th>}
+                  {hasFacing && <th className="text-left px-4 py-3">Facing</th>}
                   <th className="text-right px-4 py-3">Price</th>
                   <th className="text-center px-4 py-3">Status</th>
                   <th className="px-4 py-3"></th>
@@ -327,6 +333,16 @@ const ListingDetailPage: React.FC = () => {
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                         {plan.area_sqft ? plan.area_sqft.toLocaleString() : '—'}
                       </td>
+                      {hasFloor && (
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                          {plan.floor_level != null ? plan.floor_level : '—'}
+                        </td>
+                      )}
+                      {hasFacing && (
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                          {plan.facing ?? '—'}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
                         {plan.price != null ? `$${plan.price.toLocaleString()}` : <span className="text-slate-400 font-normal">Contact</span>}
                       </td>

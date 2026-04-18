@@ -33,6 +33,8 @@ class PlanBase(BaseModel):
     available_from: Optional[datetime] = None
     is_available: bool = True
     external_url: Optional[str] = None
+    floor_level: Optional[int] = None
+    facing: Optional[str] = None
 
 
 class PlanCreate(PlanBase):

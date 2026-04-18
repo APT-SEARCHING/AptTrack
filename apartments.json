@@ -1,0 +1,80 @@
+[
+  {
+    "name": "550 Moreland",
+    "url": "https://prometheusapartments.com/ca/santa-clara-apartments/550-moreland",
+    "city": "Santa Clara",
+    "state": "CA",
+    "zip": "95054"
+  },
+  {
+    "name": "Vista 99",
+    "url": "https://www.equityapartments.com/san-francisco-bay/north-san-jose/vista-99-apartments",
+    "city": "San Jose",
+    "state": "CA",
+    "zip": "95110"
+  },
+  {
+    "name": "The Benton",
+    "url": "https://prometheusapartments.com/ca/santa-clara-apartments/the-benton",
+    "city": "Santa Clara",
+    "state": "CA",
+    "zip": "95054"
+  },
+  {
+    "name": "Sevens",
+    "url": "https://sevensmv.com/floor-plans",
+    "city": "Mountain View",
+    "state": "CA",
+    "zip": "94041"
+  },
+  {
+    "name": "Revela",
+    "url": "https://www.liverevela.com/",
+    "city": "Mountain View",
+    "state": "CA",
+    "zip": "94043"
+  },
+  {
+    "name": "Sofia",
+    "url": "https://www.sofiaaptliving.com/",
+    "city": "Santa Clara",
+    "state": "CA",
+    "zip": "95051"
+  },
+  {
+    "name": "The Clara",
+    "url": "https://theclara.com/",
+    "city": "Santa Clara",
+    "state": "CA",
+    "zip": "95054"
+  },
+  {
+    "name": "Sofi Riverview Park",
+    "url": "https://www.sofiriverviewpark.com/",
+    "city": "San Jose",
+    "state": "CA",
+    "zip": "95110"
+  },
+  {
+    "name": "Verdant",
+    "url": "https://www.verdant-apts.com/",
+    "city": "San Jose",
+    "state": "CA",
+    "zip": "95110",
+    "notes": "Cloudflare-protected — test dry-run before live seed"
+  },
+  {
+    "name": "The Village Residences",
+    "url": "https://rent.brookfieldproperties.com/property/the-village-residences/",
+    "city": "Mountain View",
+    "state": "CA",
+    "zip": "94043"
+  },
+  {
+    "name": "River Terrace (UDR)",
+    "url": "https://www.udr.com/san-francisco-bay-area-apartments/santa-clara/river-terrace/",
+    "city": "Santa Clara",
+    "state": "CA",
+    "zip": "95054"
+  }
+]

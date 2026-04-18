@@ -172,7 +172,26 @@ Per-plan deep links:
 - If a single URL applies to all plans on the page (e.g., the current page already shows all plans),
   leave external_url blank — we will fall back to the apartment-level source URL.
 - Do NOT fabricate URLs. Only populate external_url if you observe a distinct link or anchor
-  in the page state for that specific plan."""
+  in the page state for that specific plan.
+
+Per-unit compass direction:
+- If a unit listing explicitly shows a compass direction (e.g., "N", "NE", "faces south",
+  "southwest-facing"), record it in facing using standard abbreviations: N, S, E, W,
+  NE, NW, SE, SW.
+- If the page contains a floor plate or site plan rendered as SVG or structured HTML
+  (common on SightMap), examine unit positions relative to any north indicator or
+  orientation label. Infer compass direction from position (e.g., a unit on the
+  north side of the building faces N or NE/NW depending on its corner).
+- Do NOT infer direction from non-compass descriptions ("pool-facing", "garden view",
+  "city view"). Leave facing blank for those.
+- Do NOT fabricate. If compass direction cannot be determined from the page, leave blank.
+
+Per-unit floor level:
+- Record the floor number as an integer in floor_level.
+- If the unit number encodes the floor (e.g., "305" → floor 3, "1204" → floor 12,
+  "A305" → floor 3), extract the floor number from the leading digit(s).
+- If the floor is stated explicitly ("3rd floor", "Floor 5"), use that number.
+- If floor level cannot be determined, leave blank."""
 
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI-compatible function-calling schema)
@@ -344,6 +363,14 @@ TOOLS = [
                                 "external_url": {
                                     "type": "string",
                                     "description": "URL or deep link to this specific plan if the site supports it (e.g. '?floorplanId=S1', '#plan-a3', '/plans/studio-s1'). Leave blank if one URL covers all plans.",
+                                },
+                                "floor_level": {
+                                    "type": "number",
+                                    "description": "Floor number this unit is on (integer, e.g. 3 for 3rd floor). Extract from unit number if inferable (e.g. '305' → 3).",
+                                },
+                                "facing": {
+                                    "type": "string",
+                                    "description": "Compass direction this unit faces: one of N, S, E, W, NE, NW, SE, SW. Only populate from explicit labels or floor plate position — never from descriptive labels like 'pool-facing'.",
                                 },
                             },
                             "required": ["name"],

@@ -1,17 +1,20 @@
 """Seed the database with real apartment data from the agentic scraper.
 
-Scrapes the 10 Bay Area apartments defined below, then writes Apartment +
-Plan + PlanPriceHistory rows to the local Postgres database.
+Scrapes Bay Area apartments and writes Apartment + Plan + PlanPriceHistory
+rows to the local Postgres database.
 
 Usage:
-    python seed_apartments.py              # scrape all
-    python seed_apartments.py --dry-run   # scrape but don't write to DB
+    python seed_apartments.py                                  # scrape built-in list
+    python seed_apartments.py --dry-run                        # scrape but don't write to DB
+    python seed_apartments.py --urls-file apartments.json      # use external JSON list
+    python seed_apartments.py --urls-file apartments.json --dry-run --filter Irvine
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import re
 import sys
 from datetime import datetime, timezone
@@ -126,6 +129,9 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
                 area_sqft=fp.size_sqft,
                 price=fp.min_price,
                 is_available=_is_available(fp),
+                floor_level=fp.floor_level,
+                facing=fp.facing,
+                external_url=fp.external_url,
             )
             db.add(plan)
             db.flush()
@@ -133,6 +139,12 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
             plan.price = fp.min_price
             plan.is_available = _is_available(fp)
             plan.area_sqft = fp.size_sqft or plan.area_sqft
+            if fp.floor_level is not None:
+                plan.floor_level = fp.floor_level
+            if fp.facing:
+                plan.facing = fp.facing
+            if fp.external_url:
+                plan.external_url = fp.external_url
 
         # Always append a price-history snapshot
         db.add(PlanPriceHistory(
@@ -146,7 +158,31 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
 
 # ── scraper loop ───────────────────────────────────────────────────────────────
 
-async def scrape_all(dry_run: bool) -> None:
+def _load_apartments(urls_file: str | None, filter_: str | None) -> list[tuple[str, str, str, str, str]]:
+    """Return list of (name, url, city, state, zip) tuples.
+
+    Source priority: --urls-file JSON > built-in APARTMENTS constant.
+    --filter applies a case-insensitive substring match on name.
+    """
+    if urls_file:
+        path = Path(urls_file)
+        if not path.exists():
+            print(f"ERROR: --urls-file {urls_file!r} not found"); sys.exit(1)
+        entries = json.loads(path.read_text())
+        apts = [(e["name"], e["url"], e["city"], e["state"], e["zip"]) for e in entries]
+    else:
+        apts = list(APARTMENTS)
+
+    if filter_:
+        lo = filter_.lower()
+        apts = [a for a in apts if lo in a[0].lower()]
+        if not apts:
+            print(f"ERROR: --filter {filter_!r} matched no apartments"); sys.exit(1)
+
+    return apts
+
+
+async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) -> None:
     api_key = os.environ.get("MINIMAX_API_KEY", "")
     if not api_key:
         print("ERROR: MINIMAX_API_KEY not set in .env"); sys.exit(1)
@@ -156,6 +192,9 @@ async def scrape_all(dry_run: bool) -> None:
         print("ERROR: DATABASE_URL not set in .env"); sys.exit(1)
     # Rewrite Docker hostname → localhost when running outside Docker
     db_url = db_url.replace("@db:", "@localhost:")
+
+    apartments = _load_apartments(urls_file, filter_)
+    print(f"Scraping {len(apartments)} apartment(s)…\n")
 
     if not dry_run:
         from sqlalchemy import create_engine
@@ -180,7 +219,8 @@ async def scrape_all(dry_run: bool) -> None:
                 )
                 if dry_run:
                     for fp in data.floor_plans:
-                        print(f"    {fp.name:30s} beds={fp.bedrooms} ${fp.min_price}")
+                        url_hint = f"  → {fp.external_url}" if fp.external_url else ""
+                        print(f"    {fp.name:30s} beds={fp.bedrooms}  ${fp.min_price}{url_hint}")
                 else:
                     db = Session()
                     try:
@@ -190,14 +230,18 @@ async def scrape_all(dry_run: bool) -> None:
             except Exception as exc:
                 print(f"  ✗ Error scraping {name}: {exc}")
 
-    tasks = [scrape_one(n, u, c, s, z) for n, u, c, s, z in APARTMENTS]
+    tasks = [scrape_one(n, u, c, s, z) for n, u, c, s, z in apartments]
     await asyncio.gather(*tasks)
     print("\nDone.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Seed AptTrack DB with scraped apartment data")
     parser.add_argument("--dry-run", action="store_true",
                         help="Scrape but don't write to the database")
+    parser.add_argument("--urls-file", metavar="FILE",
+                        help="JSON file with apartment list (overrides built-in list)")
+    parser.add_argument("--filter", metavar="NAME", dest="filter_",
+                        help="Case-insensitive substring filter on apartment name")
     args = parser.parse_args()
-    asyncio.run(scrape_all(args.dry_run))
+    asyncio.run(scrape_all(args.dry_run, args.urls_file, args.filter_))

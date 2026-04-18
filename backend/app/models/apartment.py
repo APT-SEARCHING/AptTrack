@@ -94,6 +94,10 @@ class Plan(Base):
     # Deep link
     external_url = Column(String, nullable=True, comment="Deep link to this specific plan on the source site")
 
+    # Unit position
+    floor_level = Column(Integer, nullable=True, comment="Floor number this unit is on")
+    facing = Column(String, nullable=True, comment="Compass direction this unit faces: N/S/E/W/NE/NW/SE/SW")
+
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="When this record was created")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="When this record was last updated")

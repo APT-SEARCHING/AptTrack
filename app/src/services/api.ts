@@ -24,6 +24,8 @@ export interface PlanResponse {
   available_from: string | null;
   is_available: boolean;
   external_url: string | null;
+  floor_level: number | null;
+  facing: string | null;
   price_history: PlanPriceHistory[];
   created_at: string;
   updated_at: string;
