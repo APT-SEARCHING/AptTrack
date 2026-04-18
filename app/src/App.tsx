@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
+import { Toaster, toast } from 'sonner';
 import ListingsPage from './pages/ListingsPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import AlertsPage from './pages/AlertsPage';
@@ -32,7 +33,7 @@ const NavActions: React.FC = () => {
         <span className="text-slate-600 hidden sm:inline">|</span>
         <span className="text-slate-400 hidden sm:inline truncate max-w-[160px]">{user.email}</span>
         <button
-          onClick={logout}
+          onClick={() => { logout(); toast('Signed out'); }}
           className="text-slate-400 hover:text-white transition-colors"
         >
           Sign out
@@ -59,7 +60,12 @@ const NavActions: React.FC = () => {
           Register
         </button>
       </div>
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {showAuth && (
+        <AuthModal
+          onClose={() => setShowAuth(false)}
+          onSuccess={() => setShowAuth(false)}
+        />
+      )}
     </>
   );
 };
@@ -79,6 +85,11 @@ const Nav: React.FC = () => (
 
 const App: React.FC = () => (
   <AuthProvider>
+    <Toaster
+      position="bottom-right"
+      richColors
+      toastOptions={{ style: { borderRadius: '12px', fontFamily: 'inherit' } }}
+    />
     <div className="min-h-screen flex flex-col">
       <Nav />
       <main className="flex-1">

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import api, { SubscriptionResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -8,9 +9,6 @@ const AlertsPage: React.FC = () => {
   const [subs, setSubs] = useState<SubscriptionResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // transient per-row feedback: subId → 'paused' | 'resumed' | 'error'
-  const [feedback, setFeedback] = useState<Record<number, string>>({});
-  const feedbackTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   const load = () => {
     if (!token) return;
@@ -25,8 +23,13 @@ const AlertsPage: React.FC = () => {
 
   const remove = async (id: number) => {
     if (!token) return;
-    await api.deleteSubscription(token, id);
-    setSubs(prev => prev.filter(s => s.id !== id));
+    try {
+      await api.deleteSubscription(token, id);
+      setSubs(prev => prev.filter(s => s.id !== id));
+      toast.success('Alert removed');
+    } catch {
+      toast.error('Could not remove alert');
+    }
   };
 
   const togglePause = async (sub: SubscriptionResponse) => {
@@ -38,20 +41,12 @@ const AlertsPage: React.FC = () => {
 
     try {
       await api.updateSubscription(token, sub.id, { is_active: nextActive });
-      showFeedback(sub.id, nextActive ? 'resumed' : 'paused');
+      toast.success(nextActive ? 'Alert resumed' : 'Alert paused');
     } catch {
       // Rollback
       setSubs(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: sub.is_active } : s));
-      showFeedback(sub.id, 'error');
+      toast.error('Something went wrong');
     }
-  };
-
-  const showFeedback = (id: number, kind: string) => {
-    clearTimeout(feedbackTimers.current[id]);
-    setFeedback(prev => ({ ...prev, [id]: kind }));
-    feedbackTimers.current[id] = setTimeout(() => {
-      setFeedback(prev => { const next = { ...prev }; delete next[id]; return next; });
-    }, 1500);
   };
 
   if (!token) {
@@ -105,19 +100,8 @@ const AlertsPage: React.FC = () => {
             const baselineDate = sub.baseline_recorded_at
               ? new Date(sub.baseline_recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : null;
-            const fb = feedback[sub.id];
-
-            // Pause/Resume button label: transient feedback overrides the default
-            const pauseLabel = fb === 'paused' ? 'Paused ✓'
-              : fb === 'resumed' ? 'Resumed ✓'
-              : fb === 'error' ? 'Error'
-              : sub.is_active ? 'Pause' : 'Resume';
-
-            const pauseColors = fb === 'error'
-              ? 'text-red-500 border-red-300'
-              : fb
-              ? 'text-emerald-600 border-emerald-300'
-              : sub.is_active
+            const pauseLabel = sub.is_active ? 'Pause' : 'Resume';
+            const pauseColors = sub.is_active
               ? 'text-slate-400 hover:text-amber-600 border-slate-200 hover:border-amber-300'
               : 'text-indigo-500 hover:text-indigo-700 border-indigo-200 hover:border-indigo-400';
 

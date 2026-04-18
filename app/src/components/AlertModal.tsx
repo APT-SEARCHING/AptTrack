@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import api, { SubscriptionCreate } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
   apartmentId: number;
   apartmentTitle: string;
-  currentPrice: number;
+  currentPrice?: number;
   planId?: number;
   planName?: string;
   onClose: () => void;
@@ -15,11 +16,10 @@ interface Props {
 const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, planId, planName, onClose, onCreated }) => {
   const { token } = useAuth();
   const [type, setType] = useState<'price' | 'pct'>('price');
-  const [targetPrice, setTargetPrice] = useState(String(Math.floor(currentPrice * 0.95)));
+  const [targetPrice, setTargetPrice] = useState(currentPrice != null ? String(Math.floor(currentPrice * 0.95)) : '');
   const [pctDrop, setPctDrop] = useState('5');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,8 +38,9 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
         payload.price_drop_pct = parseFloat(pctDrop);
       }
       await api.createSubscription(token, payload);
-      setSuccess(true);
-      setTimeout(() => { onCreated(); onClose(); }, 1500);
+      toast.success('Alert created! We\'ll email you when the price drops.');
+      onCreated();
+      onClose();
     } catch (err: any) {
       setError(String(err.message || err));
     } finally {
@@ -65,17 +66,10 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
           {planName && (
             <p className="text-xs text-indigo-700 font-medium mt-0.5">Plan: {planName}</p>
           )}
-          <p className="text-xs text-indigo-500 mt-0.5">Current ${currentPrice.toLocaleString()}/mo</p>
+          {currentPrice != null && <p className="text-xs text-indigo-500 mt-0.5">Current ${currentPrice.toLocaleString()}/mo</p>}
         </div>
 
-        {success ? (
-          <div className="text-center py-6">
-            <p className="text-4xl mb-3">🔔</p>
-            <p className="font-semibold text-slate-900">Alert created!</p>
-            <p className="text-sm text-slate-500 mt-1">We'll email you when the price drops.</p>
-          </div>
-        ) : (
-          <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="space-y-4">
             {/* Alert type */}
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Alert when</p>
@@ -114,7 +108,7 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
                     className="w-full border border-slate-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
                   />
                 </div>
-                {parseFloat(targetPrice) >= currentPrice && (
+                {currentPrice != null && parseFloat(targetPrice) >= currentPrice && (
                   <p className="text-amber-600 text-xs mt-1">Target price is higher than current — alert will fire immediately.</p>
                 )}
               </div>
@@ -136,7 +130,7 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
                   <span className="absolute right-3 top-2.5 text-slate-400 font-semibold">%</span>
                 </div>
                 <p className="text-slate-400 text-xs mt-1">
-                  Alert when price drops by {pctDrop}% (≈${Math.floor(currentPrice * (1 - parseFloat(pctDrop || '0') / 100)).toLocaleString()}/mo)
+                  Alert when price drops by {pctDrop}%{currentPrice != null ? ` (≈$${Math.floor(currentPrice * (1 - parseFloat(pctDrop || '0') / 100)).toLocaleString()}/mo)` : ''}
                 </p>
               </div>
             )}
@@ -159,7 +153,6 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
               {loading ? 'Creating…' : 'Create alert'}
             </button>
           </form>
-        )}
       </div>
     </div>
   );

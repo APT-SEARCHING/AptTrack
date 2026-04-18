@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -22,8 +23,10 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
     try {
       if (mode === 'login') {
         await login(email, password);
+        toast.success('Welcome back!');
       } else {
         await register(email, password);
+        toast.success('Account created!');
       }
       onSuccess?.();
       onClose();

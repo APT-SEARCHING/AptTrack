@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import { medianApartmentPrice } from '../utils/medianPrice';
 import FilterPanel from '../components/FilterPanel';
@@ -131,7 +132,9 @@ const ListingsPage: React.FC = () => {
       setShowAuth(true);
       return;
     }
+    const removing = isFavorite(aptId);
     toggleFavorite(aptId);
+    toast(removing ? 'Removed from saved' : 'Saved ♥');
   };
 
   useEffect(() => {
@@ -274,6 +277,7 @@ const ListingsPage: React.FC = () => {
             setShowAuth(false);
             if (pendingFavoriteRef.current != null) {
               toggleFavorite(pendingFavoriteRef.current);
+              toast.success('Saved ♥');
               pendingFavoriteRef.current = null;
             }
           }}

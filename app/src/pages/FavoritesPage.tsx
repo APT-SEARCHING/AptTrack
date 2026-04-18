@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import api, { ApartmentSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ApartmentCard } from './ListingsPage';
@@ -80,7 +81,12 @@ const FavoritesPage: React.FC = () => {
               key={apt.id}
               apt={apt}
               favorited={isFavorite(apt.id)}
-              onFavoriteClick={e => { e.preventDefault(); toggleFavorite(apt.id); }}
+              onFavoriteClick={e => {
+                e.preventDefault();
+                const removing = isFavorite(apt.id);
+                toggleFavorite(apt.id);
+                toast(removing ? 'Removed from saved' : 'Saved ♥');
+              }}
             />
           ))}
         </div>
