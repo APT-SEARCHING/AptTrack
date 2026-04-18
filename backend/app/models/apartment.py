@@ -63,6 +63,10 @@ class Apartment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="When this record was created")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="When this record was last updated")
 
+    # Content-hash short-circuit (Phase 2)
+    last_content_hash = Column(String(64), nullable=True, comment="SHA256 of stripped HTML from last fetch — skip scrape when unchanged")
+    last_scraped_at = Column(DateTime(timezone=True), nullable=True, comment="When last_content_hash was last computed")
+
     # Relationships
     plans = relationship("Plan", back_populates="apartment", cascade="all, delete-orphan")
     images = relationship("ApartmentImage", back_populates="apartment", cascade="all, delete-orphan")
@@ -83,9 +87,12 @@ class Plan(Base):
     area_sqft = Column(Float, nullable=False, comment="Square footage of the unit")
 
     # Price and availability
-    price = Column(Float, nullable=False, comment="Current price for this plan")
+    price = Column(Float, nullable=True, comment="Current price for this plan; NULL means 'Contact for pricing'")
     available_from = Column(DateTime, nullable=True, comment="Date when this plan becomes available")
     is_available = Column(Boolean, default=True, comment="Whether this plan is currently available")
+
+    # Deep link
+    external_url = Column(String, nullable=True, comment="Deep link to this specific plan on the source site")
 
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="When this record was created")

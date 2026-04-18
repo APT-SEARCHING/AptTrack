@@ -14,6 +14,7 @@ class FloorPlan(BaseModel):
     min_price: Optional[float] = Field(None, description="Starting monthly rent in USD")
     max_price: Optional[float] = Field(None, description="Maximum monthly rent in USD")
     availability: Optional[str] = Field(None, description="'Available', 'Now', a date, or 'Waitlist'")
+    external_url: Optional[str] = Field(None, description="Deep link to this specific plan on the source site")
 
 
 class ApartmentData(BaseModel):

@@ -32,6 +32,7 @@ class PlanBase(BaseModel):
     price: Optional[float] = None
     available_from: Optional[datetime] = None
     is_available: bool = True
+    external_url: Optional[str] = None
 
 
 class PlanCreate(PlanBase):

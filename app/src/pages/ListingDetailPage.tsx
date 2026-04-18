@@ -243,7 +243,19 @@ const ListingDetailPage: React.FC = () => {
                   className={`p-4 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-semibold text-slate-900 text-sm leading-snug">{plan.name}</span>
+                    <span className="font-semibold text-slate-900 text-sm leading-snug">
+                      {plan.name}
+                      {(plan.external_url || apt?.source_url) && (
+                        <a
+                          href={plan.external_url || apt!.source_url!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="ml-1.5 text-indigo-400 hover:text-indigo-600 transition-colors text-xs"
+                          title="View official listing"
+                        >↗</a>
+                      )}
+                    </span>
                     <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
                       plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                     }`}>
@@ -294,6 +306,16 @@ const ListingDetailPage: React.FC = () => {
                     >
                       <td className="px-4 py-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
                         {plan.name}
+                        {(plan.external_url || apt?.source_url) && (
+                          <a
+                            href={plan.external_url || apt!.source_url!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="ml-1.5 font-sans text-indigo-400 hover:text-indigo-600 transition-colors"
+                            title="View official listing"
+                          >↗</a>
+                        )}
                         {isSelected && (
                           <span className="ml-2 text-xs text-indigo-500 font-sans">selected</span>
                         )}

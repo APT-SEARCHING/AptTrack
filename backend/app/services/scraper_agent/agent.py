@@ -63,12 +63,20 @@ class CallMetrics:
 
 @dataclass
 class ScrapeMetrics:
-    """Aggregated observability data for one apartment scrape."""
+    """Aggregated observability data for one apartment scrape.
+
+    ``outcome`` values
+    ------------------
+    ``"scraped"``            — full LLM ReAct loop ran
+    ``"cache_hit"``          — path-cache replay, 0 LLM calls
+    ``"content_unchanged"``  — content-hash short-circuit, 0 LLM, 0 browser
+    """
     url: str
     calls: List[CallMetrics] = field(default_factory=list)
     iterations: int = 0
     elapsed_sec: float = 0.0
     cache_hit: bool = False    # True when data came from path cache (0 LLM calls)
+    outcome: str = "scraped"   # see docstring for allowed values
 
     @property
     def total_input_tokens(self) -> int:
@@ -89,6 +97,7 @@ class ScrapeMetrics:
     def summary(self) -> dict:
         return {
             "url": self.url,
+            "outcome": self.outcome,
             "cache_hit": self.cache_hit,
             "iterations": self.iterations,
             "llm_calls": len(self.calls),
@@ -148,7 +157,17 @@ Per-unit vs plan-level pricing:
 - If the site only shows a range for a plan type (e.g., "Studio: from $2,800/mo"), create one
   FloorPlan entry for the plan type with unit_number=null and min_price=max_price=that figure.
 - Prefer per-unit data over plan-level ranges when both are available (e.g., after entering an
-  iframe that lists individual units)."""
+  iframe that lists individual units).
+
+Per-plan deep links:
+- If the site shows a unique URL, hash anchor, or query-string parameter for each floor plan or
+  unit (e.g., '?floorplanId=S1', '#plan-studio-a', '/floor-plans/one-bedroom'), capture it in
+  external_url for that floor_plans entry. Use an absolute URL when possible; a relative path is
+  acceptable if the base URL is ambiguous.
+- If a single URL applies to all plans on the page (e.g., the current page already shows all plans),
+  leave external_url blank — we will fall back to the apartment-level source URL.
+- Do NOT fabricate URLs. Only populate external_url if you observe a distinct link or anchor
+  in the page state for that specific plan."""
 
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI-compatible function-calling schema)
@@ -316,6 +335,10 @@ TOOLS = [
                                 "availability": {
                                     "type": "string",
                                     "description": "'Available', 'Now', a date string, or 'Waitlist'",
+                                },
+                                "external_url": {
+                                    "type": "string",
+                                    "description": "URL or deep link to this specific plan if the site supports it (e.g. '?floorplanId=S1', '#plan-a3', '/plans/studio-s1'). Leave blank if one URL covers all plans.",
                                 },
                             },
                             "required": ["name"],
@@ -617,6 +640,158 @@ class ApartmentAgent:
 
         async with browser_ctx as browser:
 
+            # ── Fetch homepage HTML once — used by all pre-checks below ───────
+            _html = ""
+            try:
+                import aiohttp as _aiohttp
+                async with _aiohttp.ClientSession(
+                    connector=_aiohttp.TCPConnector(ssl=False),
+                    headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
+                ) as _sess:
+                    try:
+                        async with _sess.get(url, timeout=_aiohttp.ClientTimeout(total=15)) as _r:
+                            _html = await _r.text(errors="replace")
+                    except Exception:
+                        _html = ""
+            except Exception:
+                _html = ""
+
+            # ── Pre-check: is this actually an apartment website? ─────────────
+            if _html:
+                try:
+                    from .browser_tools import is_apartment_website
+                    _apt_valid, _apt_reason = is_apartment_website(_html, url)
+                    if not _apt_valid:
+                        metrics.outcome = "not_apartment"
+                        metrics.elapsed_sec = time.monotonic() - t0
+                        logger.info("Skipping %s — not an apartment website: %s", url, _apt_reason)
+                        return None, metrics
+                except Exception as _exc:
+                    logger.warning("Apartment website check failed: %s — continuing", _exc)
+
+            # ── Platform pre-check: Jonah Digital fast path ──────────────────
+            # Jonah Digital sites render floor-plan cards in a JS widget; the
+            # LLM loop never calls extract_all_units because there is nothing
+            # obviously clickable in the initial page state.  We detect the
+            # platform via static HTML after the first navigation and bypass the
+            # ReAct loop entirely.
+            try:
+                import aiohttp as _aiohttp
+                from .browser_tools import (
+                    _extract_jonah_digital_hrefs,
+                    _fetch_jonah_digital_plans,
+                    _is_jonah_digital,
+                )
+
+                if _html and _is_jonah_digital(_html):
+                    _hrefs = _extract_jonah_digital_hrefs(_html, url)
+                    if _hrefs:
+                        async with _aiohttp.ClientSession(
+                            connector=_aiohttp.TCPConnector(ssl=False),
+                            headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
+                        ) as _sess2:
+                            _jd_units = await _fetch_jonah_digital_plans(_hrefs, _sess2)
+                        if _jd_units:
+                            # Extract complex name from page <title> or <h1>
+                            from bs4 import BeautifulSoup as _BS
+                            _soup = _BS(_html, "html.parser")
+                            _name = ""
+                            _title = _soup.find("title")
+                            if _title:
+                                _name = _title.get_text(strip=True).split("|")[0].split("-")[0].strip()
+                            if not _name:
+                                _h1 = _soup.find("h1")
+                                if _h1:
+                                    _name = _h1.get_text(strip=True)
+                            _name = _name or url
+
+                            _jd_data = _parse_units_to_apartment_data(_jd_units, _name, url)
+                            if _jd_data and _jd_data.floor_plans:
+                                metrics.outcome = "platform_direct"
+                                metrics.iterations = 0
+                                metrics.elapsed_sec = time.monotonic() - t0
+                                logger.info(
+                                    "Jonah Digital fast path — %d plans, $0.00, %.1fs",
+                                    len(_jd_data.floor_plans), metrics.elapsed_sec,
+                                )
+                                return _sanitize(_jd_data), metrics
+            except Exception as _exc:
+                logger.warning("Jonah Digital pre-check failed: %s — falling through to agent", _exc)
+
+            # ── Platform pre-check: FatWin fast path ─────────────────────────
+            try:
+                import aiohttp as _aiohttp
+                from .browser_tools import (
+                    _extract_fatwin_hrefs,
+                    _fetch_fatwin_plans,
+                    _is_fatwin,
+                )
+
+                if _html and _is_fatwin(_html):
+                    _hrefs = _extract_fatwin_hrefs(_html, url)
+                    if _hrefs:
+                        async with _aiohttp.ClientSession(
+                            connector=_aiohttp.TCPConnector(ssl=False),
+                            headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
+                        ) as _sess2:
+                            _fw_units = await _fetch_fatwin_plans(_hrefs, _sess2)
+                        if _fw_units:
+                            from bs4 import BeautifulSoup as _BS
+                            _soup = _BS(_html, "html.parser")
+                            _name = ""
+                            _title = _soup.find("title")
+                            if _title:
+                                _name = _title.get_text(strip=True).split("|")[0].strip()
+                            _name = _name or url
+                            _fw_data = _parse_units_to_apartment_data(_fw_units, _name, url)
+                            if _fw_data and _fw_data.floor_plans:
+                                metrics.outcome = "platform_direct"
+                                metrics.iterations = 0
+                                metrics.elapsed_sec = time.monotonic() - t0
+                                logger.info(
+                                    "FatWin fast path — %d plans, $0.00, %.1fs",
+                                    len(_fw_data.floor_plans), metrics.elapsed_sec,
+                                )
+                                return _sanitize(_fw_data), metrics
+            except Exception as _exc:
+                logger.warning("FatWin pre-check failed: %s — falling through to agent", _exc)
+
+            # ── Platform pre-check: SightMap direct-navigate ─────────────────
+            # SightMap embed URL is in static HTML. Navigate Playwright directly
+            # to the embed URL and call extract_all_units — bypasses unreliable
+            # wrapper CMS interactions (G5 DXM, etc.) without any LLM calls.
+            try:
+                from .browser_tools import _extract_sightmap_embed_url
+
+                _sm_embed_url = _extract_sightmap_embed_url(_html) if _html else None
+                if _sm_embed_url:
+                    logger.info("SightMap embed detected: %s — navigating directly", _sm_embed_url)
+                    _sm_state = await browser.navigate_to(_sm_embed_url)
+                    if not _sm_state.get("error"):
+                        await asyncio.sleep(3)  # let the SightMap widget initialise
+                        _sm_result = await browser.extract_all_units()
+                        _sm_units = _sm_result.get("units", [])
+                        if _sm_units:
+                            from bs4 import BeautifulSoup as _BS
+                            _soup = _BS(_html, "html.parser")
+                            _name = ""
+                            _title = _soup.find("title")
+                            if _title:
+                                _name = _title.get_text(strip=True).split("|")[0].split("-")[0].strip()
+                            _name = _name or url
+                            _sm_data = _parse_units_to_apartment_data(_sm_units, _name, url)
+                            if _sm_data and _sm_data.floor_plans:
+                                metrics.outcome = "platform_direct"
+                                metrics.iterations = 0
+                                metrics.elapsed_sec = time.monotonic() - t0
+                                logger.info(
+                                    "SightMap direct path — %d plans, $0.00, %.1fs",
+                                    len(_sm_data.floor_plans), metrics.elapsed_sec,
+                                )
+                                return _sanitize(_sm_data), metrics
+            except Exception as _exc:
+                logger.warning("SightMap pre-check failed: %s — falling through to agent", _exc)
+
             # ── 1.3: try cached path first ───────────────────────────────────
             cache_entry = load_path(url)
             if cache_entry:
@@ -632,6 +807,7 @@ class ApartmentAgent:
                 )
                 if cached_data and cached_data.floor_plans:
                     metrics.cache_hit = True
+                    metrics.outcome = "cache_hit"
                     metrics.elapsed_sec = time.monotonic() - t0
                     logger.info(
                         "Cache replay OK — %d plans, $0.00, %.1fs",

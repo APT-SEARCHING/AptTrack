@@ -23,6 +23,7 @@ export interface PlanResponse {
   price: number;
   available_from: string | null;
   is_available: boolean;
+  external_url: string | null;
   price_history: PlanPriceHistory[];
   created_at: string;
   updated_at: string;
