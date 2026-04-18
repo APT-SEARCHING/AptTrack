@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +57,16 @@ class SubscriptionCreate(BaseModel):
     notify_email: bool = True
     notify_telegram: bool = False
     telegram_chat_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validate_target_below_baseline(self) -> SubscriptionCreate:
+        if self.target_price is not None and self.baseline_price is not None:
+            if self.target_price >= self.baseline_price:
+                raise ValueError(
+                    f"target_price ({self.target_price}) must be below baseline_price "
+                    f"({self.baseline_price})"
+                )
+        return self
 
 
 class SubscriptionUpdate(BaseModel):

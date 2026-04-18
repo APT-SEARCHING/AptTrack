@@ -538,3 +538,99 @@ class TestCreateSubscriptionBaseline:
 
         assert updated["target_price"] == 2000.0
         assert updated["baseline_price"] == original_baseline
+
+
+# ---------------------------------------------------------------------------
+# Phase 3C.7: target_price >= baseline_price rejected at create time
+# ---------------------------------------------------------------------------
+
+class TestTargetBelowBaselineValidator:
+    """Pydantic model_validator rejects target_price >= baseline_price when
+    baseline_price is explicitly supplied by the frontend at create time."""
+
+    def test_target_above_baseline_rejected(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """target_price > baseline_price → 422."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "target_price": 3500.0,
+                "baseline_price": 3000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+        assert "target_price" in resp.text
+
+    def test_target_equal_baseline_rejected(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """target_price == baseline_price → 422 (strict less-than required)."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "target_price": 3000.0,
+                "baseline_price": 3000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_target_below_baseline_accepted(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """target_price < baseline_price → 201."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "target_price": 2800.0,
+                "baseline_price": 3000.0,
+                "notify_email": True,
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+
+    def test_target_price_without_baseline_accepted(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """baseline_price=None (server will infer it) — validator must not block."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "target_price": 3000.0,
+                "notify_email": True,
+                # no baseline_price supplied
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
+
+    def test_pct_drop_without_target_not_validated(
+        self, client: TestClient, admin_headers, user_headers
+    ):
+        """price_drop_pct-only subscription with explicit baseline → 201 (rule doesn't apply)."""
+        apt_id = _make_apartment(client, admin_headers)
+        resp = client.post(
+            BASE,
+            json={
+                "apartment_id": apt_id,
+                "price_drop_pct": 5.0,
+                "baseline_price": 3000.0,
+                "notify_email": True,
+                # no target_price — validator condition short-circuits
+            },
+            headers=user_headers,
+        )
+        assert resp.status_code == 201
