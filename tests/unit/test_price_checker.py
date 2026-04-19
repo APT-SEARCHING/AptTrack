@@ -379,3 +379,97 @@ class TestNoHistoryEarlyReturn:
 
         assert sub.is_active is False
         assert sub.trigger_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 3C.8: apartment-level subscription reads Plan.current_price
+# ---------------------------------------------------------------------------
+
+def _make_apt_sub(
+    db: Session,
+    user_id: int,
+    apartment_id: int,
+    *,
+    target_price: float | None = None,
+    price_drop_pct: float | None = None,
+    baseline_price: float | None = None,
+) -> PriceSubscription:
+    sub = PriceSubscription(
+        user_id=user_id,
+        apartment_id=apartment_id,
+        target_price=target_price,
+        price_drop_pct=price_drop_pct,
+        baseline_price=baseline_price,
+        notify_email=True,
+        notify_telegram=False,
+        is_active=True,
+        trigger_count=0,
+    )
+    db.add(sub)
+    db.flush()
+    return sub
+
+
+class TestApartmentLevelCurrentPrice:
+
+    def test_no_current_price_returns_none(self, db: Session):
+        """Apartment-level sub with no current_price on any plan → _get_latest_price → None → no alert."""
+        from app.services.price_checker import _get_latest_price
+
+        user = _make_user(db)
+        apt_id, _ = _make_plan(db, price=3000.0)  # Plan.price set but current_price is NULL
+        sub = _make_apt_sub(db, user.id, apt_id, target_price=2500.0, baseline_price=3000.0)
+
+        result = _get_latest_price(sub, db)
+        assert result is None
+
+    def test_returns_min_current_price_across_plans(self, db: Session):
+        """_get_latest_price picks the minimum current_price across available plans."""
+        from app.services.price_checker import _get_latest_price
+
+        user = _make_user(db)
+        apt = Apartment(
+            title="Multi-plan Apts", city="San Jose", state="CA",
+            zipcode="95110", property_type="apartment", is_available=True,
+        )
+        db.add(apt)
+        db.flush()
+
+        for price in [3200.0, 2800.0, 3500.0]:
+            plan = Plan(
+                apartment_id=apt.id, name=f"Plan-{price}", bedrooms=1,
+                bathrooms=1, area_sqft=600, price=price,
+                current_price=price, is_available=True,
+            )
+            db.add(plan)
+        db.flush()
+
+        sub = _make_apt_sub(db, user.id, apt.id, target_price=2500.0, baseline_price=3200.0)
+        result = _get_latest_price(sub, db)
+        assert result == 2800.0
+
+    def test_ignores_stale_plan_price_uses_current_price(self, db: Session):
+        """Plan.price and Plan.current_price can differ; only current_price counts."""
+        from app.services.price_checker import _get_latest_price
+
+        user = _make_user(db)
+        apt = Apartment(
+            title="Stale Seed Apt", city="San Jose", state="CA",
+            zipcode="95110", property_type="apartment", is_available=True,
+        )
+        db.add(apt)
+        db.flush()
+
+        plan = Plan(
+            apartment_id=apt.id, name="1BR", bedrooms=1,
+            bathrooms=1, area_sqft=600,
+            price=3000.0,         # stale seed value
+            current_price=2600.0, # updated by scraper
+            is_available=True,
+        )
+        db.add(plan)
+        db.flush()
+
+        sub = _make_apt_sub(db, user.id, apt.id, target_price=2500.0, baseline_price=3000.0)
+        result = _get_latest_price(sub, db)
+        assert result == 2600.0

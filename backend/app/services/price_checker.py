@@ -94,9 +94,14 @@ def _get_latest_price(sub: PriceSubscription, db: Session) -> Optional[float]:
         ).scalar_one_or_none()
 
     if sub.apartment_id is not None:
+        # Use current_price (set by scraper) — Plan.price is a deprecated seed column
         return db.execute(
-            select(func.min(Plan.price))
-            .where(Plan.apartment_id == sub.apartment_id, Plan.is_available.is_(True))
+            select(func.min(Plan.current_price))
+            .where(
+                Plan.apartment_id == sub.apartment_id,
+                Plan.is_available.is_(True),
+                Plan.current_price.isnot(None),
+            )
         ).scalar_one_or_none()
 
     # Area-level: average price across matching plans

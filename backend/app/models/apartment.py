@@ -87,7 +87,8 @@ class Plan(Base):
     area_sqft = Column(Float, nullable=False, comment="Square footage of the unit")
 
     # Price and availability
-    price = Column(Float, nullable=True, comment="Current price for this plan; NULL means 'Contact for pricing'")
+    price = Column(Float, nullable=True, comment="Seed-time price. DEPRECATED — use current_price for live queries.")
+    current_price = Column(Float, nullable=True, comment="Latest scraped price. NULL until first scrape. Updated by _persist_scraped_prices and _carry_forward_prices.")
     available_from = Column(DateTime, nullable=True, comment="Date when this plan becomes available")
     is_available = Column(Boolean, default=True, comment="Whether this plan is currently available")
 
