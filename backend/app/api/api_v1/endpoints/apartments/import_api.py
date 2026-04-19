@@ -124,7 +124,7 @@ async def _import_background_task(location: str, db: Session, task_id: str) -> N
         # API key read exclusively from server-side settings
         service = GoogleMapsService()
         apartments_hash, error = await service.fetch_apartments_by_location(
-            location, cached_details=cached_details
+            location, cached_details=cached_details, db=db
         )
         if error:
             raise RuntimeError(error)

@@ -481,6 +481,7 @@ def _log_scraper_cost(
         append_scraper_entry(
             name=name, url=url, outcome=outcome,
             input_tok=input_tok, output_tok=output_tok, cost_usd=cost_usd,
+            db=db,
         )
     except Exception as exc:
         logger.warning("cost_log: failed to write scraper entry for apt %d: %s", apt_id, exc)

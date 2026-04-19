@@ -33,6 +33,7 @@ class GoogleMapsService:
         self,
         location: str,
         cached_details: Optional[Dict[str, Dict]] = None,
+        db=None,
     ) -> Tuple[Dict[str, Dict], Optional[str]]:
         """
         Fetch apartments in a given location (city or zipcode)
@@ -141,6 +142,7 @@ class GoogleMapsService:
                     cache_hits=cache_hits,
                     failed=failed_count,
                     cost_usd=cost_usd,
+                    db=db,
                 )
             except Exception as _log_exc:
                 logger.warning("cost_log: failed to write google_maps entry: %s", _log_exc)

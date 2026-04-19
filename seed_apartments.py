@@ -221,6 +221,9 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
     async def scrape_one(name, url, city, state, zipcode):
         async with sem:
             print(f"\n[{name}] Scraping {url} …")
+            # Open session early so cost log can write to DB even before _save_apartment.
+            # In dry_run mode db stays None → cost log falls back to JSONL.
+            db = Session() if not dry_run else None
             try:
                 agent = ApartmentAgent(api_key=api_key)
                 data, metrics = await agent.scrape(url, headless=True)
@@ -231,6 +234,7 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
                         input_tok=getattr(metrics, "total_input_tokens", 0),
                         output_tok=getattr(metrics, "total_output_tokens", 0),
                         cost_usd=getattr(metrics, "total_cost_usd", 0.0),
+                        db=db,
                     )
                     return
                 outcome = "cache_hit" if getattr(metrics, "cache_hit", False) else "ok"
@@ -243,20 +247,20 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
                     input_tok=getattr(metrics, "total_input_tokens", 0),
                     output_tok=getattr(metrics, "total_output_tokens", 0),
                     cost_usd=getattr(metrics, "total_cost_usd", 0.0),
+                    db=db,
                 )
                 if dry_run:
                     for fp in data.floor_plans:
                         url_hint = f"  → {fp.external_url}" if fp.external_url else ""
                         print(f"    {fp.name:30s} beds={fp.bedrooms}  ${fp.min_price}{url_hint}")
                 else:
-                    db = Session()
-                    try:
-                        _save_apartment(data, url, city, state, zipcode, db)
-                    finally:
-                        db.close()
+                    _save_apartment(data, url, city, state, zipcode, db)
             except Exception as exc:
                 print(f"  ✗ Error scraping {name}: {exc}")
-                append_scraper_entry(name=name, url=url, outcome="error")
+                append_scraper_entry(name=name, url=url, outcome="error", db=db)
+            finally:
+                if db is not None:
+                    db.close()
 
     tasks = [scrape_one(n, u, c, s, z) for n, u, c, s, z in apartments]
     await asyncio.gather(*tasks)
