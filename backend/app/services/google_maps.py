@@ -126,6 +126,25 @@ class GoogleMapsService:
                 f"({cache_hits} from local cache, {api_calls} new API calls, {failed_count} failed)"
             )
 
+            # Cost: 4 search queries × $0.003 + Place Details calls × $0.007 (Pro tier, websiteUri)
+            _SEARCH_COST_PER_CALL = 0.003   # Text Search (New) per request
+            _DETAILS_COST_PER_CALL = 0.007  # Place Details (New) Pro tier per request
+            num_searches = len(search_queries) + 1  # 3 text + 1 nearby
+            cost_usd = num_searches * _SEARCH_COST_PER_CALL + api_calls * _DETAILS_COST_PER_CALL
+
+            try:
+                from app.core.cost_log import append_google_maps_entry
+                append_google_maps_entry(
+                    location=location,
+                    total_places=len(all_places),
+                    api_calls=api_calls,
+                    cache_hits=cache_hits,
+                    failed=failed_count,
+                    cost_usd=cost_usd,
+                )
+            except Exception as _log_exc:
+                logger.warning("cost_log: failed to write google_maps entry: %s", _log_exc)
+
             if not apartments_hash:
                 return {}, f"Could not retrieve details for any apartments in {location} (found {len(all_places)} places but all detail fetches failed)"
 

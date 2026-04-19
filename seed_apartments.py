@@ -32,6 +32,7 @@ import os
 
 from tests.integration.agentic_scraper.agent import ApartmentAgent
 from tests.integration.agentic_scraper.models import ApartmentData, FloorPlan
+from app.core.cost_log import append_scraper_entry
 
 # ── apartment list ─────────────────────────────────────────────────────────────
 APARTMENTS = [
@@ -225,10 +226,23 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
                 data, metrics = await agent.scrape(url, headless=True)
                 if data is None:
                     print(f"  ! No data returned for {name}")
+                    append_scraper_entry(
+                        name=name, url=url, outcome="no_data",
+                        input_tok=getattr(metrics, "total_input_tokens", 0),
+                        output_tok=getattr(metrics, "total_output_tokens", 0),
+                        cost_usd=getattr(metrics, "total_cost_usd", 0.0),
+                    )
                     return
+                outcome = "cache_hit" if getattr(metrics, "cache_hit", False) else "ok"
                 print(
                     f"  ✓ {len(data.floor_plans)} floor plans  "
                     f"{metrics.total_tokens:,} tok  ${metrics.total_cost_usd:.4f}"
+                )
+                append_scraper_entry(
+                    name=name, url=url, outcome=outcome,
+                    input_tok=getattr(metrics, "total_input_tokens", 0),
+                    output_tok=getattr(metrics, "total_output_tokens", 0),
+                    cost_usd=getattr(metrics, "total_cost_usd", 0.0),
                 )
                 if dry_run:
                     for fp in data.floor_plans:
@@ -242,6 +256,7 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
                         db.close()
             except Exception as exc:
                 print(f"  ✗ Error scraping {name}: {exc}")
+                append_scraper_entry(name=name, url=url, outcome="error")
 
     tasks = [scrape_one(n, u, c, s, z) for n, u, c, s, z in apartments]
     await asyncio.gather(*tasks)

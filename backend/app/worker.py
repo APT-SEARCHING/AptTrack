@@ -341,6 +341,7 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                         content_hash_short_circuit=True,
                         elapsed_sec=elapsed,
                     ))
+                    _log_scraper_cost(apt_id, url, "cache_hit", 0, 0, 0.0, db)
                     return
 
             # ------------------------------------------------------------------
@@ -395,6 +396,14 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                     cost_usd=metrics.total_cost_usd,
                     elapsed_sec=elapsed,
                 ))
+                _log_scraper_cost(
+                    apt_id, url,
+                    "cache_hit" if metrics.cache_hit else outcome,
+                    metrics.total_input_tokens,
+                    metrics.total_output_tokens,
+                    metrics.total_cost_usd,
+                    db,
+                )
             finally:
                 await asyncio.sleep(5)  # polite inter-scrape delay
                 await pool.put(browser)
@@ -455,6 +464,26 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
     finally:
         loop.close()
         _current_scrape_loop = None
+
+
+def _log_scraper_cost(
+    apt_id: int, url: str, outcome: str,
+    input_tok: int, output_tok: int, cost_usd: float,
+    db,
+) -> None:
+    """Append one cost log entry — best-effort, never raises."""
+    try:
+        from sqlalchemy import select as sa_select
+        from app.models.apartment import Apartment
+        from app.core.cost_log import append_scraper_entry
+        apt = db.execute(sa_select(Apartment).where(Apartment.id == apt_id)).scalar_one_or_none()
+        name = apt.title if apt else f"apt#{apt_id}"
+        append_scraper_entry(
+            name=name, url=url, outcome=outcome,
+            input_tok=input_tok, output_tok=output_tok, cost_usd=cost_usd,
+        )
+    except Exception as exc:
+        logger.warning("cost_log: failed to write scraper entry for apt %d: %s", apt_id, exc)
 
 
 def _match_plan(apt_id: int, fp, db):
