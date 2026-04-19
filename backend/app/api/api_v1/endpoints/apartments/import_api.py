@@ -111,9 +111,21 @@ async def _import_background_task(location: str, db: Session, task_id: str) -> N
         with task_lock:
             task_statuses[task_id]["status"] = "in_progress"
 
+        # Pre-load cached Place Details from GooglePlaceRaw — avoids re-paying
+        # for Place Details ($7/1K Pro) on places already fetched in a prior import.
+        from sqlalchemy import select as sa_select
+        from app.models.google_place import GooglePlaceRaw
+        cached_details: dict = {}
+        for row in db.execute(sa_select(GooglePlaceRaw)).scalars().all():
+            if row.place_id and row.raw_json:
+                cached_details[row.place_id] = row.raw_json
+        logger.info("Loaded %d cached place(s) from GooglePlaceRaw", len(cached_details))
+
         # API key read exclusively from server-side settings
         service = GoogleMapsService()
-        apartments_hash, error = await service.fetch_apartments_by_location(location)
+        apartments_hash, error = await service.fetch_apartments_by_location(
+            location, cached_details=cached_details
+        )
         if error:
             raise RuntimeError(error)
 

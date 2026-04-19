@@ -29,7 +29,11 @@ class GoogleMapsService:
         # Use the newer Places API endpoints
         self.base_url = "https://places.googleapis.com/v1"
 
-    async def fetch_apartments_by_location(self, location: str) -> Tuple[Dict[str, Dict], Optional[str]]:
+    async def fetch_apartments_by_location(
+        self,
+        location: str,
+        cached_details: Optional[Dict[str, Dict]] = None,
+    ) -> Tuple[Dict[str, Dict], Optional[str]]:
         """
         Fetch apartments in a given location (city or zipcode)
 
@@ -43,23 +47,12 @@ class GoogleMapsService:
             if not self.api_key:
                 return {}, "No Google Maps API key provided. Please provide a valid API key."
 
-            # Use multiple search queries to get more comprehensive results
+            # Three broad queries cover the target population without redundant calls.
+            # More synonyms add API cost but rarely surface new unique complexes.
             search_queries = [
-                "apartment",
                 "apartment complex",
-                "apartments for rent",
-                "residential complex",
-                "housing complex",
-                "rental apartments",
-                "apartment homes",
-                "luxury apartments",
                 "affordable housing",
-                "student housing",
                 "senior housing",
-                "condos for rent",
-                "rental properties",
-                "multifamily housing",
-                "garden apartments"
             ]
 
             all_places = {}  # Use dict to avoid duplicates based on place_id
@@ -96,23 +89,42 @@ class GoogleMapsService:
 
             logger.info(f"Found {len(all_places)} unique places across all search queries")
 
-            # Then get details for each place and build hash table
+            # Fetch details concurrently (10 at a time) to avoid sequential slowness.
+            # Places already in GooglePlaceRaw cache are reconstructed locally — 0 API calls.
             apartments_hash = {}
             failed_count = 0
+            cache_hits = 0
+            sem = asyncio.Semaphore(10)
 
-            for place in all_places.values():
-                details, error = await self._get_place_details(place["place_id"])
-                if error:
-                    failed_count += 1
-                    logger.warning(f"Error getting details for place {place.get('name', 'Unknown')}: {error}")
-                    continue
+            async def _fetch_one(place: Dict) -> None:
+                nonlocal failed_count, cache_hits
+                place_id = place["place_id"]
+
+                # Cache hit: reconstruct from stored raw JSON — no API call
+                if cached_details and place_id in cached_details:
+                    details = self._format_place_details(cached_details[place_id])
+                    cache_hits += 1
+                    logger.debug(f"Cache hit for place {place_id} — skipping API call")
+                else:
+                    async with sem:
+                        details, err = await self._get_place_details(place_id)
+                        if err:
+                            failed_count += 1
+                            logger.warning(f"Error getting details for place {place.get('name', 'Unknown')}: {err}")
+                            return
 
                 if details:
                     external_id = details.get("external_id")
                     if external_id:
                         apartments_hash[external_id] = details
 
-            logger.info(f"Successfully retrieved details for {len(apartments_hash)} apartments, {failed_count} failed")
+            await asyncio.gather(*[_fetch_one(p) for p in all_places.values()])
+
+            api_calls = len(all_places) - cache_hits
+            logger.info(
+                f"Details: {len(apartments_hash)} retrieved "
+                f"({cache_hits} from local cache, {api_calls} new API calls, {failed_count} failed)"
+            )
 
             if not apartments_hash:
                 return {}, f"Could not retrieve details for any apartments in {location} (found {len(all_places)} places but all detail fetches failed)"
@@ -143,7 +155,9 @@ class GoogleMapsService:
             headers = {
                 "Content-Type": "application/json",
                 "X-Goog-Api-Key": self.api_key,
-                "X-Goog-FieldMask": "places.displayName,places.id,places.types,places.formattedAddress,places.name"
+                # Essentials tier only — id/displayName/location/address/types.
+                # Pro fields (websiteUri, rating, …) are fetched per-place in _get_place_details.
+                "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.formattedAddress,places.types",
             }
 
             body = {
@@ -206,7 +220,8 @@ class GoogleMapsService:
                 headers = {
                     "Content-Type": "application/json",
                     "X-Goog-Api-Key": self.api_key,
-                    "X-Goog-FieldMask": "places.displayName,places.id,places.types,places.formattedAddress,places.name"
+                    # Essentials tier — same as _search_places discovery phase.
+                    "X-Goog-FieldMask": "places.id,places.displayName,places.location,places.formattedAddress,places.types",
                 }
 
                 body = {
@@ -350,7 +365,8 @@ class GoogleMapsService:
             url = f"{self.base_url}/places/{place_id}"
             headers = {
                 "X-Goog-Api-Key": self.api_key,
-                "X-Goog-FieldMask": "*"
+                # Explicit Pro mask — never use "*" (triggers Enterprise tier at $20/1K).
+                "X-Goog-FieldMask": "name,displayName,formattedAddress,location,websiteUri,nationalPhoneNumber,rating,userRatingCount",
             }
             try:
                 async with session.get(url, headers=headers) as response:
