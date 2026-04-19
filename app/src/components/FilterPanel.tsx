@@ -25,7 +25,9 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
 
   const clear = () => onFilterChange({});
 
-  const advancedKeys: (keyof ListingsFilter)[] = ['pets_allowed', 'has_parking', 'min_sqft', 'max_sqft', 'available_before'];
+  // pets_allowed (32%) and has_parking (26%) are hidden until coverage ≥ 60%.
+  // Re-add to advancedKeys and the checkbox block below once data improves post-deploy.
+  const advancedKeys: (keyof ListingsFilter)[] = ['min_sqft', 'max_sqft', 'available_before'];
   const hasAdvanced = advancedKeys.some(k => filters[k] !== undefined && filters[k] !== '');
   const hasFilters = Object.values(filters).some(v => v !== undefined && v !== '');
 
@@ -112,31 +114,6 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
 
       {effectiveOpen && (
         <div className="space-y-4 pt-3 border-t border-slate-100">
-          {/* Boolean amenities */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Amenities
-            </label>
-            <div className="space-y-2">
-              {([
-                ['pets_allowed', 'Pets allowed'],
-                ['has_parking',  'Parking included'],
-              ] as [keyof ListingsFilter, string][]).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={!!filters[key]}
-                    onChange={e => setBool(key, e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
-                  />
-                  <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">
-                    {label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* Sqft range */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
