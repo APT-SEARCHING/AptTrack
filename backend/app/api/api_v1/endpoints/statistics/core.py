@@ -1,13 +1,22 @@
+import threading
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
-from app.schemas.apartment import CheapestItem, PriceTrend, TopDropItem
+from app.schemas.apartment import CheapestItem, MedianByCityBedsResponse, PriceTrend, TopDropItem
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import Date, Float, cast, func, select
+from sqlalchemy import Date, Float, cast, func, select, text
 from sqlalchemy.orm import Session
+
+# ---------------------------------------------------------------------------
+# In-process cache for median-by-city-beds (24 h TTL)
+# ---------------------------------------------------------------------------
+
+_median_cache: dict = {}
+_median_lock = threading.Lock()
+_MEDIAN_TTL = timedelta(hours=24)
 
 router = APIRouter()
 
@@ -138,6 +147,89 @@ def get_cheapest(
         }
         for r in rows
     ]
+
+
+@router.get("/stats/median-by-city-beds", response_model=MedianByCityBedsResponse)
+@limiter.limit("60/minute")
+def get_median_by_city_beds(
+    request: Request,
+    city: str,
+    bedrooms: float,
+    db: Session = Depends(get_db),
+):
+    """Median asking price for city + bedroom count, cached 24 h in-process.
+
+    Uses ``percentile_cont`` on Postgres; falls back to a Python sort-and-split
+    on SQLite (test environment).
+    """
+    key = (city.lower(), bedrooms)
+    now = datetime.now(timezone.utc)
+
+    with _median_lock:
+        entry = _median_cache.get(key)
+        if entry and now < entry["expires"]:
+            return MedianByCityBedsResponse(
+                city=city,
+                bedrooms=bedrooms,
+                median=entry["median"],
+                count=entry["count"],
+            )
+
+    median_val, count_val = _compute_median(city, bedrooms, db)
+
+    with _median_lock:
+        _median_cache[key] = {
+            "median": median_val,
+            "count": count_val,
+            "expires": now + _MEDIAN_TTL,
+        }
+
+    return MedianByCityBedsResponse(
+        city=city, bedrooms=bedrooms, median=median_val, count=count_val
+    )
+
+
+def _compute_median(city: str, bedrooms: float, db: Session) -> Tuple[Optional[float], int]:
+    """Compute (median, count). Postgres path first, SQLite fallback for tests."""
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY p.price),
+                       count(*)
+                FROM plans p
+                JOIN apartments a ON p.apartment_id = a.id
+                WHERE lower(a.city) = lower(:city)
+                  AND p.bedrooms = :bedrooms
+                  AND p.is_available = true
+                  AND p.price IS NOT NULL
+                """
+            ),
+            {"city": city, "bedrooms": float(bedrooms)},
+        ).first()
+        return (row[0], int(row[1])) if row else (None, 0)
+    except Exception:
+        # SQLite (test env) — percentile_cont not supported
+        prices = sorted(
+            db.execute(
+                select(Plan.price)
+                .join(Apartment, Apartment.id == Plan.apartment_id)
+                .where(
+                    func.lower(Apartment.city) == city.lower(),
+                    Plan.bedrooms == bedrooms,
+                    Plan.is_available.is_(True),
+                    Plan.price.is_not(None),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        n = len(prices)
+        if n == 0:
+            return None, 0
+        mid = n // 2
+        median = prices[mid] if n % 2 == 1 else (prices[mid - 1] + prices[mid]) / 2
+        return median, n
 
 
 @router.get("/stats/price-trends", response_model=List[PriceTrend])

@@ -16,24 +16,46 @@ const StatPill: React.FC<{ label: string; value: string }> = ({ label, value }) 
   </div>
 );
 
-const MarketPill: React.FC<{ pct: number; city: string }> = ({ pct, city }) => {
-  const absPct = Math.abs(pct);
+const MarketPill: React.FC<{
+  targetPrice: number;
+  median: number;
+  city: string;
+  beds: number;
+  planCount?: number;
+}> = ({ targetPrice, median, city, beds, planCount }) => {
+  const diff = targetPrice - median;
+  const pct = diff / median;
+  const absDiff = Math.abs(Math.round(diff));
+  const bedLabel = beds === 0 ? 'studio' : `${beds}BR`;
+  const medianFmt = `$${Math.round(median).toLocaleString()}`;
+
   const label =
-    absPct < 0.05
-      ? `Near ${city} median`
-      : pct < 0
-      ? `${Math.round(absPct * 100)}% below ${city} median`
-      : `${Math.round(absPct * 100)}% above ${city} median`;
+    absDiff < 50
+      ? `At ${city} median (${medianFmt}) for ${bedLabel}`
+      : diff < 0
+      ? `$${absDiff.toLocaleString()} below ${city} median (${medianFmt}) for ${bedLabel}`
+      : `$${absDiff.toLocaleString()} above ${city} median (${medianFmt}) for ${bedLabel}`;
+
   const colors =
-    absPct < 0.05
-      ? 'bg-slate-100 text-slate-500'
-      : pct < 0
+    diff <= 0
       ? 'bg-emerald-100 text-emerald-700'
-      : 'bg-amber-100 text-amber-700';
+      : pct > 0.10
+      ? 'bg-amber-100 text-amber-700'
+      : 'bg-slate-100 text-slate-600';
+
+  const tooltip = planCount
+    ? `Median of ${planCount} currently-available ${bedLabel} asking prices in ${city}`
+    : `Median ${bedLabel} asking price in ${city}`;
+
   return (
-    <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full ${colors}`}>
-      {label}
-    </span>
+    <div className="flex items-center gap-1.5">
+      <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full ${colors}`}>
+        {label}
+      </span>
+      <span title={tooltip} className="text-xs text-slate-400 hover:text-slate-600 cursor-help select-none">
+        ⓘ
+      </span>
+    </div>
   );
 };
 
@@ -180,11 +202,6 @@ const ListingDetailPage: React.FC = () => {
                 <span className="text-slate-400 text-sm"> – ${maxP.toLocaleString()}</span>
               )}
               {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
-              {similar?.pct_vs_median != null && apt && (
-                <div className="mt-1">
-                  <MarketPill pct={similar.pct_vs_median} city={apt.city} />
-                </div>
-              )}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
@@ -221,6 +238,19 @@ const ListingDetailPage: React.FC = () => {
           <StatPill label="From" value={minP != null ? `$${minP.toLocaleString()}` : 'Contact'} />
         </div>
       </div>
+
+      {/* Market context — standalone row between header and plans */}
+      {similar?.city_median_price != null && apt && minP != null && (
+        <div className="mb-6">
+          <MarketPill
+            targetPrice={minP}
+            median={similar.city_median_price}
+            city={apt.city}
+            beds={allPlans[0]?.bedrooms ?? 1}
+            planCount={similar.city_plan_count ?? undefined}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Plans table */}

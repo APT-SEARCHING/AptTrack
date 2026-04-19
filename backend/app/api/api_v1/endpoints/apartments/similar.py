@@ -156,5 +156,6 @@ def get_similar_apartments(
     return SimilarResponse(
         city_median_price=city_median,
         pct_vs_median=pct_vs_median,
+        city_plan_count=len(city_prices),
         similar=similar,
     )

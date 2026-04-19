@@ -129,7 +129,15 @@ export interface SimilarApartment {
 export interface SimilarResponse {
   city_median_price: number | null;
   pct_vs_median: number | null;
+  city_plan_count: number | null;
   similar: SimilarApartment[];
+}
+
+export interface MedianByCityBedsResponse {
+  city: string;
+  bedrooms: number;
+  median: number | null;
+  count: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -540,6 +548,10 @@ const api = {
 
   async getSimilarApartments(id: number): Promise<SimilarResponse> {
     return apiFetch<SimilarResponse>(`/apartments/${id}/similar`);
+  },
+
+  async getMedianByCityBeds(city: string, bedrooms: number): Promise<MedianByCityBedsResponse> {
+    return apiFetch<MedianByCityBedsResponse>('/stats/median-by-city-beds', { city, bedrooms });
   },
 
   async getTopDrops(days: number = 7, limit: number = 5): Promise<TopDropItem[]> {

@@ -209,9 +209,17 @@ class SimilarApartment(BaseModel):
     available_count: int
 
 
+class MedianByCityBedsResponse(BaseModel):
+    city: str
+    bedrooms: float
+    median: Optional[float] = None
+    count: int
+
+
 class SimilarResponse(BaseModel):
     city_median_price: Optional[float] = None
     pct_vs_median: Optional[float] = None
+    city_plan_count: Optional[int] = None
     similar: List[SimilarApartment] = []
 
 
