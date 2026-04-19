@@ -540,7 +540,30 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
     """Write scraped plan prices back to PlanPriceHistory."""
     from datetime import datetime, timezone
 
-    from app.models.apartment import PlanPriceHistory
+    from sqlalchemy import select
+
+    from app.models.apartment import Apartment, PlanPriceHistory
+
+    # Write apartment-level amenities (only overwrite with non-None values so a
+    # future scrape that misses an amenity doesn't erase a previously-captured flag)
+    if result.amenities:
+        apt = db.execute(
+            select(Apartment).where(Apartment.id == apt_id)
+        ).scalar_one_or_none()
+        if apt is not None:
+            amenity_map = {
+                "pets_allowed": "pets_allowed",
+                "has_parking": "has_parking",
+                "has_pool": "has_pool",
+                "has_gym": "has_gym",
+                "has_dishwasher": "has_dishwasher",
+                "has_washer_dryer": "has_washer_dryer",
+                "has_air_conditioning": "has_air_conditioning",
+            }
+            for key, col in amenity_map.items():
+                val = result.amenities.get(key)
+                if val is not None:  # null from LLM means "unknown" — don't overwrite
+                    setattr(apt, col, val)
 
     for fp in result.floor_plans:
         plan = _match_plan(apt_id, fp, db)

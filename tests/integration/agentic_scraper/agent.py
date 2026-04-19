@@ -191,7 +191,20 @@ Per-unit floor level:
 - If the unit number encodes the floor (e.g., "305" → floor 3, "1204" → floor 12,
   "A305" → floor 3), extract the floor number from the leading digit(s).
 - If the floor is stated explicitly ("3rd floor", "Floor 5"), use that number.
-- If floor level cannot be determined, leave blank."""
+- If floor level cannot be determined, leave blank.
+
+AMENITY RULES:
+- Scan the full page text for amenity keywords and populate the amenities object accordingly.
+  - 'pet-friendly', 'pets allowed', 'pets welcome', 'dogs welcome', 'cats allowed' → pets_allowed=true
+  - 'no pets', 'no animals', 'pet-free' → pets_allowed=false
+  - 'parking garage', 'parking available', 'assigned parking', 'covered parking', 'parking included' → has_parking=true
+  - 'pool', 'swimming pool', 'resort pool', 'saltwater pool', 'rooftop pool' → has_pool=true
+  - 'fitness center', 'fitness studio', 'gym', 'workout room', 'exercise room' → has_gym=true
+  - 'dishwasher', 'in-unit dishwasher' → has_dishwasher=true
+  - 'washer/dryer', 'washer and dryer', 'w/d in unit', 'in-unit laundry', 'full-size washer' → has_washer_dryer=true
+  - 'air conditioning', 'central air', 'central AC', 'AC', 'A/C' → has_air_conditioning=true
+- null means unknown (page didn't mention it). Only set false if the page explicitly says the amenity is NOT available.
+- Amenities are complex-level, not per-unit — a single amenities object covers the whole property."""
 
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI-compatible function-calling schema)
@@ -374,6 +387,23 @@ TOOLS = [
                                 },
                             },
                             "required": ["name"],
+                        },
+                    },
+                    "amenities": {
+                        "type": "object",
+                        "description": (
+                            "Amenity flags for the apartment complex. "
+                            "Use null if the page doesn't mention an amenity, "
+                            "false if explicitly not offered, true if offered."
+                        ),
+                        "properties": {
+                            "pets_allowed": {"type": ["boolean", "null"]},
+                            "has_parking": {"type": ["boolean", "null"]},
+                            "has_pool": {"type": ["boolean", "null"]},
+                            "has_gym": {"type": ["boolean", "null"]},
+                            "has_dishwasher": {"type": ["boolean", "null"]},
+                            "has_washer_dryer": {"type": ["boolean", "null"]},
+                            "has_air_conditioning": {"type": ["boolean", "null"]},
                         },
                     },
                 },

@@ -1,6 +1,6 @@
 """Pydantic models for apartment data extracted by the agentic scraper."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -25,3 +25,4 @@ class ApartmentData(BaseModel):
     phone: Optional[str] = Field(None, description="Contact phone number")
     website: Optional[str] = Field(None, description="Website URL that was scraped")
     floor_plans: List[FloorPlan] = Field(default_factory=list, description="All floor plan configurations found")
+    amenities: Optional[Dict] = Field(None, description="Complex-level amenity flags (pets_allowed, has_parking, etc.)")
