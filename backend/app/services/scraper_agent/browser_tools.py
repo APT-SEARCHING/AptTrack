@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
+from urllib.parse import urljoin, urlparse
 
+import aiohttp
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, BrowserContext, Frame, Page, async_playwright
 
@@ -20,6 +22,356 @@ _PRICING_KEYWORDS = [
     "$", "bed", "bath", "sqft", "sq ft", "plan", "studio",
     "available", "price", "rent", "floor", "unit", "home",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Apartment website validator
+# ---------------------------------------------------------------------------
+# Quick keyword scan on static HTML to reject non-apartment sites (hotels,
+# senior-care facilities, etc.) before any Playwright or LLM work is done.
+
+_NON_APT_TITLE_KEYWORDS: List[str] = [
+    "hotel", "motel", " inn ", "resort", "hostel",
+    "assisted living", "memory care", "skilled nursing", "senior living",
+    "retirement community", "independent living",
+    "short-term rental", "extended stay america",
+    # Affordable / income-restricted housing
+    "housing authority",
+    "community development corporation",
+    "affordable housing",
+]
+
+_NON_APT_BODY_KEYWORDS: List[str] = [
+    "per night",
+    "check-in date",
+    "checkout date",
+    "nightly rate",
+    "book a room",
+    "room reservations",
+    "nights stayed",
+    # Affordable / income-restricted housing
+    "income restricted",
+    "income qualified",
+    "% ami",
+    "area median income",
+    "section 8 voucher",
+    "hud-funded",
+    "low-income housing tax credit",
+    "lihtc",
+]
+
+_APT_POSITIVE_KEYWORDS: List[str] = [
+    "floor plan", "floorplan",
+    "bedroom", "studio",
+    "per month", "/mo", "monthly rent",
+    "lease", "move-in",
+    "sq. ft.", "sqft", "sq ft",
+    "apartment", " apt ",
+    "1 bed", "2 bed", "3 bed",
+]
+
+_HOTEL_DOMAINS: frozenset = frozenset({
+    "hyatt.com", "marriott.com", "hilton.com", "ihg.com", "wyndham.com",
+    "bestwestern.com", "choicehotels.com", "radissonhotels.com",
+    "accor.com", "starwoodhotels.com",
+})
+
+
+def is_apartment_website(html: str, url: str) -> tuple:
+    """Return ``(True, "")`` if *html* looks like a residential apartment site.
+
+    Returns ``(False, reason)`` if the page is clearly a hotel, senior-care
+    facility, or other non-apartment property.  On any parsing error the
+    function returns ``(True, "")`` so the caller falls through to the agent.
+
+    Only the first 60 KB of HTML is examined for speed.
+    """
+    try:
+        domain = urlparse(url).netloc.lower()
+        for hd in _HOTEL_DOMAINS:
+            if hd in domain:
+                return False, f"domain is a hotel chain ({hd})"
+
+        soup = BeautifulSoup(html[:60_000], "html.parser")
+
+        title_tag = soup.find("title")
+        title_text = title_tag.get_text(strip=True).lower() if title_tag else ""
+
+        meta_tag = soup.find("meta", attrs={"name": "description"})
+        meta_text = (meta_tag.get("content") or "").lower() if meta_tag else ""
+
+        header = title_text + " " + meta_text
+
+        for kw in _NON_APT_TITLE_KEYWORDS:
+            if kw in header:
+                return False, f"title/meta contains '{kw}'"
+
+        body_text = soup.get_text(separator=" ", strip=True)[:25_000].lower()
+
+        for kw in _NON_APT_BODY_KEYWORDS:
+            if kw in body_text:
+                return False, f"page body contains '{kw}'"
+
+        for kw in _APT_POSITIVE_KEYWORDS:
+            if kw in body_text or kw in header:
+                return True, ""
+
+        return True, ""
+    except Exception:
+        return True, ""
+
+
+# ---------------------------------------------------------------------------
+# Jonah Digital platform parser
+# ---------------------------------------------------------------------------
+# Jonah Digital sites (cdn.jonahdigital.com/widget/...) render empty
+# jd-fp-floorplan-card--preload shells in server HTML.  Actual price/sqft
+# data is on individual detail pages (e.g. /floorplans/a01/).  Trying to
+# click JS widgets burns all 22 agent iterations for nothing.  When we
+# detect this platform we short-circuit by fetching each detail page
+# directly via aiohttp and parsing the server-rendered HTML.
+# ---------------------------------------------------------------------------
+
+_JD_SIGNAL = "jd-fp-floorplan-card"  # present in HTML when Jonah Digital
+
+
+def _is_jonah_digital(html: str) -> bool:
+    """Return True if the HTML looks like a Jonah Digital floor-plan listing."""
+    return _JD_SIGNAL in html
+
+
+def _extract_jonah_digital_hrefs(html: str, base_url: str) -> List[str]:
+    """Return absolute detail-page URLs from Jonah Digital floor-plan card hrefs.
+
+    Jonah Digital sometimes embeds card markup inside <template> or <script>
+    elements that BeautifulSoup won't traverse.  We use a regex pass on the
+    raw HTML to catch those hrefs too.
+    """
+    seen: set[str] = set()
+    hrefs: List[str] = []
+
+    # Primary: BeautifulSoup on live DOM elements
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        cls = " ".join(a.get("class", []))
+        href = a["href"].strip()
+        if "jd-fp-floorplan-card" in cls and href:
+            abs_url = urljoin(base_url, href)
+            if abs_url not in seen:
+                seen.add(abs_url)
+                hrefs.append(abs_url)
+
+    # Fallback: regex scan of raw HTML for hrefs adjacent to jd-fp-floorplan-card
+    # Matches patterns like: href="/floorplans/a01/" class="jd-fp-floorplan-card
+    #                     or: class="jd-fp-floorplan-card..." href="/floorplans/a01/"
+    for m in re.finditer(
+        r'<a\b[^>]*?(?:href=["\']([^"\']+)["\'][^>]*class=["\'][^"\']*jd-fp-floorplan-card'
+        r'|class=["\'][^"\']*jd-fp-floorplan-card[^"\']*["\'][^>]*href=["\']([^"\']+)["\'])',
+        html,
+    ):
+        raw = m.group(1) or m.group(2)
+        if raw:
+            abs_url = urljoin(base_url, raw.strip())
+            if abs_url not in seen:
+                seen.add(abs_url)
+                hrefs.append(abs_url)
+
+    return hrefs
+
+
+def _parse_jonah_digital_detail(html: str, detail_url: str) -> Optional[Dict]:
+    """Parse a single Jonah Digital floor-plan detail page into a unit dict."""
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(separator="\n", strip=True)
+
+    # Plan name: last segment of URL path (e.g. /floorplans/a01/ → "a01")
+    slug = urlparse(detail_url).path.rstrip("/").rsplit("/", 1)[-1]
+    # Try to find a more human-readable name in the page (h1/h2)
+    name: Optional[str] = None
+    for tag in soup.find_all(["h1", "h2", "h3"]):
+        t = tag.get_text(strip=True)
+        if t and len(t) < 80 and not re.search(r"floor plan|available|contact|schedule", t, re.I):
+            name = t
+            break
+    if not name:
+        name = slug
+
+    # Beds: "Studio", "1 Bed", "2 Bed", "2 Bedroom", etc.
+    beds: float = 0.0
+    m = re.search(r"(\d+)\s*(?:bed(?:room)?s?)", text, re.I)
+    if m:
+        beds = float(m.group(1))
+    elif re.search(r"\bstudio\b", text, re.I):
+        beds = 0.0
+
+    # Sqft
+    sqft: Optional[float] = None
+    m = re.search(r"([\d,]+)\s*(?:sq\.?\s*ft|square\s*feet)", text, re.I)
+    if m:
+        sqft = float(m.group(1).replace(",", ""))
+
+    # Price — skip if only "Contact" present
+    price: Optional[float] = None
+    price_matches = re.findall(r"\$([\d,]+)(?:\s*[-–]\s*\$([\d,]+))?", text)
+    for lo_str, hi_str in price_matches:
+        lo = int(lo_str.replace(",", ""))
+        # Sanity: rent is plausibly $500–$20,000/mo
+        if 500 <= lo <= 20_000:
+            price = float(lo)
+            break
+
+    unit: Dict = {
+        "plan_name": name,
+        "bedrooms": beds,
+        "size_sqft": sqft,
+        "price": price,
+        "availability": "available",
+    }
+    return unit
+
+
+async def _fetch_jonah_digital_plans(
+    hrefs: List[str],
+    session: aiohttp.ClientSession,
+    concurrency: int = 5,
+) -> List[Dict]:
+    """Fetch Jonah Digital detail pages in parallel and return parsed unit dicts."""
+    sem = asyncio.Semaphore(concurrency)
+    results: List[Dict] = []
+
+    async def _fetch_one(url: str) -> None:
+        async with sem:
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status != 200:
+                        return
+                    html = await resp.text(errors="replace")
+                unit = _parse_jonah_digital_detail(html, url)
+                if unit is not None:
+                    results.append(unit)
+            except Exception:
+                pass
+
+    await asyncio.gather(*[_fetch_one(u) for u in hrefs])
+    return results
+
+
+# ---------------------------------------------------------------------------
+# FatWin (WordPress apartment plugin) parser
+# ---------------------------------------------------------------------------
+# FatWin sites have individual floor-plan detail pages at /floorplan/SLUG/.
+# Each detail page is server-rendered and contains name/beds/sqft in a
+# standard `N Bedroom | N Bath | NNN SF` line.  Prices are never shown
+# ("Please contact us for details").
+
+_FATWIN_SIGNAL = "fatwin.com"
+
+
+def _is_fatwin(html: str) -> bool:
+    return _FATWIN_SIGNAL in html
+
+
+def _extract_fatwin_hrefs(html: str, base_url: str) -> List[str]:
+    """Return unique absolute floor-plan detail URLs from a FatWin listing page."""
+    seen: set[str] = set()
+    hrefs: List[str] = []
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        # Match /floorplan/SLUG/ but exclude ?move= variant duplicates
+        if re.search(r"/floorplan/[^/?]+/?$", href):
+            abs_url = urljoin(base_url, href.rstrip("/") + "/")
+            if abs_url not in seen:
+                seen.add(abs_url)
+                hrefs.append(abs_url)
+    return hrefs
+
+
+def _parse_fatwin_detail(html: str, detail_url: str) -> Optional[Dict]:
+    """Parse a FatWin floor-plan detail page.
+
+    Format found on every detail page:
+        <title>SLUG | SiteName</title>
+        ...
+        Studio | 1 Bath | 405-405 SF        (studio)
+        1 Bedroom | 1 Bath | 571 SF         (1BR)
+        2 Bedroom | 2 Bath | 902 SF         (2BR)
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(separator="\n", strip=True)
+
+    # Plan name from <title> first segment
+    name: str = urlparse(detail_url).path.rstrip("/").rsplit("/", 1)[-1]
+    title_tag = soup.find("title")
+    if title_tag:
+        raw_title = title_tag.get_text(strip=True)
+        name = raw_title.split("|")[0].strip() or name
+
+    # Key line: "N Bedroom | N Bath | NNN[-NNN] SF"
+    beds: float = 0.0
+    sqft: Optional[float] = None
+    m_line = re.search(
+        r"(Studio|\d+\s*Bedroom).*?(\d+)\s*Bath.*?([\d,]+)(?:\s*-\s*([\d,]+))?\s*SF",
+        text,
+        re.I | re.S,
+    )
+    if m_line:
+        bed_token = m_line.group(1).strip()
+        if re.search(r"studio", bed_token, re.I):
+            beds = 0.0
+        else:
+            beds = float(re.search(r"\d+", bed_token).group())
+        sqft = float(m_line.group(3).replace(",", ""))
+
+    return {
+        "plan_name": name,
+        "bedrooms": beds,
+        "size_sqft": sqft,
+        "price": None,  # FatWin sites always say "Contact Us"
+        "availability": "available",
+    }
+
+
+async def _fetch_fatwin_plans(
+    hrefs: List[str],
+    session: aiohttp.ClientSession,
+    concurrency: int = 5,
+) -> List[Dict]:
+    """Fetch FatWin detail pages in parallel and return parsed unit dicts."""
+    sem = asyncio.Semaphore(concurrency)
+    results: List[Dict] = []
+
+    async def _fetch_one(url: str) -> None:
+        async with sem:
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    if resp.status != 200:
+                        return
+                    html = await resp.text(errors="replace")
+                unit = _parse_fatwin_detail(html, url)
+                if unit is not None:
+                    results.append(unit)
+            except Exception:
+                pass
+
+    await asyncio.gather(*[_fetch_one(u) for u in hrefs])
+    return results
+
+
+# ---------------------------------------------------------------------------
+# SightMap embed URL extractor
+# ---------------------------------------------------------------------------
+# SightMap sites embed a widget via <iframe src="https://sightmap.com/embed/XXXX">.
+# The embed URL is present in the outer page's static HTML.  By navigating
+# Playwright directly to this URL we bypass unreliable wrapper CMS interactions.
+
+_SIGHTMAP_EMBED_RE = re.compile(r'https://sightmap\.com/embed/(\w+)', re.I)
+
+
+def _extract_sightmap_embed_url(html: str) -> Optional[str]:
+    """Return the full SightMap embed URL if found in *html*, else None."""
+    m = _SIGHTMAP_EMBED_RE.search(html)
+    return m.group(0) if m else None
 
 
 class BrowserSession:
@@ -173,8 +525,34 @@ class BrowserSession:
         unit_number, plan_name, bedrooms, bathrooms, size_sqft, price, availability.
 
         Falls back to plain text extraction if no structured unit cards are found.
+
+        Short-circuits to a direct HTTP fetch for Jonah Digital sites (JD widget
+        renders empty shells in static HTML; prices live on per-plan detail pages).
         """
         frame = self._active_frame or self.page.main_frame
+
+        # --- Jonah Digital fast path ---
+        try:
+            html = await frame.content()
+        except Exception:
+            html = await self.page.content()
+
+        if _is_jonah_digital(html):
+            current_url = self.page.url
+            hrefs = _extract_jonah_digital_hrefs(html, current_url)
+            if hrefs:
+                connector = aiohttp.TCPConnector(ssl=False)
+                headers = {
+                    "User-Agent": (
+                        "AptTrack/1.0 (rental price transparency tool; "
+                        "contact@apttrack.app)"
+                    )
+                }
+                async with aiohttp.ClientSession(connector=connector, headers=headers) as sess:
+                    jd_units = await _fetch_jonah_digital_plans(hrefs, sess)
+                if jd_units:
+                    return {"units": jd_units, "total": len(jd_units), "method": "jonah_digital"}
+
         units: list[dict] = []
         seen_units: set[str] = set()
 
@@ -185,7 +563,8 @@ class BrowserSession:
             except Exception:
                 html = await self.page.content()
             soup = BeautifulSoup(html, "html.parser")
-            for t in soup(["script", "style"]): t.decompose()
+            for t in soup(["script", "style"]):
+                t.decompose()
             text = soup.get_text(separator="\n", strip=True)
 
             found: list[dict] = []
@@ -193,7 +572,7 @@ class BrowserSession:
             # SightMap pattern: "HOME XXXX\nPlanName\nN Bed / N Bath / NNN sq. ft.\nAvailability\n$X,XXX /mo*"
             blocks = re.split(r"\n(?=HOME\s+\w+)", text)
             for block in blocks:
-                lines = [l.strip() for l in block.splitlines() if l.strip()]
+                lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
                 if not lines or not re.match(r"HOME\s+\w+", lines[0]):
                     continue
                 unit_no = re.sub(r"^HOME\s+", "", lines[0])
@@ -273,8 +652,8 @@ class BrowserSession:
         so the model always sees them even when the page is long.
         """
         lines = text.split("\n")
-        priority = [l for l in lines if any(k in l.lower() for k in _PRICING_KEYWORDS)]
-        other = [l for l in lines if l not in priority]
+        priority = [ln for ln in lines if any(k in ln.lower() for k in _PRICING_KEYWORDS)]
+        other = [ln for ln in lines if ln not in priority]
         combined = "\n".join(priority + other)
         return combined[:max_chars]
 

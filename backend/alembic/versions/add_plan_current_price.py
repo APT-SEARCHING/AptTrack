@@ -5,8 +5,9 @@ Revises: add_demo_subscription
 Create Date: 2026-04-18
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = 'add_plan_current_price'
 down_revision = 'add_demo_subscription'

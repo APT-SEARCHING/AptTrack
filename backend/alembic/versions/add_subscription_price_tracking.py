@@ -5,8 +5,9 @@ Revises: alter_plan_price_nullable
 Create Date: 2026-04-17
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "add_subscription_price_tracking"
 down_revision = "alter_plan_price_nullable"

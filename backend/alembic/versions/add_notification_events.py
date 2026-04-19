@@ -8,8 +8,9 @@ Revises: add_unsubscribe_tokens
 Create Date: 2026-04-17
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 # revision identifiers
 revision = "add_notification_events"

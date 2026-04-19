@@ -5,8 +5,9 @@ Revises: add_notification_events
 Create Date: 2026-04-17
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "add_apartment_favorites"
 down_revision = "add_notification_events"

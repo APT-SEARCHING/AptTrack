@@ -6,6 +6,7 @@ Create Date: 2026-04-14 00:00:03.000000
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "patch_apartments_missing_cols"

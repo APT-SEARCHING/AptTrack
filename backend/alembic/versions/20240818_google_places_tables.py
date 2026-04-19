@@ -6,8 +6,9 @@ Create Date: 2025-08-19 00:00:00.000000
 
 """
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'google_places_tables'

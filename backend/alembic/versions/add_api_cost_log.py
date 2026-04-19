@@ -6,6 +6,7 @@ Create Date: 2026-04-19 00:00:00.000000
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "add_api_cost_log"

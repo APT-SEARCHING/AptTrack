@@ -5,8 +5,9 @@ Revises: add_filter_indexes
 Create Date: 2026-04-18
 
 """
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = 'add_plan_external_url'
 down_revision = 'add_filter_indexes'

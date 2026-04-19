@@ -5,8 +5,9 @@ Revises: add_plan_floor_facing
 Create Date: 2026-04-18
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = 'add_demo_subscription'
 down_revision = 'add_plan_floor_facing'

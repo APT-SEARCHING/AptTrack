@@ -11,8 +11,9 @@ Create Date: 2026-04-17
 import secrets
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import text
+
+from alembic import op
 
 revision = "add_unsubscribe_tokens"
 down_revision = "deactivate_area_subscriptions"

@@ -6,6 +6,7 @@ Create Date: 2026-04-15 00:00:01.000000
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "add_scrape_site_registry"
