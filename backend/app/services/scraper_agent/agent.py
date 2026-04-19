@@ -132,7 +132,13 @@ Navigation strategy:
    c. Do NOT manually click bedroom/sqft/price filter buttons.
 5. If there is no iframe, look for per-plan "View Available Units" or "See Units" buttons and click them.
 6. Scroll down to see all plans/units — many pages load content lazily.
-7. submit_findings as soon as you have unit data — do not keep exploring once you have prices.
+7. After collecting floor plan prices, do a quick check (one click each, max) BEFORE submitting:
+   a. Look for an "Amenities", "Features", or "Community" tab/link in the current page state.
+      If found, navigate there and scan for amenity keywords to populate the amenities object.
+   b. Look for a "Specials", "Deals", "Promotions", or "Move-In Specials" tab/link.
+      If found, navigate there and capture any current offer in current_special.
+   If neither tab is visible in the current page state, proceed to submit_findings immediately.
+   Do NOT spend more than 2 extra navigation steps on amenities/specials combined.
 
 Rules:
 - Do not navigate away from the apartment complex domain.
@@ -199,7 +205,18 @@ AMENITY RULES:
   - 'washer/dryer', 'washer and dryer', 'w/d in unit', 'in-unit laundry', 'full-size washer' → has_washer_dryer=true
   - 'air conditioning', 'central air', 'central AC', 'AC', 'A/C' → has_air_conditioning=true
 - null means unknown (page didn't mention it). Only set false if the page explicitly says the amenity is NOT available.
-- Amenities are complex-level, not per-unit — a single amenities object covers the whole property."""
+- Amenities are complex-level, not per-unit — a single amenities object covers the whole property.
+
+SPECIALS / PROMOTIONS RULES:
+- Look for current move-in offers anywhere on the page: banners, callout boxes, header text, a "Specials" tab.
+- Capture the offer verbatim (or a clean short summary) in current_special. Examples:
+  - "$250 deposit on select homes" → current_special="$250 deposit on select homes"
+  - "1 month free rent with 12-month lease" → current_special="1 month free rent with 12-month lease"
+  - "Waived $500 admin fee — limited time" → current_special="Waived $500 admin fee — limited time"
+  - "Look & Lease: move in within 48h for $99 deposit" → current_special="Look & Lease: $99 deposit if move-in within 48h"
+- Keep it under 120 characters. Do not paraphrase pricing — copy the offer text directly.
+- If no special or promotion is visible anywhere, set current_special=null.
+- Do NOT fabricate specials. Only capture what is explicitly stated on the page."""
 
 # ---------------------------------------------------------------------------
 # Tool definitions (OpenAI-compatible function-calling schema)
@@ -400,6 +417,14 @@ TOOLS = [
                             "has_washer_dryer": {"type": ["boolean", "null"]},
                             "has_air_conditioning": {"type": ["boolean", "null"]},
                         },
+                    },
+                    "current_special": {
+                        "type": ["string", "null"],
+                        "description": (
+                            "Any current move-in offer, deposit special, or discount as plain text. "
+                            "e.g. '$250 deposit on select homes', '1 month free on 12-month leases', "
+                            "'Waived admin fee this week'. null if no special found."
+                        ),
                     },
                 },
                 "required": ["name", "floor_plans"],

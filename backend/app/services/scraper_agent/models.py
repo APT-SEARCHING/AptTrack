@@ -26,3 +26,4 @@ class ApartmentData(BaseModel):
     website: Optional[str] = Field(None, description="Website URL that was scraped")
     floor_plans: List[FloorPlan] = Field(default_factory=list, description="All floor plan configurations found")
     amenities: Optional[Dict] = Field(None, description="Complex-level amenity flags (pets_allowed, has_parking, etc.)")
+    current_special: Optional[str] = Field(None, description="Current move-in offer or discount in plain text. e.g. '$250 deposit', '1 month free on 12-month leases'.")

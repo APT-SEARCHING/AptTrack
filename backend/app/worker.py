@@ -544,26 +544,26 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
 
     from app.models.apartment import Apartment, PlanPriceHistory
 
-    # Write apartment-level amenities (only overwrite with non-None values so a
-    # future scrape that misses an amenity doesn't erase a previously-captured flag)
-    if result.amenities:
+    # Write apartment-level fields (amenities + specials) in one fetch
+    needs_apt_update = result.amenities or getattr(result, 'current_special', None) is not None
+    if needs_apt_update or getattr(result, 'current_special', None) == '':
+        # Always fetch when current_special is present (even empty string = cleared promo)
+        pass
+    if result.amenities or hasattr(result, 'current_special'):
         apt = db.execute(
             select(Apartment).where(Apartment.id == apt_id)
         ).scalar_one_or_none()
         if apt is not None:
-            amenity_map = {
-                "pets_allowed": "pets_allowed",
-                "has_parking": "has_parking",
-                "has_pool": "has_pool",
-                "has_gym": "has_gym",
-                "has_dishwasher": "has_dishwasher",
-                "has_washer_dryer": "has_washer_dryer",
-                "has_air_conditioning": "has_air_conditioning",
-            }
-            for key, col in amenity_map.items():
-                val = result.amenities.get(key)
-                if val is not None:  # null from LLM means "unknown" — don't overwrite
-                    setattr(apt, col, val)
+            # Amenities: null from LLM = "unknown" — don't overwrite a previously-captured value
+            if result.amenities:
+                for key in ("pets_allowed", "has_parking", "has_pool", "has_gym",
+                            "has_dishwasher", "has_washer_dryer", "has_air_conditioning"):
+                    val = result.amenities.get(key)
+                    if val is not None:
+                        setattr(apt, key, val)
+            # Specials: always overwrite — reflects current promo (None = no promo found)
+            if hasattr(result, 'current_special'):
+                apt.current_special = result.current_special
 
     for fp in result.floor_plans:
         plan = _match_plan(apt_id, fp, db)

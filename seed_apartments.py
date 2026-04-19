@@ -113,6 +113,17 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
         apt.updated_at = now
         print(f"  ~ Updated apartment: {apt_data.name}")
 
+    # Write amenities (null = unknown — don't overwrite a previously-captured value)
+    if apt_data.amenities:
+        for field in ("pets_allowed", "has_parking", "has_pool", "has_gym",
+                      "has_dishwasher", "has_washer_dryer", "has_air_conditioning"):
+            val = apt_data.amenities.get(field)
+            if val is not None:
+                setattr(apt, field, val)
+
+    # Write current_special (always overwrite — reflects latest promo; None clears expired promos)
+    apt.current_special = apt_data.current_special
+
     # Upsert plans
     for fp in apt_data.floor_plans:
         if fp.min_price is None:
@@ -128,6 +139,7 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
                 bathrooms=fp.bathrooms or 1,
                 area_sqft=fp.size_sqft,
                 price=fp.min_price,
+                current_price=fp.min_price,
                 is_available=_is_available(fp),
                 floor_level=fp.floor_level,
                 facing=fp.facing,
@@ -137,6 +149,7 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
             db.flush()
         else:
             plan.price = fp.min_price
+            plan.current_price = fp.min_price
             plan.is_available = _is_available(fp)
             plan.area_sqft = fp.size_sqft or plan.area_sqft
             if fp.floor_level is not None:

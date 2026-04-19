@@ -50,6 +50,9 @@ class Apartment(Base):
     # Current price (most recent)
     current_price = Column(Float, nullable=True, comment="Current listing price")
 
+    # Current move-in special / promotion
+    current_special = Column(Text, nullable=True, comment="Current move-in offer, e.g. '$250 deposit', '1 month free'. Overwritten each scrape.")
+
     # Availability
     available_from = Column(DateTime, nullable=True, comment="Date when the unit becomes available")
     is_available = Column(Boolean, default=True, comment="Whether the unit is currently available")
