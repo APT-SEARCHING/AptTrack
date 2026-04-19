@@ -1,0 +1,15 @@
+# Celery worker and beat service.
+# Uses the official Playwright base image so Chromium is pre-installed and
+# matches the pinned playwright==1.48.0 in requirements.txt exactly.
+# Web service (FastAPI) uses Dockerfile (python:3.11-slim, no browser).
+FROM mcr.microsoft.com/playwright/python:v1.48.0-jammy
+
+WORKDIR /app
+
+# netcat-openbsd: used by docker-compose healthcheck wait loop
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .

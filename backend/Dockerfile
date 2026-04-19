@@ -1,3 +1,5 @@
+# Web service only (FastAPI + Alembic). Does NOT install Playwright or Chromium.
+# Celery worker and beat use Dockerfile.worker (mcr.microsoft.com/playwright/python base).
 FROM python:3.11-slim
 
 WORKDIR /app

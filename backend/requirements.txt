@@ -21,3 +21,5 @@ slowapi==0.1.9
 # Celery
 celery[redis]==5.3.6
 redis==5.0.1
+# Scraper (Celery worker only — web service doesn't use it but a single requirements file is simpler)
+playwright==1.48.0
