@@ -6,6 +6,8 @@ FROM mcr.microsoft.com/playwright/python:v1.48.0-jammy
 
 WORKDIR /app
 
+ENV PYTHONPATH=/app
+
 # netcat-openbsd: used by docker-compose healthcheck wait loop
 RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
