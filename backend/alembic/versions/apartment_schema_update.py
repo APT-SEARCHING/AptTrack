@@ -95,7 +95,7 @@ def upgrade():
 
     # Check if listings table exists
     conn = op.get_bind()
-    res = conn.execute("SELECT 1 FROM information_schema.tables WHERE table_name='listings'").scalar()
+    res = conn.execute(sa.text("SELECT 1 FROM information_schema.tables WHERE table_name='listings'")).scalar()
 
     if res:
         # Migrate data from old listings table to new apartments table
