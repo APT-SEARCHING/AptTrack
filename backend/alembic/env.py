@@ -33,7 +33,13 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
-    return settings.DATABASE_URL
+    url = settings.DATABASE_URL
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. "
+            "Set it as an environment variable (Railway injects this from the Postgres plugin)."
+        )
+    return url
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
