@@ -28,8 +28,7 @@ COPY --from=build /app/build /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
-EXPOSE 80
+# Railway sets PORT dynamically; substitute it into nginx.conf at startup
+EXPOSE ${PORT:-80}
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/conf.d/default.conf > /tmp/nginx.conf && cp /tmp/nginx.conf /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
