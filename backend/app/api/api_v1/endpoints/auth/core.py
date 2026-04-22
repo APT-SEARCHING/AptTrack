@@ -2,6 +2,11 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.security import (
@@ -12,11 +17,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.user import Token, UserCreate, UserResponse
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from app.schemas.user import PasswordResetRequest, Token, UserCreate, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,22 @@ def login(
         )
     token = create_access_token({"sub": str(user.id)})
     return Token(access_token=token)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+def reset_password(
+    request: Request,
+    payload: PasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    """Reset password by email without verification (development-grade)."""
+    user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    if not user:
+        # Return 204 even on unknown email to avoid user enumeration
+        return
+    user.hashed_password = hash_password(payload.new_password)
+    db.commit()
 
 
 @router.get("/me", response_model=UserResponse)

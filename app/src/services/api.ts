@@ -468,6 +468,18 @@ const api = {
     return res.json();
   },
 
+  async resetPassword(email: string, newPassword: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, new_password: newPassword }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+  },
+
   async getMe(token: string): Promise<UserProfile> {
     const res = await fetch(`${API_BASE_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
