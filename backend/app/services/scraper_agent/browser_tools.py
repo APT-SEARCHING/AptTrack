@@ -19,9 +19,22 @@ MAX_BUTTONS = 15        # reduced from 40
 # Keywords that indicate pricing-relevant content — these lines are
 # prioritised when truncating page text so the model sees them first.
 _PRICING_KEYWORDS = [
-    "$", "bed", "bath", "sqft", "sq ft", "plan", "studio",
+    "$", "bed", "bath", "sqft", "sq ft", "sq. ft", "sq.ft", "plan", "studio",
     "available", "price", "rent", "floor", "unit", "home",
 ]
+
+# UI labels that SightMap (and similar widgets) inject as the first line of a
+# unit block.  Must never be captured as a floor-plan name.
+_UI_VERB_BLACKLIST = frozenset({
+    "favorite", "available", "available now", "view details", "view detail",
+    "tour", "tour now", "schedule tour", "select", "see details",
+    "apply now", "contact", "share", "save", "compare", "hide", "show more",
+    "schedule", "inquire",
+})
+
+# A valid plan name: starts with a letter, 2–41 chars total, only letters /
+# digits / spaces / hyphens / slashes / dots.  Rejects "1 Bath", "$2,950", etc.
+_PLAN_NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z0-9\s\-\/\.]{1,40}$")
 
 
 # ---------------------------------------------------------------------------
@@ -578,15 +591,33 @@ class BrowserSession:
                 unit_no = re.sub(r"^HOME\s+", "", lines[0])
                 unit: dict = {"unit_number": unit_no}
                 for line in lines[1:]:
-                    # Plan name line
-                    if not unit.get("plan_name") and not re.search(r"\$|\d+ Bed|sq\. ft\.|Available", line, re.I):
-                        unit["plan_name"] = line
-                    # Bed/bath/sqft
-                    m = re.search(r"(\d+)\s*Bed.*?(\d+)\s*Bath.*?([\d,]+)\s*sq", line, re.I)
-                    if m:
-                        unit["bedrooms"] = int(m.group(1))
-                        unit["bathrooms"] = int(m.group(2))
-                        unit["size_sqft"] = int(m.group(3).replace(",", ""))
+                    # Plan name — first line that passes all filters
+                    if not unit.get("plan_name"):
+                        stripped = line.strip()
+                        if (stripped
+                                and not re.search(r"\$|\d+\s*Bed|sq\.?\s*ft|waitlist", stripped, re.I)
+                                and stripped.lower() not in _UI_VERB_BLACKLIST
+                                and _PLAN_NAME_REGEX.match(stripped)
+                                and not stripped.upper().startswith("HOME ")):
+                            unit["plan_name"] = stripped
+                    # Studio detection (must precede bed-count regex)
+                    if "bedrooms" not in unit and re.search(r"\bstudio\b", line, re.I):
+                        unit["bedrooms"] = 0
+                    # Bed count
+                    if "bedrooms" not in unit:
+                        m = re.search(r"(\d+)\s*Bed", line, re.I)
+                        if m:
+                            unit["bedrooms"] = int(m.group(1))
+                    # Bath count
+                    if "bathrooms" not in unit:
+                        m = re.search(r"(\d+)\s*Bath", line, re.I)
+                        if m:
+                            unit["bathrooms"] = int(m.group(1))
+                    # Sqft — handles "420 sq. ft.", "1,050 sqft", "680 sq ft"
+                    if "size_sqft" not in unit:
+                        m = re.search(r"([\d,]+)\s*sq\.?\s*ft", line, re.I)
+                        if m:
+                            unit["size_sqft"] = int(m.group(1).replace(",", ""))
                     # Availability
                     if re.search(r"available|waitlist", line, re.I):
                         unit["availability"] = line
@@ -616,11 +647,11 @@ class BrowserSession:
             text = soup.get_text(separator="\n", strip=True)
             # Find lines like "3\n2 HOMES" or "5\n1 Home"
             floor_matches = re.findall(r"(\d{1,2})\n(\d+)\s+Home", text, re.I)
-            non_empty_floors = [int(f) for f, n in floor_matches if int(n) > 0]
+            non_empty_floors = sorted(int(f) for f, n in floor_matches if int(n) > 0)
         except Exception:
             non_empty_floors = []
 
-        for floor_num in non_empty_floors[:15]:  # cap at 15 floors
+        for floor_num in non_empty_floors[:30]:  # cap at 30 floors (SF high-rises)
             try:
                 # Click the floor button by its exact number
                 loc = frame.get_by_text(str(floor_num), exact=True)

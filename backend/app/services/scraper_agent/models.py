@@ -1,13 +1,20 @@
 """Pydantic models for apartment data extracted by the agentic scraper."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FloorPlan(BaseModel):
     name: str = Field(..., description="Plan name, e.g. 'Studio', '1 Bed/1 Bath', 'Plan A'")
     unit_number: Optional[str] = Field(None, description="Specific unit identifier, e.g. 'E316', '4B', '#201'. None when price is a plan-level range.")
+
+    @field_validator("unit_number", mode="before")
+    @classmethod
+    def coerce_unit_number(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
     bedrooms: Optional[float] = Field(None, description="Bedroom count (0 for studio)")
     bathrooms: Optional[float] = Field(None, description="Bathroom count")
     size_sqft: Optional[float] = Field(None, description="Square footage")

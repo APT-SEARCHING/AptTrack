@@ -162,6 +162,24 @@ CRITICAL — price extraction rules:
 - When only one price is shown, set both min_price and max_price to that value.
 - Bedroom count is 0 for studios.
 
+CRITICAL — plan name rules:
+- The plan `name` field must be the **specific plan label or code shown on the floor-plan card**,
+  e.g. "S1", "S2-A/B", "A1", "B3", "Plan E", "Floorplan 2A". NOT just the generic bedroom type.
+- The generic bedroom type ("Studio", "1 Bedroom") belongs in the `bedrooms` field as a number, NOT in `name`.
+- If both a plan code AND a bedroom type are shown, ALWAYS use the code as `name`.
+  Example: card shows "S2-A/B\nStudio\n1 bath\n531-537 sq. ft." → name="S2-A/B", bedrooms=0, bathrooms=1, size_sqft=534
+  Example: card shows "A1\n1 Bedroom\n1 bath\n650 sq. ft." → name="A1", bedrooms=1, bathrooms=1, size_sqft=650
+- Plan codes are typically 1-4 characters: letters, numbers, slashes, or hyphens (e.g. "S1", "A2", "B3-C", "2A/B").
+  They appear as the heading or first line of a floor-plan card BEFORE the bedroom/bath description.
+- If the site only shows a generic description with no code (e.g. "Studio 1 bath"), then use the
+  description as-is (e.g. "Studio" or "1 Bed/1 Bath").
+
+CRITICAL — square footage rules:
+- Always capture sqft from plan cards. Formats vary: "537 sq. ft.", "537 sqft", "531-537 sq. ft.",
+  "531 - 537 Sq. Ft." — all mean square footage.
+- If a range is shown (e.g. "531-537"), use the midpoint rounded to nearest integer as size_sqft.
+- Never leave size_sqft null if the page shows a number followed by "sq", "sqft", or "sq. ft.".
+
 Per-unit vs plan-level pricing:
 - If the site shows individual unit numbers (e.g., "Unit E316", "HOME W302", "Apt 4B"), create one
   FloorPlan entry per unit and populate unit_number with the unit identifier.
@@ -360,7 +378,7 @@ TOOLS = [
                             "properties": {
                                 "name": {
                                     "type": "string",
-                                    "description": "Plan label (e.g. 'Studio', '1 Bed/1 Bath', 'Plan A3')",
+                                    "description": "Specific plan code shown on the card (e.g. 'S1', 'S2-A/B', 'A1', 'Plan A3'). Use the actual label, not the generic bedroom type like 'Studio' unless no code is shown.",
                                 },
                                 "unit_number": {
                                     "type": "string",
@@ -376,7 +394,7 @@ TOOLS = [
                                 },
                                 "size_sqft": {
                                     "type": "number",
-                                    "description": "Square footage as a number",
+                                    "description": "Square footage as a number. If shown as a range (e.g. '531-537 sq. ft.'), use the midpoint (534). Never omit if sqft is visible on the page.",
                                 },
                                 "min_price": {
                                     "type": "number",
