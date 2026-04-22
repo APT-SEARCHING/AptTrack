@@ -53,7 +53,6 @@ class GoogleMapsService:
             search_queries = [
                 "apartment complex",
                 "affordable housing",
-                "senior housing",
             ]
 
             all_places = {}  # Use dict to avoid duplicates based on place_id

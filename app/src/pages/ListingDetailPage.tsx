@@ -204,19 +204,6 @@ const ListingDetailPage: React.FC = () => {
               {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => {
-                  if (token) { setAlertPlan(null); setShowAlert(true); }
-                  else {
-                    setAlertPlan(null);
-                    authSuccessRef.current = () => { setShowAuth(false); setShowAlert(true); };
-                    setShowAuth(true);
-                  }
-                }}
-                className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
-              >
-                <span>🔔</span> Set Alert
-              </button>
               {apt?.source_url && (
                 <a
                   href={apt.source_url}

@@ -1,15 +1,16 @@
 from datetime import date
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import asc, desc, func, select
+from sqlalchemy.orm import Session
+
 from app.core.limiter import limiter
 from app.core.security import require_admin
 from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import User
 from app.schemas.apartment import ApartmentCreate, ApartmentResponse, ApartmentUpdate
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import asc, desc, exists, func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -43,6 +44,9 @@ def get_apartments(
         raise HTTPException(status_code=422, detail=f"sort must be one of {sorted(_SORT_OPTIONS)}")
 
     stmt = select(Apartment)
+
+    # Always exclude senior housing (out of scope)
+    stmt = stmt.where(Apartment.title.notilike("%senior%"))
 
     if city:
         stmt = stmt.where(Apartment.city.ilike(f"%{city}%"))
