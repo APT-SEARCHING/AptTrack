@@ -270,10 +270,10 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
         A ScrapeRun row is written after every code path (best-effort).
         """
         import time
-        import aiohttp
         from datetime import datetime, timezone
         from urllib.parse import urlparse
 
+        import aiohttp
         from sqlalchemy import select as sa_select
 
         from app.db.session import SessionLocal as _SessionLocal
@@ -474,8 +474,9 @@ def _log_scraper_cost(
     """Append one cost log entry — best-effort, never raises."""
     try:
         from sqlalchemy import select as sa_select
-        from app.models.apartment import Apartment
+
         from app.core.cost_log import append_scraper_entry
+        from app.models.apartment import Apartment
         apt = db.execute(sa_select(Apartment).where(Apartment.id == apt_id)).scalar_one_or_none()
         name = apt.title if apt else f"apt#{apt_id}"
         append_scraper_entry(
@@ -488,25 +489,26 @@ def _log_scraper_cost(
 
 
 def _match_plan(apt_id: int, fp, db):
-    """Find the DB Plan that best matches a scraped FloorPlan.
+    """Find the DB Plan that best matches a scraped FloorPlan, or create one.
 
     Strategy (in order):
-    1. Exact ``Plan.name`` match — current behaviour, zero risk.
-    2. Fuzzy: same bedroom count + area_sqft within 10% — handles site renames
-       like "Studio A" → "S1" without breaking price-history chains.
+    1. Exact ``Plan.name`` match — zero risk.
+    2. Fuzzy: same bedroom count + area_sqft within 10% — handles site renames.
+    3. Weak fuzzy: same beds + baths, only when single unambiguous candidate.
+    4. Auto-create: new Plan row when fp.bedrooms is known.
     """
     from sqlalchemy import select
 
     from app.models.apartment import Plan
 
-    # 1. Exact match
+    # 1. Exact name
     plan = db.execute(
         select(Plan).where(Plan.apartment_id == apt_id, Plan.name == fp.name)
     ).scalar_one_or_none()
     if plan:
         return plan
 
-    # 2. Fuzzy match
+    # 2. Fuzzy by beds + sqft ±10%
     if fp.bedrooms is not None and fp.size_sqft is not None:
         candidates = db.execute(
             select(Plan).where(Plan.apartment_id == apt_id, Plan.bedrooms == fp.bedrooms)
@@ -514,10 +516,51 @@ def _match_plan(apt_id: int, fp, db):
         for c in candidates:
             if c.area_sqft and abs(c.area_sqft - fp.size_sqft) / c.area_sqft < 0.10:
                 logger.debug(
-                    "Fuzzy-matched scraped plan %r → DB plan %r (apt %d)",
+                    "Fuzzy-matched (beds+sqft): %r → %r (apt %d)",
                     fp.name, c.name, apt_id,
                 )
                 return c
+
+    # 3. Weak fuzzy by beds + baths — only when single unambiguous candidate
+    if fp.bedrooms is not None and fp.bathrooms is not None:
+        candidates = db.execute(
+            select(Plan).where(
+                Plan.apartment_id == apt_id,
+                Plan.bedrooms == fp.bedrooms,
+                Plan.bathrooms == fp.bathrooms,
+            )
+        ).scalars().all()
+        if len(candidates) == 1:
+            logger.debug(
+                "Weak-matched (beds+baths): %r → %r (apt %d)",
+                fp.name, candidates[0].name, apt_id,
+            )
+            return candidates[0]
+
+    # 4. Auto-create when we have enough info
+    if fp.bedrooms is not None:
+        new_plan = Plan(
+            apartment_id=apt_id,
+            name=fp.name or "Unit",
+            bedrooms=fp.bedrooms,
+            bathrooms=fp.bathrooms or 1.0,
+            area_sqft=fp.size_sqft or 0.0,
+            price=fp.min_price,
+            current_price=fp.min_price,
+            is_available=True,
+        )
+        db.add(new_plan)
+        db.flush()  # assign new_plan.id for downstream PlanPriceHistory write
+        logger.info(
+            "Auto-created Plan for apt %d: %r (%s BR, %s BA)",
+            apt_id, fp.name, fp.bedrooms, fp.bathrooms,
+        )
+        return new_plan
+
+    logger.warning(
+        "Could not match or create plan for fp=%r in apt %d (missing bedrooms)",
+        fp.name, apt_id,
+    )
     return None
 
 
@@ -603,6 +646,17 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
         plan.price = fp.min_price
         # current_price is the authoritative live value; plan.price is deprecated seed column
         plan.current_price = fp.min_price
+        # Backfill / refresh descriptor fields when the scraper found data the DB doesn't have
+        if fp.size_sqft is not None:
+            if plan.area_sqft is None or abs((plan.area_sqft or 0) - fp.size_sqft) > 10:
+                plan.area_sqft = fp.size_sqft
+        if fp.bedrooms is not None and plan.bedrooms != fp.bedrooms:
+            plan.bedrooms = fp.bedrooms
+        if fp.bathrooms is not None and plan.bathrooms != fp.bathrooms:
+            plan.bathrooms = fp.bathrooms
+        # Name: only update if DB has placeholder or empty
+        if fp.name and plan.name in (None, '', 'Unit'):
+            plan.name = fp.name
         # Update deep link / position when the scraper found them; don't overwrite with None
         if fp.external_url:
             plan.external_url = fp.external_url
