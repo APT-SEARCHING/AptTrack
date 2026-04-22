@@ -28,9 +28,13 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-class PasswordResetRequest(BaseModel):
+class PasswordResetRequestEmail(BaseModel):
     email: EmailStr
-    new_password: str = Field(..., min_length=8)
+
+
+class PasswordResetWithToken(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -16,8 +16,9 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
-from app.schemas.user import PasswordResetRequest, Token, UserCreate, UserResponse
+from app.schemas.user import PasswordResetRequestEmail, PasswordResetWithToken, Token, UserCreate, UserResponse
 
 logger = logging.getLogger(__name__)
 
@@ -86,19 +87,56 @@ def login(
     return Token(access_token=token)
 
 
+@router.post("/request-password-reset", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("3/minute")
+def request_password_reset(
+    request: Request,
+    payload: PasswordResetRequestEmail,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Create a 1-hour password-reset token and email the link.
+
+    Always returns 204 — never reveal whether the email exists.
+    """
+    from app.services.notification import send_password_reset_email
+
+    user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    if user:
+        token_value = secrets.token_urlsafe(32)
+        db.add(PasswordResetToken(
+            user_id=user.id,
+            token=token_value,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ))
+        db.commit()
+        reset_url = f"{settings.APP_BASE_URL.rstrip('/')}/reset-password?token={token_value}"
+        background_tasks.add_task(send_password_reset_email, user.email, reset_url)
+    return
+
+
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("5/minute")
 def reset_password(
     request: Request,
-    payload: PasswordResetRequest,
+    payload: PasswordResetWithToken,
     db: Session = Depends(get_db),
 ):
-    """Reset password by email without verification (development-grade)."""
-    user = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    """Consume a password-reset token and set the new password."""
+    prt = db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token == payload.token,
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),
+            PasswordResetToken.used_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    if not prt:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    user = db.execute(select(User).where(User.id == prt.user_id)).scalar_one_or_none()
     if not user:
-        # Return 204 even on unknown email to avoid user enumeration
-        return
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
     user.hashed_password = hash_password(payload.new_password)
+    prt.used_at = datetime.now(timezone.utc)
     db.commit()
 
 

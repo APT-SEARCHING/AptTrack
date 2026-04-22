@@ -41,8 +41,8 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
         onSuccess?.();
         onClose();
       } else {
-        await api.resetPassword(email, password);
-        toast.success('Password updated! You can now sign in.');
+        await api.requestPasswordReset(email);
+        toast.success('Check your email for a reset link.');
         switchMode('login');
       }
     } catch (err: any) {
@@ -76,7 +76,7 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
         </div>
 
         {mode === 'reset' && (
-          <p className="text-sm text-slate-500 mb-4">Enter your email and a new password.</p>
+          <p className="text-sm text-slate-500 mb-4">Enter your email and we'll send you a reset link.</p>
         )}
 
         <form onSubmit={submit} className="space-y-4">
@@ -94,10 +94,11 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
               placeholder="you@example.com"
             />
           </div>
+          {mode !== 'reset' && (
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-              {mode === 'reset' ? 'New password' : 'Password'}
-              {(mode === 'register' || mode === 'reset') && (
+              Password
+              {mode === 'register' && (
                 <span className="text-slate-400 normal-case font-normal"> (min 8 chars)</span>
               )}
             </label>
@@ -121,6 +122,7 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
               </button>
             </div>
           </div>
+          )}
 
           {mode === 'login' && (
             <div className="text-right -mt-1">
@@ -145,7 +147,7 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-60"
           >
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
+            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Send reset link'}
           </button>
         </form>
 

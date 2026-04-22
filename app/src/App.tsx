@@ -6,6 +6,7 @@ import ListingDetailPage from './pages/ListingDetailPage';
 import AlertsPage from './pages/AlertsPage';
 import FavoritesPage from './pages/FavoritesPage';
 import UnsubscribePage from './pages/UnsubscribePage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import AuthModal from './components/AuthModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -109,6 +110,7 @@ const App: React.FC = () => (
           <Route path="/listings/:id" element={<ListingDetailPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/unsubscribe/all/:token" element={<UnsubscribePage variant="all" />} />
           <Route path="/unsubscribe/:token" element={<UnsubscribePage variant="one" />} />
         </Routes>

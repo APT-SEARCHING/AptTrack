@@ -468,11 +468,23 @@ const api = {
     return res.json();
   },
 
-  async resetPassword(email: string, newPassword: string): Promise<void> {
+  async requestPasswordReset(email: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/auth/request-password-reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`${res.status}: ${text}`);
+    }
+  },
+
+  async resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, new_password: newPassword }),
+      body: JSON.stringify({ token, new_password: newPassword }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');

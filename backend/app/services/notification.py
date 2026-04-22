@@ -97,6 +97,20 @@ async def send_welcome_email(
     await send_email_alert(to_email, subject, body)
 
 
+async def send_password_reset_email(to_email: str, reset_url: str) -> None:
+    """Send a password-reset link email. Fire-and-forget — never raises."""
+    subject = "AptTrack — reset your password"
+    body = (
+        f"Hi,\n\n"
+        f"Someone (hopefully you) requested a password reset for your AptTrack account.\n\n"
+        f"Click this link to choose a new password. It expires in 1 hour:\n\n"
+        f"  {reset_url}\n\n"
+        f"If you didn't request this, ignore this email — your password stays unchanged.\n\n"
+        f"— AptTrack\n"
+    )
+    await send_email_alert(to_email, subject, body)
+
+
 async def send_telegram_alert(chat_id: str, message: str) -> _NotifResult:
     """Send a message via the Telegram Bot API.
 
