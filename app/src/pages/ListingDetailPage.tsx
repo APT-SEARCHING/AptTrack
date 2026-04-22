@@ -4,10 +4,62 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import api, { Listing, PlanResponse, SimilarApartment, SimilarResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AlertModal from '../components/AlertModal';
 import AuthModal from '../components/AuthModal';
+
+// Fix Leaflet default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
+
+// ---------------------------------------------------------------------------
+// Plan grouping helpers
+// ---------------------------------------------------------------------------
+
+interface PlanGroup {
+  key: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  area_sqft: number | null;
+  options: PlanResponse[];  // sorted cheapest first
+}
+
+function groupPlans(plans: PlanResponse[]): PlanGroup[] {
+  const groups = new Map<string, PlanGroup>();
+  for (const plan of plans) {
+    const sqftKey = plan.area_sqft != null ? Math.round(plan.area_sqft) : 'null';
+    const key = `${plan.bedrooms ?? 'x'}|${plan.bathrooms ?? 'x'}|${sqftKey}`;
+    if (!groups.has(key)) {
+      groups.set(key, { key, bedrooms: plan.bedrooms, bathrooms: plan.bathrooms, area_sqft: plan.area_sqft, options: [] });
+    }
+    groups.get(key)!.options.push(plan);
+  }
+  groups.forEach(g => {
+    g.options.sort((a: PlanResponse, b: PlanResponse) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  });
+  const result: PlanGroup[] = [];
+  groups.forEach(g => result.push(g));
+  return result.sort((a: PlanGroup, b: PlanGroup) => {
+    const aMin = a.options[0]?.price ?? Infinity;
+    const bMin = b.options[0]?.price ?? Infinity;
+    return aMin - bMin;
+  });
+}
+
+function availLabel(plan: PlanResponse): string {
+  if (!plan.is_available) return 'Unavailable';
+  if (!plan.available_from) return 'Now';
+  const d = new Date(plan.available_from);
+  if (d <= new Date()) return 'Now';
+  return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+}
 
 const StatPill: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="bg-slate-50 rounded-xl px-2 sm:px-4 py-3 text-center">
@@ -200,6 +252,7 @@ const ListingDetailPage: React.FC = () => {
   const availCount = allPlans.filter(p => p.is_available).length;
   const hasFloor = allPlans.some(p => p.floor_level != null);
   const hasFacing = allPlans.some(p => p.facing != null);
+  const planGroups = groupPlans(allPlans);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -269,143 +322,99 @@ const ListingDetailPage: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Plans table */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Plans table — wider */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="font-semibold text-slate-900">Floor Plans</h2>
           </div>
 
-          {/* Mobile card grid (hidden on md+) */}
+          {/* Mobile cards */}
           <div className="md:hidden divide-y divide-slate-50">
-            {allPlans.map(plan => {
-              const isSelected = plan.id === selectedPlan?.id;
+            {planGroups.map(group => {
+              const rep = group.options[0];
+              const isSelected = group.options.some(o => o.id === selectedPlan?.id);
               const spec = [
-                plan.bedrooms === 0 ? 'Studio' : plan.bedrooms != null ? `${plan.bedrooms} bd` : null,
-                plan.bathrooms != null ? `${plan.bathrooms} ba` : null,
-                plan.area_sqft != null ? `${plan.area_sqft.toLocaleString()} sqft` : null,
-                plan.floor_level != null ? `Fl. ${plan.floor_level}` : null,
-                plan.facing ?? null,
+                group.bedrooms === 0 ? 'Studio' : group.bedrooms != null ? `${group.bedrooms} bd` : null,
+                group.bathrooms != null ? `${group.bathrooms} ba` : null,
+                group.area_sqft ? group.area_sqft.toLocaleString() + ' sqft' : null,
               ].filter(Boolean).join(' · ');
               return (
-                <div
-                  key={plan.id}
-                  onClick={() => setSelectedPlanId(plan.id)}
-                  className={`p-4 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-semibold text-slate-900 text-sm leading-snug">
-                      {plan.name}
-                      {(plan.external_url || apt?.source_url) && (
-                        <a
-                          href={plan.external_url || apt!.source_url!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="ml-1.5 text-indigo-400 hover:text-indigo-600 transition-colors text-xs"
-                          title="View official listing"
-                        >↗</a>
-                      )}
-                    </span>
-                    <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
-                      plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {plan.is_available ? 'Available' : 'Unavailable'}
-                    </span>
-                  </div>
-                  {spec && <p className="text-xs text-slate-400 mb-3">{spec}</p>}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-slate-900">
-                      {plan.price != null
-                        ? <>{`$${plan.price.toLocaleString()}`}<span className="text-xs font-normal text-slate-400">/mo</span></>
-                        : <span className="text-slate-400 text-base font-normal">Contact</span>}
-                    </span>
-                    <button
-                      onClick={e => openAlertForPlan(e, plan)}
-                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Set alert
-                    </button>
+                <div key={group.key} onClick={() => setSelectedPlanId(rep.id)}
+                  className={`p-4 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                  <p className="font-semibold text-slate-800 text-sm mb-1">{spec}</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {group.options.map(opt => (
+                      <div key={opt.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="font-bold text-slate-900 text-sm">
+                          {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${availLabel(opt) === 'Now' ? 'bg-emerald-100 text-emerald-700' : availLabel(opt) === 'Unavailable' ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700'}`}>
+                          {availLabel(opt) === 'Now' ? 'Now' : availLabel(opt) === 'Unavailable' ? 'N/A' : availLabel(opt)}
+                        </span>
+                        <button onClick={e => openAlertForPlan(e, opt)} className="text-slate-300 hover:text-indigo-500 text-sm">🔔</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Desktop table (hidden below md) */}
+          {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
-                  <th className="text-left px-4 py-3">Plan</th>
                   <th className="text-left px-4 py-3">Beds</th>
                   <th className="text-left px-4 py-3">Baths</th>
                   <th className="text-left px-4 py-3">Sqft</th>
                   {hasFloor && <th className="text-left px-4 py-3">Floor</th>}
                   {hasFacing && <th className="text-left px-4 py-3">Facing</th>}
-                  <th className="text-right px-4 py-3">Price</th>
-                  <th className="text-center px-4 py-3">Status</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="text-left px-4 py-3">Options / Availability</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
-                {allPlans.map(plan => {
-                  const isSelected = plan.id === selectedPlan?.id;
+              <tbody className="divide-y divide-slate-100">
+                {planGroups.map(group => {
+                  const isSelected = group.options.some(o => o.id === selectedPlan?.id);
+                  const rep = group.options[0];
                   return (
-                    <tr
-                      key={plan.id}
-                      onClick={() => setSelectedPlanId(plan.id)}
-                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-slate-50'}`}
-                    >
-                      <td className="px-4 py-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
-                        {plan.name}
-                        {(plan.external_url || apt?.source_url) && (
-                          <a
-                            href={plan.external_url || apt!.source_url!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="ml-1.5 font-sans text-indigo-400 hover:text-indigo-600 transition-colors"
-                            title="View official listing"
-                          >↗</a>
-                        )}
-                        {isSelected && (
-                          <span className="ml-2 text-xs text-indigo-500 font-sans">selected</span>
-                        )}
+                    <tr key={group.key}
+                      onClick={() => setSelectedPlanId(rep.id)}
+                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-slate-50'}`}>
+                      <td className="px-4 py-3 font-medium text-slate-700">
+                        {group.bedrooms === 0 ? 'Studio' : group.bedrooms ?? '—'}
                       </td>
+                      <td className="px-4 py-3 text-slate-600">{group.bathrooms ?? '—'}</td>
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {plan.bedrooms === 0 ? 'Studio' : plan.bedrooms}
+                        {group.area_sqft ? group.area_sqft.toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{plan.bathrooms}</td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {plan.area_sqft ? plan.area_sqft.toLocaleString() : '—'}
-                      </td>
-                      {hasFloor && (
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                          {plan.floor_level != null ? plan.floor_level : '—'}
-                        </td>
-                      )}
-                      {hasFacing && (
-                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                          {plan.facing ?? '—'}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
-                        {plan.price != null ? `$${plan.price.toLocaleString()}` : <span className="text-slate-400 font-normal">Contact</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`badge ${plan.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
-                          {plan.is_available ? 'Available' : 'Unavailable'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <button
-                          title="Set price alert for this plan"
-                          onClick={(e) => openAlertForPlan(e, plan)}
-                          className="text-slate-400 hover:text-indigo-600 transition-colors text-base leading-none"
-                        >
-                          🔔
-                        </button>
+                      {hasFloor && <td className="px-4 py-3 text-slate-600">{rep.floor_level ?? '—'}</td>}
+                      {hasFacing && <td className="px-4 py-3 text-slate-600">{rep.facing ?? '—'}</td>}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          {group.options.map(opt => {
+                            const avail = availLabel(opt);
+                            const availColor = avail === 'Now' ? 'bg-emerald-100 text-emerald-700' : avail === 'Unavailable' ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700';
+                            return (
+                              <div key={opt.id} onClick={e => { e.stopPropagation(); setSelectedPlanId(opt.id); }}
+                                className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors bg-white">
+                                <span className="font-bold text-slate-900 whitespace-nowrap">
+                                  {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'}
+                                </span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${availColor}`}>
+                                  {avail === 'Now' ? 'Now' : avail}
+                                </span>
+                                {(opt.external_url || apt?.source_url) && (
+                                  <a href={opt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()} className="text-indigo-300 hover:text-indigo-500 text-xs">↗</a>
+                                )}
+                                <button title="Set price alert" onClick={e => openAlertForPlan(e, opt)}
+                                  className="text-slate-300 hover:text-indigo-500 transition-colors">🔔</button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -415,8 +424,33 @@ const ListingDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Price history chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        {/* Right column: mini map + price history */}
+        <div className="lg:col-span-1 flex flex-col gap-6">
+          {/* Mini map */}
+          {apt?.latitude != null && apt?.longitude != null && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h2 className="font-semibold text-slate-900 text-sm">Location</h2>
+              </div>
+              <div className="h-48">
+                <MapContainer
+                  center={[apt.latitude, apt.longitude]}
+                  zoom={15}
+                  scrollWheelZoom={false}
+                  style={{ height: '100%', width: '100%' }}
+                  zoomControl={false}
+                >
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <Marker position={[apt.latitude, apt.longitude]}>
+                    <Popup>{listing.title}</Popup>
+                  </Marker>
+                </MapContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Price history chart */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex-1">
           <h2 className="font-semibold text-slate-900 mb-3">Price History</h2>
 
           {/* Plan switcher pills */}
@@ -483,6 +517,7 @@ const ListingDetailPage: React.FC = () => {
             </div>
           )}
         </div>
+        </div> {/* end right column */}
       </div>
 
       {/* Similar apartments */}
