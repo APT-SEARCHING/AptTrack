@@ -88,7 +88,7 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
                 minLength={mode === 'register' ? 8 : undefined}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 pr-16 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
                 placeholder="••••••••"
               />
               <button

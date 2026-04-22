@@ -99,6 +99,7 @@ const ListingDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAlert, setShowAlert] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [alertPlan, setAlertPlan] = useState<PlanResponse | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [similar, setSimilar] = useState<SimilarResponse | null>(null);
@@ -116,6 +117,29 @@ const ListingDetailPage: React.FC = () => {
     }
     setAlertPlan(plan);
     setShowAlert(true);
+  };
+
+  const openAlertFromHeader = () => {
+    // If plans are loaded, pick directly when single plan; otherwise show picker
+    const plans: PlanResponse[] = (listing?._raw?.plans ?? []).filter(p => p.is_available && p.price != null);
+    if (plans.length === 0) return;
+    if (plans.length === 1) {
+      if (!token) {
+        setAlertPlan(plans[0]);
+        authSuccessRef.current = () => { setShowAuth(false); setShowAlert(true); };
+        setShowAuth(true);
+      } else {
+        setAlertPlan(plans[0]);
+        setShowAlert(true);
+      }
+    } else {
+      if (!token) {
+        authSuccessRef.current = () => { setShowAuth(false); setShowPlanPicker(true); };
+        setShowAuth(true);
+      } else {
+        setShowPlanPicker(true);
+      }
+    }
   };
 
   useEffect(() => {
@@ -204,6 +228,12 @@ const ListingDetailPage: React.FC = () => {
               {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={openAlertFromHeader}
+                className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+              >
+                🔔 Set Alert
+              </button>
               {apt?.source_url && (
                 <a
                   href={apt.source_url}
@@ -482,6 +512,40 @@ const ListingDetailPage: React.FC = () => {
         </div>
       )}
 
+      {showPlanPicker && apt && (() => {
+        const pickerPlans = allPlans.filter(p => p.is_available && p.price != null);
+        return (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowPlanPicker(false); }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-slate-900">Which floor plan?</h2>
+                <button onClick={() => setShowPlanPicker(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">Select a plan to set a price alert for:</p>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {pickerPlans.map(plan => (
+                  <button
+                    key={plan.id}
+                    onClick={() => { setShowPlanPicker(false); setAlertPlan(plan); setShowAlert(true); }}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                  >
+                    <span className="font-semibold text-slate-800 text-sm">{plan.name}</span>
+                    <span className="text-slate-500 text-sm ml-2">
+                      {plan.bedrooms === 0 ? 'Studio' : `${plan.bedrooms}bd`}
+                      {plan.bathrooms != null ? ` / ${plan.bathrooms}ba` : ''}
+                      {plan.area_sqft ? ` · ${plan.area_sqft.toLocaleString()} sqft` : ''}
+                    </span>
+                    <span className="block text-indigo-600 font-bold text-sm mt-0.5">${plan.price!.toLocaleString()}/mo</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showAlert && apt && (
         <AlertModal
           apartmentId={apt.id}
