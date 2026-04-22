@@ -28,13 +28,23 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
     onFilterChange({ ...filters, [key]: checked || undefined });
   };
 
+  const toggleCity = (city: string) => {
+    const current = filters.cities ?? [];
+    const next = current.includes(city)
+      ? current.filter(c => c !== city)
+      : [...current, city];
+    onFilterChange({ ...filters, cities: next.length > 0 ? next : undefined });
+  };
+
   const clear = () => onFilterChange({});
 
   // pets_allowed (32%) and has_parking (26%) are hidden until coverage ≥ 60%.
   // Re-add to advancedKeys and the checkbox block below once data improves post-deploy.
   const advancedKeys: (keyof ListingsFilter)[] = ['min_sqft', 'max_sqft', 'available_before'];
   const hasAdvanced = advancedKeys.some(k => filters[k] !== undefined && filters[k] !== '');
-  const hasFilters = Object.values(filters).some(v => v !== undefined && v !== '');
+  const hasFilters = Object.values(filters).some(v =>
+    v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)
+  );
 
   // Keep advanced open if any advanced filter is active
   const effectiveOpen = advancedOpen || hasAdvanced;
@@ -43,23 +53,41 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       {/* City */}
       <div className="mb-4">
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-          City
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-2.5 text-slate-400 text-sm pointer-events-none">📍</span>
-          <select
-            value={filters.location || ''}
-            onChange={e => set('location', e.target.value)}
-            className="input-base pl-8 appearance-none bg-white cursor-pointer"
-          >
-            <option value="">All cities</option>
-            {cities.map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-          <span className="absolute right-3 top-2.5 text-slate-400 text-xs pointer-events-none">▼</span>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            City
+          </label>
+          {(filters.cities?.length ?? 0) > 0 && (
+            <button
+              onClick={() => onFilterChange({ ...filters, cities: undefined })}
+              className="text-xs text-indigo-500 hover:text-indigo-700"
+            >
+              Clear
+            </button>
+          )}
         </div>
+        {cities.length === 0 ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : (
+          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+            {cities.map(city => {
+              const checked = (filters.cities ?? []).includes(city);
+              return (
+                <label key={city} className="flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCity(city)}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-400 cursor-pointer"
+                  />
+                  <span className={`text-sm transition-colors ${checked ? 'text-indigo-700 font-medium' : 'text-slate-600 group-hover:text-slate-900'}`}>
+                    {city}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Price range */}

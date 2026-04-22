@@ -217,7 +217,8 @@ export interface CheapestItem {
 export type SortOption = 'price_asc' | 'price_desc' | 'updated_desc' | 'name_asc';
 
 export interface ListingsFilter {
-  location?: string;
+  location?: string;   // legacy single-city (unused by API now)
+  cities?: string[];   // multi-city client-side filter
   min_price?: number;
   max_price?: number;
   bedrooms?: number;
@@ -367,7 +368,6 @@ async function getMockListings(filters: ListingsFilter): Promise<Listing[]> {
 const api = {
   async getApartments(filters: ListingsFilter = {}): Promise<ApartmentSummary[]> {
     const params = {
-      city: filters.location,
       min_price: filters.min_price,
       max_price: filters.max_price,
       min_bedrooms: filters.bedrooms,

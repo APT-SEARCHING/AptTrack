@@ -138,9 +138,11 @@ const ListingsPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [filters]);
 
-  // client-side filter by bedrooms (since API filters by min_bedrooms on plans)
+  // client-side filters
   const filtered = useMemo(() => {
     let result = apts;
+    if (filters.cities && filters.cities.length > 0)
+      result = result.filter(a => filters.cities!.includes(a.city));
     if (filters.min_price) result = result.filter(a => a.max_price != null && a.max_price >= filters.min_price!);
     if (filters.max_price) result = result.filter(a => a.min_price != null && a.min_price <= filters.max_price!);
     if (filters.bedrooms !== undefined)
