@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ListingsFilter } from '../services/api';
+import React, { useEffect, useState } from 'react';
+import api, { ListingsFilter } from '../services/api';
 
 interface Props {
   filters: ListingsFilter;
@@ -9,6 +9,11 @@ interface Props {
 
 const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [cities, setCities] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.getCities().then(setCities).catch(() => {});
+  }, []);
 
   const set = (key: keyof ListingsFilter, value: string) => {
     onFilterChange({
@@ -42,14 +47,18 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
           City
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-2.5 text-slate-400 text-sm">📍</span>
-          <input
-            type="text"
+          <span className="absolute left-3 top-2.5 text-slate-400 text-sm pointer-events-none">📍</span>
+          <select
             value={filters.location || ''}
             onChange={e => set('location', e.target.value)}
-            className="input-base pl-8"
-            placeholder="e.g. Oakland"
-          />
+            className="input-base pl-8 appearance-none bg-white cursor-pointer"
+          >
+            <option value="">All cities</option>
+            {cities.map(city => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
+          <span className="absolute right-3 top-2.5 text-slate-400 text-xs pointer-events-none">▼</span>
         </div>
       </div>
 

@@ -2,13 +2,14 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import Date, Float, cast, func, select, text
+from sqlalchemy.orm import Session
+
 from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.schemas.apartment import CheapestItem, MedianByCityBedsResponse, PriceTrend, TopDropItem
-from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import Date, Float, cast, func, select, text
-from sqlalchemy.orm import Session
 
 # ---------------------------------------------------------------------------
 # In-process cache for median-by-city-beds (24 h TTL)
@@ -19,6 +20,20 @@ _median_lock = threading.Lock()
 _MEDIAN_TTL = timedelta(hours=24)
 
 router = APIRouter()
+
+
+@router.get("/stats/cities", response_model=List[str])
+@limiter.limit("60/minute")
+def get_cities(request: Request, db: Session = Depends(get_db)):
+    """Distinct cities that have at least one available apartment, sorted alphabetically."""
+    rows = db.execute(
+        select(Apartment.city)
+        .where(Apartment.is_available.is_(True))
+        .where(Apartment.title.notilike("%senior%"))
+        .group_by(Apartment.city)
+        .order_by(Apartment.city)
+    ).scalars().all()
+    return rows
 
 
 @router.get("/stats/top-drops", response_model=List[TopDropItem])

@@ -562,6 +562,10 @@ const api = {
     return apiFetch<SimilarResponse>(`/apartments/${id}/similar`);
   },
 
+  async getCities(): Promise<string[]> {
+    return apiFetch<string[]>('/stats/cities');
+  },
+
   async getMedianByCityBeds(city: string, bedrooms: number): Promise<MedianByCityBedsResponse> {
     return apiFetch<MedianByCityBedsResponse>('/stats/median-by-city-beds', { city, bedrooms });
   },
