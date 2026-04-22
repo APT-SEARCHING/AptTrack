@@ -479,7 +479,7 @@ const ListingDetailPage: React.FC = () => {
                   zoom={15}
                   scrollWheelZoom={false}
                   style={{ height: '100%', width: '100%' }}
-                  zoomControl={false}
+                  zoomControl={true}
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   <Marker position={[apt.latitude, apt.longitude]}>
