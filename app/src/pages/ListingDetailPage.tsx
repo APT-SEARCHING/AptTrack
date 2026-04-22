@@ -53,6 +53,14 @@ function groupPlans(plans: PlanResponse[]): PlanGroup[] {
   });
 }
 
+function planDisplayName(g: PlanGroup): string {
+  const bedLabel = g.bedrooms === 0 ? 'Studio' : g.bedrooms != null ? `${g.bedrooms} Bed` : '?';
+  const bathLabel = g.bathrooms != null ? `${g.bathrooms} Bath` : null;
+  const sqftLabel = g.area_sqft != null ? `${g.area_sqft.toLocaleString()} sqft` : null;
+  const parts = [bedLabel, bathLabel, sqftLabel].filter(Boolean);
+  return parts.join(' / ');
+}
+
 function availLabel(plan: PlanResponse): string {
   if (!plan.is_available) return 'Unavailable';
   if (!plan.available_from) return 'Now';
@@ -366,23 +374,29 @@ const ListingDetailPage: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <tr>
+                  <th className="text-left px-4 py-3">Plan</th>
                   <th className="text-left px-4 py-3">Beds</th>
                   <th className="text-left px-4 py-3">Baths</th>
                   <th className="text-left px-4 py-3">Sqft</th>
                   {hasFloor && <th className="text-left px-4 py-3">Floor</th>}
                   {hasFacing && <th className="text-left px-4 py-3">Facing</th>}
-                  <th className="text-left px-4 py-3">Options / Availability</th>
+                  <th className="text-left px-4 py-3">Price / Availability</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {planGroups.map(group => {
                   const isSelected = group.options.some(o => o.id === selectedPlan?.id);
                   const rep = group.options[0];
+                  const selectedOpt = group.options.find(o => o.id === selectedPlan?.id) ?? rep;
+                  const useDropdown = group.options.length > 2;
                   return (
                     <tr key={group.key}
                       onClick={() => setSelectedPlanId(rep.id)}
                       className={`cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-slate-50'}`}>
-                      <td className="px-4 py-3 font-medium text-slate-700">
+                      <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
+                        {planDisplayName(group)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
                         {group.bedrooms === 0 ? 'Studio' : group.bedrooms ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{group.bathrooms ?? '—'}</td>
@@ -391,30 +405,57 @@ const ListingDetailPage: React.FC = () => {
                       </td>
                       {hasFloor && <td className="px-4 py-3 text-slate-600">{rep.floor_level ?? '—'}</td>}
                       {hasFacing && <td className="px-4 py-3 text-slate-600">{rep.facing ?? '—'}</td>}
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {group.options.map(opt => {
-                            const avail = availLabel(opt);
-                            const availColor = avail === 'Now' ? 'bg-emerald-100 text-emerald-700' : avail === 'Unavailable' ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700';
-                            return (
-                              <div key={opt.id} onClick={e => { e.stopPropagation(); setSelectedPlanId(opt.id); }}
-                                className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors bg-white">
-                                <span className="font-bold text-slate-900 whitespace-nowrap">
-                                  {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'}
-                                </span>
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${availColor}`}>
-                                  {avail === 'Now' ? 'Now' : avail}
-                                </span>
-                                {(opt.external_url || apt?.source_url) && (
-                                  <a href={opt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()} className="text-indigo-300 hover:text-indigo-500 text-xs">↗</a>
-                                )}
-                                <button title="Set price alert" onClick={e => openAlertForPlan(e, opt)}
-                                  className="text-slate-300 hover:text-indigo-500 transition-colors">🔔</button>
-                              </div>
-                            );
-                          })}
-                        </div>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        {useDropdown ? (
+                          /* Dropdown for groups with many options */
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedOpt.id}
+                              onChange={e => {
+                                const id = parseInt(e.target.value, 10);
+                                setSelectedPlanId(id);
+                              }}
+                              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 cursor-pointer"
+                            >
+                              {group.options.map(opt => (
+                                <option key={opt.id} value={opt.id}>
+                                  {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'} — {availLabel(opt)}
+                                </option>
+                              ))}
+                            </select>
+                            {(selectedOpt.external_url || apt?.source_url) && (
+                              <a href={selectedOpt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
+                                className="text-indigo-400 hover:text-indigo-600 text-xs">↗</a>
+                            )}
+                            <button title="Set price alert" onClick={e => openAlertForPlan(e, selectedOpt)}
+                              className="text-slate-400 hover:text-indigo-500 transition-colors">🔔</button>
+                          </div>
+                        ) : (
+                          /* Chips for 1–2 options */
+                          <div className="flex flex-wrap gap-2">
+                            {group.options.map(opt => {
+                              const avail = availLabel(opt);
+                              const availColor = avail === 'Now' ? 'bg-emerald-100 text-emerald-700' : avail === 'Unavailable' ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700';
+                              return (
+                                <div key={opt.id} onClick={() => setSelectedPlanId(opt.id)}
+                                  className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors bg-white cursor-pointer">
+                                  <span className="font-bold text-slate-900 whitespace-nowrap">
+                                    {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'}
+                                  </span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${availColor}`}>
+                                    {avail}
+                                  </span>
+                                  {(opt.external_url || apt?.source_url) && (
+                                    <a href={opt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()} className="text-indigo-300 hover:text-indigo-500 text-xs">↗</a>
+                                  )}
+                                  <button title="Set price alert" onClick={e => openAlertForPlan(e, opt)}
+                                    className="text-slate-300 hover:text-indigo-500 transition-colors">🔔</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
