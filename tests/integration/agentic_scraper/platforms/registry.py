@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 def _build_registry() -> List[PlatformAdapter]:
     # Deferred imports so that adapter modules are only loaded when first used.
+    from .avalonbay import AvalonBayAdapter
     from .fatwin import FatWinAdapter
     from .generic_detail import GenericDetailPageAdapter
     from .greystar import GreystarAdapter
@@ -29,6 +30,7 @@ def _build_registry() -> List[PlatformAdapter]:
         JonahDigitalAdapter(),
         FatWinAdapter(),
         SightMapAdapter(),
+        AvalonBayAdapter(),       # static HTML JSON; 4 Bay Area properties
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
         GenericDetailPageAdapter(),
     ]
