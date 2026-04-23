@@ -30,9 +30,9 @@ def _build_registry() -> List[PlatformAdapter]:
     return [
         JonahDigitalAdapter(),
         FatWinAdapter(),
-        SightMapAdapter(),
-        AvalonBayAdapter(),       # static HTML JSON; 4 Bay Area properties
+        AvalonBayAdapter(),       # before SightMap: Avalon pages embed SightMap iframes but data is in Fusion.globalContent
         WindsorAdapter(),         # Spaces/Nestio; 2 Windsor properties
+        SightMapAdapter(),
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
         GenericDetailPageAdapter(),
     ]

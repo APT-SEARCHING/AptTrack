@@ -781,7 +781,7 @@ class ApartmentAgent:
             # ── Pre-check: is this actually an apartment website? ─────────────
             if _html:
                 try:
-                    from browser_tools import is_apartment_website
+                    from .browser_tools import is_apartment_website
                     _apt_valid, _apt_reason = is_apartment_website(_html, url)
                     if not _apt_valid:
                         metrics.outcome = "not_apartment"

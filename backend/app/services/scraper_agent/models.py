@@ -23,6 +23,16 @@ class FloorPlan(BaseModel):
     availability: Optional[str] = Field(None, description="'Available', 'Now', a date, or 'Waitlist'")
     external_url: Optional[str] = Field(None, description="Deep link to this specific plan on the source site")
     floor_level: Optional[int] = Field(None, description="Floor number this unit is on (integer)")
+
+    @field_validator("floor_level", mode="before")
+    @classmethod
+    def coerce_floor_level(cls, v: Any) -> Optional[int]:
+        if v is None or v == "":
+            return None
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
     facing: Optional[str] = Field(None, description="Compass direction this unit faces: N/S/E/W/NE/NW/SE/SW")
 
 
