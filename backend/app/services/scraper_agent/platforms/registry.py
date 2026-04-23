@@ -25,12 +25,14 @@ def _build_registry() -> List[PlatformAdapter]:
     from .greystar import GreystarAdapter
     from .jonah_digital import JonahDigitalAdapter
     from .sightmap import SightMapAdapter
+    from .windsor import WindsorAdapter
 
     return [
         JonahDigitalAdapter(),
         FatWinAdapter(),
         SightMapAdapter(),
         AvalonBayAdapter(),       # static HTML JSON; 4 Bay Area properties
+        WindsorAdapter(),         # Spaces/Nestio; 2 Windsor properties
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
         GenericDetailPageAdapter(),
     ]
