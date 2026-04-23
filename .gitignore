@@ -40,3 +40,10 @@ htmlcov/
 # Logs
 *.log
 logs/
+
+# Scraper debug output files (may contain third-party tokens from scraped HTML)
+tests/integration/legacy_scraper/output*.txt
+tests/integration/legacy_scraper/selection_actions.txt
+dev/output*.txt
+dev/parser_output.txt
+dev/llm_code_script_final.txt

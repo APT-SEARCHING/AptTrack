@@ -3,14 +3,15 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.core.config import settings
-from app.db.session import get_db
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.db.session import get_db
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")

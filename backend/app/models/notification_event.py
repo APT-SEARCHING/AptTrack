@@ -1,4 +1,3 @@
-from app.db.base_class import Base
 from sqlalchemy import (
     Column,
     DateTime,
@@ -9,6 +8,8 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.sql import func
+
+from app.db.base_class import Base
 
 
 class NotificationEvent(Base):

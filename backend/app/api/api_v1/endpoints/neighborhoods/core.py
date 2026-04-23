@@ -1,14 +1,15 @@
 from typing import List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.core.limiter import limiter
 from app.core.security import require_admin
 from app.db.session import get_db
 from app.models.apartment import Neighborhood
 from app.models.user import User
 from app.schemas.apartment import NeighborhoodCreate, NeighborhoodInDB, NeighborhoodUpdate
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 

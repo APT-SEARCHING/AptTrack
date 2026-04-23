@@ -2,15 +2,16 @@ import secrets
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
 from app.core.limiter import limiter
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.apartment import Apartment, Plan, PlanPriceHistory
 from app.models.user import PriceSubscription, User
 from app.schemas.user import SubscriptionCreate, SubscriptionResponse, SubscriptionUpdate
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session, selectinload
 
 router = APIRouter(prefix="/subscriptions", tags=["subscriptions"])
 

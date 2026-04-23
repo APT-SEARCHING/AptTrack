@@ -1,0 +1,429 @@
+{
+  "run_at": "2026-04-23T00:09:35.545311+00:00",
+  "selected": [
+    {
+      "title": "Mode Apartments",
+      "city": "San Mateo",
+      "url": "https://www.modesanmateo.com/?utm_source=apartmentseo&utm_medium=gmb&utm_campaign=organicmaplisting"
+    },
+    {
+      "title": "Santa Clara Square Apartment Homes",
+      "city": "Santa Clara",
+      "url": "https://www.irvinecompanyapartments.com/locations/northern-california/santa-clara/santa-clara-square.html?utm_source=chatmeter&utm_medium=organic&utm_campaign=gmb_chatmeter_listing"
+    },
+    {
+      "title": "Prism",
+      "city": "San Francisco",
+      "url": "https://www.rentprism.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=Prism_GoogleLocalListing"
+    },
+    {
+      "title": "Metro Six55 Apartments",
+      "city": "Hayward",
+      "url": "https://www.metrosix55.com/?utm_knock=g"
+    },
+    {
+      "title": "Pasatiempo",
+      "city": "Fremont",
+      "url": "https://www.pasatiempoapts.com/"
+    },
+    {
+      "title": "Avalon Fremont",
+      "city": "Fremont",
+      "url": "https://www.avaloncommunities.com/california/fremont-apartments/avalon-fremont?utm_source=gmb&utm_medium=organic&utm_campaign=gmblist"
+    },
+    {
+      "title": "The Skylyne at Temescal",
+      "city": "Oakland",
+      "url": "https://www.theskylyne.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=TheSkylyneatTemescal_GoogleLocalListing"
+    },
+    {
+      "title": "Avalon Morrison Park",
+      "city": "San Jose",
+      "url": "https://www.avaloncommunities.com/california/san-jose-apartments/avalon-morrison-park?utm_source=gmb&utm_medium=organic&utm_campaign=gmblist"
+    },
+    {
+      "title": "Harbor at Hillsdale",
+      "city": "San Mateo",
+      "url": "https://harborathillsdale.com/"
+    },
+    {
+      "title": "Graham at The Fields",
+      "city": "Milpitas",
+      "url": "https://lyonliving.com/milpitas-california/graham/"
+    },
+    {
+      "title": "121 Tasman Apartments",
+      "city": "San Jose",
+      "url": "https://www.121tasman.com/?ilm=obl&utm_source=gmb&utm_medium=organic"
+    },
+    {
+      "title": "Viewpoint Apartments",
+      "city": "Berkeley",
+      "url": "https://www.viewpointbrighthaven.com/"
+    },
+    {
+      "title": "The Shadows Apartments",
+      "city": "Mountain View",
+      "url": "https://www.shadowsapartments.com/?utm_source=GBP&utm_medium=organic"
+    },
+    {
+      "title": "Parkmerced Apartments",
+      "city": "San Francisco",
+      "url": "https://www.parkmerced.com/"
+    },
+    {
+      "title": "AVA Nob Hill",
+      "city": "San Francisco",
+      "url": "https://www.avaloncommunities.com/california/san-francisco-apartments/ava-nob-hill?utm_source=gmb&utm_medium=organic&utm_campaign=gmblist"
+    },
+    {
+      "title": "Sixth & Jackson Apartments",
+      "city": "San Jose",
+      "url": "https://www.sheaapartments.com/apartments/sixth-jackson/?utm_source=gmb&utm_medium=organic&utm_campaign=sixth+jackson"
+    },
+    {
+      "title": "Koda on Fremont",
+      "city": "Fremont",
+      "url": "https://kodafremont.com/?rccustomid=NjQwMDI%3D-D1O%2BJgUiTgg%3D&utm_source=gmb&utm_medium=organic"
+    },
+    {
+      "title": "Archstone Fremont Center Apartments",
+      "city": "Fremont",
+      "url": "http://www.equityapartments.com/san-francisco-bay/fremont/archstone-fremont-center-apartments"
+    },
+    {
+      "title": "Tan Plaza Apartments",
+      "city": "Palo Alto",
+      "url": "http://www.liveattanplaza.com/?utm_source=apartmentseo&utm_medium=gmb&utm_campaign=organicmaplisting"
+    },
+    {
+      "title": "Telegraph Gardens Apartments",
+      "city": "Berkeley",
+      "url": "http://www.telegraphgardens.com/"
+    }
+  ],
+  "pass1": [
+    {
+      "title": "Mode Apartments",
+      "city": "San Mateo",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Santa Clara Square Apartment Homes",
+      "city": "Santa Clara",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Prism",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Metro Six55 Apartments",
+      "city": "Hayward",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Pasatiempo",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Avalon Fremont",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "The Skylyne at Temescal",
+      "city": "Oakland",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Avalon Morrison Park",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Harbor at Hillsdale",
+      "city": "San Mateo",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Graham at The Fields",
+      "city": "Milpitas",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "121 Tasman Apartments",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Viewpoint Apartments",
+      "city": "Berkeley",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "The Shadows Apartments",
+      "city": "Mountain View",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Parkmerced Apartments",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "AVA Nob Hill",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Sixth & Jackson Apartments",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Koda on Fremont",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Archstone Fremont Center Apartments",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Tan Plaza Apartments",
+      "city": "Palo Alto",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Telegraph Gardens Apartments",
+      "city": "Berkeley",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    }
+  ],
+  "pass2": [
+    {
+      "title": "Mode Apartments",
+      "city": "San Mateo",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Santa Clara Square Apartment Homes",
+      "city": "Santa Clara",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Prism",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Metro Six55 Apartments",
+      "city": "Hayward",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Pasatiempo",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Avalon Fremont",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "The Skylyne at Temescal",
+      "city": "Oakland",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Avalon Morrison Park",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Harbor at Hillsdale",
+      "city": "San Mateo",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Graham at The Fields",
+      "city": "Milpitas",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "121 Tasman Apartments",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Viewpoint Apartments",
+      "city": "Berkeley",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "The Shadows Apartments",
+      "city": "Mountain View",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Parkmerced Apartments",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "AVA Nob Hill",
+      "city": "San Francisco",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Sixth & Jackson Apartments",
+      "city": "San Jose",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Koda on Fremont",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Archstone Fremont Center Apartments",
+      "city": "Fremont",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Tan Plaza Apartments",
+      "city": "Palo Alto",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    },
+    {
+      "title": "Telegraph Gardens Apartments",
+      "city": "Berkeley",
+      "n_plans": 0,
+      "priced": 0,
+      "with_sqft": 0,
+      "clean_name": 0
+    }
+  ]
+}

@@ -1,8 +1,83 @@
 # AptTrack
 
-Bay Area apartment **rental price transparency and history** system. Collects publicly available listing prices from individual apartment complex websites; stores full price history in PostgreSQL; serves a REST API with JWT auth consumed by a React frontend. Users can subscribe to price-drop alerts delivered via email or Telegram. Celery handles scheduled scraping and alert checks.
+Bay Area apartment **rental price transparency** system. Collects publicly available listing prices from individual apartment complex websites; stores full price history in PostgreSQL; serves a REST API with JWT auth consumed by a React frontend. Users subscribe to price-drop alerts delivered via email or Telegram. Celery handles scheduled scraping and alert checks.
 
-> **Positioning note**: This is a *transparency + history* product, not a daily-arbitrage tool. See **Regulatory Context** below for why the cadence assumptions shifted in 2026.
+**Live**: https://apttrack-production-6c87.up.railway.app/
+
+> **Current phase (2026-04)**: Railway deploy complete. About to enter 2-week strict dogfood. **Before dogfood starts**, 5 critical bugs must be fixed — see "🔴 Dogfood Blockers" below. Four are scraper data-quality bugs silently destroying `PlanPriceHistory` growth; one is a security hole in password reset.
+
+> **Positioning**: transparency + snapshot today; history chart story activates ~Q3 2026 when ≥3 months of data accumulates. Don't lean on `Recharts` price history in UI until then.
+
+---
+
+## 🔴 Dogfood Blockers (fix BEFORE starting 2-week dogfood)
+
+All five surfaced in the 2026-04-22 deep scraper review. Ordered by severity. See `.claude/prompts.md` for step-by-step fix contracts.
+
+### B1 — `_persist_scraped_prices` silently drops sqft/bedrooms/bathrooms/name updates
+
+**File**: `backend/app/worker.py` L598-620
+
+`_persist_scraped_prices` updates `price`, `current_price`, `external_url`, `floor_level`, `facing` from the scraped `FloorPlan` — but **does not update `area_sqft`, `bedrooms`, `bathrooms`, or `name`**. These fields are only written during initial DB seed, so daily scrapes never fix seed-time gaps.
+
+**Downstream damage**: `_match_plan`'s fuzzy strategy relies on DB-side `c.area_sqft`. Because that column stays stale/null, fuzzy matching frequently fails → `_match_plan` returns None → `_persist_scraped_prices` hits `continue` → **the plan's price history row is silently dropped**.
+
+This is the #1 reason `PlanPriceHistory` grows slower than the expected 30/apt/day baseline, and the reason user-visible sqft/plan-name fields look empty.
+
+### B2 — `_match_plan` returns None instead of creating new plans
+
+**File**: `backend/app/worker.py` L490-521
+
+When both exact-name match fails and fuzzy (bedrooms + sqft ±10%) doesn't find a candidate, `_match_plan` returns None. Caller drops the scrape result. A new unit on the source site that doesn't match any existing DB plan is data-lost forever.
+
+Fix adds two more strategies: (3) fuzzy by bedrooms+bathrooms when single candidate, (4) auto-create `Plan` row when sufficient info exists. Accumulation-first > drop-first.
+
+### B3 — SightMap `extract_all_units` regex requires bed/bath/sqft on one line
+
+**File**: `backend/app/services/scraper_agent/browser_tools.py` L585-589
+
+The regex `(\d+)\s*Bed.*?(\d+)\s*Bath.*?([\d,]+)\s*sq` requires all three numbers to appear on the same line. Real SightMap pages frequently split them across 3-4 lines (`Studio S1` / `Studio` / `1 Bath` / `420 sq. ft.`) — regex matches 0 lines, sqft extraction yields 0%.
+
+Fix: replace single-line regex with independent per-field regexes scanning all lines in the unit block.
+
+### B4 — SightMap plan name extraction grabs UI labels
+
+**File**: `backend/app/services/scraper_agent/browser_tools.py` L582-583
+
+The heuristic "first line that isn't $ / Bed / sq. ft. / Available" treats UI affordances like `Favorite`, `Tour Now`, `View Details`, `Schedule Tour` as plan names. Results in `plan.name="Favorite"` in DB.
+
+Fix: blacklist known UI verbs + require plan-name-shaped regex (starts with letter, 1-40 chars, mixed case allowed).
+
+### B5 — Password reset has account-takeover vulnerability
+
+**File**: `backend/app/api/api_v1/endpoints/auth/core.py` L89-102
+
+Current `POST /auth/reset-password {email, new_password}` accepts any email and changes that user's password immediately — no email verification, no token. Anyone who knows your email can take over your account.
+
+Fix: standard token-based reset — (1) `POST /auth/request-password-reset {email}` creates a `PasswordResetToken` row (1-hour TTL, single-use), emails a link. (2) `POST /auth/reset-password {token, new_password}` consumes the token.
+
+Side benefit: the token table is reusable infrastructure for future magic-link auth.
+
+---
+
+## Deploy artifacts in place (2026-04 deploy complete)
+
+**Railway services**:
+- `apttrack-backend` (web) — `backend/Dockerfile` → `alembic upgrade head && uvicorn ...`
+- `apttrack-worker` — `backend/Dockerfile.worker` (Playwright base image) → Celery worker
+- `apttrack-beat` — `backend/Dockerfile.worker` → Celery beat
+- `apttrack-frontend` — `app/Dockerfile` → nginx on port 80
+- Postgres + Redis plugins
+
+**Lessons from first deploy** (fold into `docs/railway-deploy.md` when you get a chance):
+- `PYTHONPATH=/app` in both Dockerfiles.
+- `alembic/env.py` must self-configure `sys.path`.
+- `DATABASE_URL` must `raise` clearly if missing (sudden crash is better than silent wrong state).
+- SQLAlchemy 2.0: wrap raw SQL in `text()`, no raw strings.
+- `path_cache/*.json` must be committed (Railway containers start blank; `.gitignore` was too aggressive).
+- `CORS_ORIGINS` must match frontend service URL **exactly** (wildcard + `allow_credentials=True` fails silently in browsers).
+- Frontend nginx: hard-code port 80 (Railway's public domain routes to 80), don't try to envsubst PORT.
+- Frontend nginx: do NOT include `location /api { proxy_pass ... }` block — it crashes when the upstream isn't resolvable, and Railway uses cross-service URLs not docker-compose service names.
 
 ---
 
@@ -12,135 +87,160 @@ Bay Area apartment **rental price transparency and history** system. Collects pu
 ┌─────────────────────┐     ┌──────────────────────┐     ┌────────────┐
 │  React / TypeScript │◄───►│  FastAPI (Python)    │◄───►│ PostgreSQL │
 │  Tailwind CSS       │     │  Pydantic v2         │     │ 14-alpine  │
-│  Recharts           │     │  SQLAlchemy 2.0      │     └────────────┘
-└─────────────────────┘     │  Alembic             │
-                            │  slowapi (rate lim.) │     ┌────────────┐
+│  Recharts + Leaflet │     │  SQLAlchemy 2.0      │     └────────────┘
+│  sonner toasts      │     │  Alembic             │
+└─────────────────────┘     │  slowapi (rate lim.) │     ┌────────────┐
                             │  JWT auth (jose)     │◄───►│   Redis    │
                             └────────┬─────────────┘     │  7-alpine  │
                                      │                    └────────────┘
                  ┌───────────────────┼───────────────────┐
                  ▼                   ▼                   ▼
         Google Maps Places   Agentic Scraper      Celery Worker + Beat
-        (New API, Essent.)   MiniMax-M2.5 +       adaptive refresh
-                             Playwright           daily alert check
-                             + path cache (1.3)
-                             + content hash
+        (New API, Essential) MiniMax-M2.5 +       daily refresh 02:00 PT
+        + GooglePlaceRaw     Playwright           daily alerts 08:00 PT
+          dedup cache        + path cache         + content-hash short
+                             + content_hash         circuit
 ```
 
 ---
-## Compliance Principles
-
-### 1. Public Data Only
-
-We only collect **publicly accessible rental data**.
-
-### 2. No Content Replication
-
-We do NOT store or display: - Listing descriptions - Images - HTML
-content
-
-### 3. Data Transformation
-
-We transform raw data into: - Aggregated statistics - Trends - Insights
-
-We do NOT reproduce full listings.
-
-### 4. Source Attribution
-
-Every property page must include: → "View official listing"
 
 ## Regulatory Context (2026)
 
-AptTrack is **not the target** of recent rental-pricing enforcement, but the regulatory landscape changed the underlying market dynamics that inform product decisions.
+AptTrack is **not the target** of recent rental-pricing enforcement, but the landscape informs product decisions.
 
-### What happened
+- **California AB 325** (2026-01-01) prohibits **competitors sharing a common pricing algorithm**. Targets hub-and-spoke SaaS coordination.
+- **DOJ v. RealPage settlement** (2025-11-24) restricts RealPage's use of non-public competitor data.
+- **SF (2024-08)** and **Berkeley (2024-09)** city-level bans on algorithmic rent-setting.
 
-- **California AB 325** (effective 2026-01-01) amended the Cartwright Act to prohibit **competitors sharing a common pricing algorithm**. Targets hub-and-spoke SaaS coordination (YieldStar, RENTmaximizer, RevenueIQ).
-- **DOJ v. RealPage settlement** (2025-11-24) forces RealPage to stop using non-public competitor data.
-- **San Francisco (2024-08)** and **Berkeley (2024-09)** banned algorithmic rent-setting at the city level.
+**Why AptTrack is not in scope**:
+1. We collect **publicly accessible data** from individual listing pages.
+2. We serve **tenants**, not landlords.
+3. We are **not a hub**. No landlord supplies data to us; no landlord receives pricing advice from us.
 
-### Why AptTrack is not in scope
+**What changed**: daily price changes are now rare. Value shifted from "change velocity" to "current snapshot + future history".
 
-1. We **collect publicly accessible data** from individual listing pages — not private landlord data.
-2. We **serve tenants**, not landlords. AB 325 regulates supply-side coordination.
-3. We are **not a hub**. No landlord provides us with data; no landlord receives pricing recommendations from us.
-
-Legal precedents remain intact: **hiQ v. LinkedIn (9th Cir. 2022)** and **Meta v. Bright Data (N.D. Cal. 2024)** confirm scraping publicly accessible, logged-off data is lawful.
-
-### What DID change (product implications)
-
-- **Daily price changes are now rare**. Most Bay Area complexes moved from YieldStar dynamic pricing (daily) to static pricing (monthly). Daily refresh captures little signal on most sites.
-- **Value moved from "change velocity" to "long-term history + cross-complex comparison"**.
-- **A new product angle opened**: detecting regime changes in pricing cadence as a signal of AB 325 compliance status. Potentially valuable to Attorney General office, housing advocacy groups, researchers.
-
-### Hard rule — do NOT build
-
-Any feature that takes **money from landlords or property managers in exchange for pricing advice** could re-classify AptTrack as a "shared algorithm hub" under AB 325. Keep the monetization path strictly **tenant-facing (B2C)** or **data-feed to researchers/investors (B2B read-only)**.
+**Hard rule — do NOT build**: any feature monetizing **landlords or property managers via pricing advice**. That could re-classify AptTrack as a "shared algorithm hub" under AB 325.
 
 ---
 
-## Current State (as of 2026-04)
+## Current Data Reality
 
-### Done and working
+Seeded with ~30 Bay Area apartments. Daily scrape at 02:00 PT. `PlanPriceHistory` target growth ≈ 90 rows/day.
 
-- Agentic scraper with MiniMax-M2.5, 7 tools, ReAct loop, max 35 iterations, 22-iter no-data early stop.
-- **Phase 1 token optimizations** (commit `993d61c6`):
-  - `1.1` History trimming (`_trim_messages(keep_last=4)`)
-  - `1.2` Reduced page state (`MAX_TEXT_CHARS=4000`, `MAX_LINKS=20`, `MAX_BUTTONS=15`) with pricing-keyword priority truncation
-  - `1.3` Path caching (`path_cache.py`, 30-day TTL, per-domain JSON, 4 sites currently cached)
-  - `1.4` Browser reuse across batch (`_NullContextManager`, shared `BrowserSession`)
-- Price-slider contamination defense (`_sanitize()`).
-- **Scraper compliance registry** (`ScrapeSiteRegistry` + `compliance.py`) with robots.txt checking, ToS review fields, C&D response protocol.
-- Fuzzy plan matching in `_persist_scraped_prices` (bedrooms + sqft ±10%) to survive plan renames.
-- JWT auth, price-drop subscriptions (apartment/plan level only; area-level disabled, see Phase A), 24h debounce, SendGrid + Telegram notifications.
-- **Pydantic v2 + SQLAlchemy 2.0** migration complete.
-- CI/CD with ruff, security hardening, API integration tests.
-- RentCafe plan-card parser for `units_grid--item` sites (The Ryden, Atlas Oakland, Asher Fremont).
-- **Phase A price-checker correctness fixes** (5 bugs):
-  - Bug #1: `_is_triggered` now detects only the ≥→< crossing; subscriptions **auto-pause** (`is_active=False`) after firing; `trigger_count` column tracks fire history.
-  - Bug #2: `price_drop_pct` anchored to `baseline_price` (subscription-time snapshot), not the previous scrape. `baseline_price` + `baseline_recorded_at` columns added; inferred from latest `PlanPriceHistory` → `Plan.price` → `None` at creation time.
-  - Bug #3: Debounce timezone handling fixed (`astimezone()` not `.replace(tzinfo=)`).
-  - Bug #4: `_get_latest_price` for plan-level subs returns `None` when no `PlanPriceHistory` exists (no stale `Plan.price` fallback).
-  - Bug #5: Area-level subscriptions rejected at API layer with 422; existing rows deactivated via migration.
+| Time | Rows | What the data supports |
+|------|------|------------------------|
+| 2 weeks | ~1,300 | Current snapshot + deltas |
+| 1 month | ~2,700 | 4-point trend lines |
+| 3 months | ~8,000 | Meaningful history charts |
+| 6 months | ~16,000 | Seasonal patterns |
+| 12 months | ~33,000 | Basic forecasting possible |
 
-### Metrics (self-reported, commit `993d61c6`)
+**⚠ But real growth rate likely below target** until B1/B2 are fixed — `_match_plan` silently drops rows.
 
-| Scenario | Before Phase 1 | After Phase 1 |
-|---|---|---|
-| Cache hit (SightMap/RentCafe) | — | $0.000 |
-| Cache miss (trimmed) | $0.05–$0.12 | ~$0.02 |
+**Product rules**:
+- **No price prediction / forecasting yet.** Revisit Q4 2026.
+- **Don't feature price-history chart prominently** until ≥3 months data. Chart is kept in UI but subdued when points are few.
+- **Do prefer snapshot-value features** — market comparisons, similar apartments, cheapest-in-city, etc.
 
 ---
 
-## Phase 2: Bay-Area-Wide Expansion
+## Completed Work
 
-**Goal**: scale from ~10 seeded apartments to ~3,000 Bay Area complexes (Yardi Matrix 50+ unit count) with adaptive refresh cadence, total monthly cost under $100.
+### Phase A (price alerts correctness)
+- `target_price` fires only on ≥→< crossing, auto-pauses, increments `trigger_count`.
+- `price_drop_pct` anchored to `baseline_price` (subscription-time snapshot).
+- `last_notified_at` timezone uses `astimezone`.
+- Plan-level reads `PlanPriceHistory` (no stale `Plan.price` fallback).
+- Apartment-level reads `Plan.current_price`.
+- Area-level subscriptions rejected 422.
+- Re-arm refreshes baseline.
+- `target_price >= baseline_price` rejected 422.
 
-### Hard blockers (must fix before scaling)
+### Phase B (notification quality + observability)
+- Rich email + Telegram templates with links and context.
+- `PriceSubscription.unsubscribe_token` + one-click unsubscribe endpoint (CAN-SPAM).
+- `AlertsPage` shows real apartment title + plan spec + latest price.
+- `NotificationEvent` table + SendGrid webhook (bounce/open/click tracking) + Telegram 403 auto-disable.
+- Pause/Resume button with optimistic UI.
 
-1. **`worker.py:task_refresh_apartment_data` is serial** (L108–142). A 3,000-apartment batch with 80s/apt would take ~40h. Must shard into Celery chunks (e.g., 50 apts per chunk, errors don't take down the batch).
+### Phase C (listing browse UX)
+- Sort controls, favorites, advanced filters (pets/parking/sqft/available_before).
+- Mobile plan cards + multi-plan chart switcher.
+- Median rent stat (replaced avg).
+- Similar apartments + market context pill.
+- Dedup of plan rows by (beds, baths, sqft) — groups options under one row, dropdown for 3+.
 
-2. **Celery beat has no jitter**. 02:00 PT hardcoded; 3,000 concurrent requests to 3,000 sites will trigger anti-bot + overload our own Playwright pool.
+### Phase D partial
+- AuthModal `onSuccess` callback.
+- sonner toasts on all mutations.
+- Leaflet map view with city-colored markers.
+- Alerts count badge in nav.
+- Mobile responsiveness.
+- Mini map on ListingDetailPage.
+- Multi-select city filter (client-side).
 
-3. **`google_maps.py:fetch_apartments_by_location` runs 15 synonymous keywords** (L44–62). Cut to 2–3. Remove `X-Goog-FieldMask: "*"` (triggers $20/1K Enterprise tier); use Essentials (`id,displayName,location`) for discovery and request Pro fields (`websiteUri`, `rating`) only for places that pass the filter.
+### Onboarding (Phase 3B.2)
+- Demo subscription auto-created on register.
+- Welcome email.
+- Empty-state CTAs on AlertsPage.
 
-4. **`path_cache._domain_key` ignores URL path**. `/apartments/ca/palo-alto/...` and `/apartments/ca/mountain-view/...` collide on the same file. Use `domain + md5(path)[:8]`.
+### Scraper data expansion
+- Per-plan `external_url` capture.
+- Per-unit `floor_level` + compass `facing` capture.
+- Amenities + move-in specials capture.
+- Content-hash short-circuit: SHA256 of stripped HTML; unchanged → carry forward prices, $0.00 cost.
 
-5. **No HTML content-hash short-circuit**. Between `load_path()` and running the agent, add an `aiohttp.get` + hash check against `apartment.last_content_hash`. 40–70% of daily scrapes will be "content unchanged, carry forward prices" — zero LLM, zero Playwright.
+### Cost observability
+- `ApiCostLog` Postgres table (replaced ephemeral JSONL, survives Railway redeploys).
+- `dev/cost_summary.py` reader.
+- `GooglePlaceRaw` dedup cache: re-importing a city costs $0.03 instead of $0.45.
+- Google Maps keywords trimmed 15 → 3 synonyms (senior housing removed — noisy results).
 
-### Also worth doing
+### Dogfood instrumentation
+- `docs/dogfood-papercuts.md` template + 4 entries in place.
+- `seed_apartments.py --urls-file` CLI for adding new apartments.
 
-- **Adaptive refresh cadence**: new `Apartment.next_refresh_at` column; weekly default, escalate to daily for apartments with ≥2 price changes in trailing 14 days, back off to weekly after 30 days of no changes. Cuts daily scrape volume 60–85%.
-- **`ScrapeRun` observability table** (persist `ScrapeMetrics.summary()` to DB, generate nightly Telegram digest: total cost, cache hit rate, failed sites).
-- **Tiered model routing**: keep MiniMax-M2.5 default; consider DeepSeek V3.2 (automatic 90% prompt cache discount, ~2× cheaper) for long-tail sites where cache miss is common. Do NOT migrate blindly — validate tool-calling fidelity on 20 existing fixtures first.
-- **Verify MiniMax prompt caching is active**: read `response.usage.cached_tokens` (or whatever the MiniMax equivalent is). If always 0, the SYSTEM_PROMPT prefix isn't being cached; either fix the call signature or switch to DeepSeek where caching is automatic.
+### Testing
+- 170 total tests: unit, API, scraper unit, live scraper integration.
 
-### Infrastructure
+---
 
-- Phase 1 (500 apts): Hetzner CPX31 ($14/mo, 4 vCPU/8GB) sufficient.
-- Phase 2 (3,000 apts): CPX41 ($26/mo, 8 vCPU/16GB) or 2× CPX31. Playwright browser-hours become the binding constraint once path cache hit rate ≥70%.
+## Post-Blockers Roadmap (after B1-B5 fixed, dogfood starts)
 
-**Do not scale Postgres or Redis for Phase 2** — even at 3,000 apts × 3 plans × 365 days × 5 years the row count is ~16M, fits on any Hobby tier.
+### Week 0 (smoke test + confirm data health)
+- After B1-B5 merged + deployed, purge path cache and trigger full scrape.
+- Run `dev/audit.py` (see below) — confirm sqft coverage ≥60%, clean plan names.
+- Register real accounts, create 3-5 real subscriptions at realistic thresholds.
+
+### Weeks 1-2 (strict dogfood, no new features)
+- Use AptTrack daily as actual rental-hunting tool.
+- Every friction → entry in `docs/dogfood-papercuts.md`.
+- Add `task_daily_health_report` Celery task — 09:00 PT email summary of scrape outcomes, notification health, subscription triggers, data growth.
+- Weekly `dev/audit.py` runs.
+
+### Week 2 checkpoint
+- Review paper-cut log with full numbers from daily reports.
+- Pick top 3 S1/S2 items. That's Weeks 3-4 backlog, regardless of what Phase 4 docs say.
+
+### Weeks 3-4 (polish top-3 based on dogfood)
+- Ship top 3 as separate PRs.
+- Update paper-cut log with `[FIXED]` tags.
+
+### Weeks 5+
+- Only if dogfood stable, revisit Phase 4 items (listed below).
+
+---
+
+## Phase 4 Deferred (DO NOT START — wait for dogfood evidence)
+
+- **Google Places Photos** — Pro tier FieldMask + carousel UI.
+- **Magic-link / passwordless auth** — infra partially built after B5 fix (token table).
+- **Telegram bot bidirectional commands** (`/watch`, `/target`, `/pause`).
+- **Saved Search model** — "listings matching my criteria" vs "watch this apartment".
+- **Adaptive scrape cadence** — only relevant at 100+ apartments with varying change rates.
+- **Price prediction** — revisit Q4 2026 with 6+ months data.
+- **Celery task sharding** — irrelevant at 30-apartment scale.
+- **Scraper code consolidation** (dup between service dir and tests dir).
 
 ---
 
@@ -148,28 +248,29 @@ Any feature that takes **money from landlords or property managers in exchange f
 
 | Path | Purpose |
 |------|---------|
-| `backend/app/api/api_v1/endpoints/` | REST endpoints (apartments, auth, neighborhoods, search, statistics, subscriptions) |
-| `backend/app/models/apartment.py` | `Apartment`, `Plan`, `PlanPriceHistory`, `ApartmentImage`, `Neighborhood` |
-| `backend/app/models/user.py` | `User`, `PriceSubscription` |
-| `backend/app/models/site_registry.py` | `ScrapeSiteRegistry` (compliance per-domain state) |
-| `backend/app/models/google_place.py` | Cached Google Places data (place_id permanent under ToS §3.2.3(b)) |
-| `backend/app/schemas/` | Pydantic v2 request/response schemas |
-| `backend/app/core/security.py` | JWT + bcrypt + `get_current_user` / `require_admin` |
-| `backend/app/core/limiter.py` | Shared slowapi `Limiter` |
-| `backend/app/core/config.py` | Settings via Pydantic BaseSettings, `.env` |
-| `backend/app/services/scraper_agent/` | **Agentic scraper + compliance.py + path_cache** |
-| `backend/app/services/google_maps.py` | Google Maps Places API (New) |
-| `backend/app/services/price_checker.py` | Price-drop detection (24h debounce) |
-| `backend/app/services/notification.py` | SendGrid + Telegram (fire-and-forget) |
-| `backend/app/worker.py` | Celery app, beat schedule, tasks, SIGTERM handler |
-| `backend/alembic/versions/` | 11 migrations |
-| `app/src/pages/` | `ListingsPage` (two-level), `ListingDetailPage`, `AlertsPage` |
-| `app/src/services/api.ts` | API client + mock fallback |
-| `tests/integration/agentic_scraper/` | Scraper tests + batch_runner + legacy modular_scraper |
-| `tests/integration/agentic_scraper/path_cache/` | Cached navigation paths (JSON per domain) |
-| `seed_apartments.py` | Scrapes 10 real Bay Area apartments, seeds DB |
+| `backend/app/api/api_v1/endpoints/` | REST endpoints (apartments, auth, favorites, search, statistics, subscriptions, admin, webhooks) |
+| `backend/app/models/apartment.py` | `Apartment`, `Plan` (with `current_price`, `external_url`, `floor_level`, `facing`), `PlanPriceHistory` |
+| `backend/app/models/user.py` | `User` (with `unsubscribe_all_token`), `PriceSubscription` (with `baseline_price`, `trigger_count`, `is_demo`, `unsubscribe_token`) |
+| `backend/app/models/notification_event.py` | Audit trail for every email/Telegram |
+| `backend/app/models/favorite.py` | User shortlist |
+| `backend/app/models/site_registry.py` | Compliance state per domain |
+| `backend/app/models/google_place.py` | `GooglePlace` + `GooglePlaceRaw` dedup cache |
+| `backend/app/models/scrape_run.py` | Per-scrape outcome, iterations, cost, elapsed |
+| `backend/app/models/api_cost_log.py` | Every LLM/Google Maps cost event |
+| `backend/app/services/scraper_agent/` | Agent + browser tools + path cache + compliance + content_hash |
+| `backend/app/services/scraper_agent/content_hash.py` | SHA256 of stripped HTML for scrape short-circuit |
+| `backend/app/services/google_maps.py` | Places API (New) with GooglePlaceRaw dedup |
+| `backend/app/services/price_checker.py` | Price-drop detection (Phase A semantics) |
+| `backend/app/services/notification.py` | SendGrid + Telegram, rich templates |
+| `backend/app/worker.py` | Celery tasks, beat schedule, scrape pipeline, `_match_plan`, `_persist_scraped_prices` |
+| `backend/alembic/versions/` | 23+ migrations |
+| `app/src/pages/` | `ListingsPage`, `ListingDetailPage`, `AlertsPage`, `FavoritesPage`, `UnsubscribePage` |
+| `app/src/components/` | `AlertModal`, `AuthModal`, `FilterPanel`, `ListingCard`, `MapView` |
+| `dev/cost_summary.py` | CLI reader for `api_cost_log` |
+| `dev/audit.py` | (to be added during B1-B5 fixes) SQL audit of plan sqft/name coverage |
+| `docs/dogfood-papercuts.md` | 2-week dogfood UX tracking |
 
-> **Note on duplication**: `backend/app/services/scraper_agent/` and `tests/integration/agentic_scraper/` currently hold parallel copies of `agent.py`. The worker imports from `backend/app/services/scraper_agent/`. Any agent change must be applied to both until consolidated (see **Tech Debt**).
+> **Note on scraper code duplication**: `backend/app/services/scraper_agent/` and `tests/integration/agentic_scraper/` hold parallel copies of `agent.py`, `browser_tools.py`, `models.py`, `path_cache.py`. Any change must be applied to both. Consolidation is deferred tech debt.
 
 ---
 
@@ -177,139 +278,156 @@ Any feature that takes **money from landlords or property managers in exchange f
 
 ```
 User (1) ──► (N) PriceSubscription
-                     │ optional FK to apartment/plan
+                     │ FK to apartment/plan (area-level disabled)
+                     │ baseline_price, baseline_recorded_at, trigger_count
+                     │ is_demo, unsubscribe_token
+
+User (1) ──► (N) ApartmentFavorite
+
 Apartment (1) ──► (N) Plan (1) ──► (N) PlanPriceHistory
+    │                   │
+    │                   ├──► external_url, floor_level, facing
+    │                   └──► current_price (live value, kept in sync by worker)
     │
-    └──► (N) ApartmentImage
+    │   last_content_hash, last_scraped_at (scrape short-circuit)
+    │   current_special (move-in offer)
+
+PriceSubscription (1) ──► (N) NotificationEvent (sent/delivered/opened/clicked/bounced)
 
 ScrapeSiteRegistry (keyed by domain, 1:N Apartments)
-GooglePlace (cached, keyed by place_id)
-Neighborhood (standalone)
+GooglePlace + GooglePlaceRaw (dedup cache, keyed by place_id)
+ScrapeRun (per-scrape outcome + cost + elapsed)
+ApiCostLog (every LLM / Google Maps cost event)
 ```
+
+**B5 will add**: `PasswordResetToken` (user_id FK, token unique, expires_at, used_at).
 
 ---
 
 ## Agentic Scraper
 
-**Files**: `backend/app/services/scraper_agent/{agent.py, browser_tools.py, models.py, path_cache.py, compliance.py}`.
+**Files**: `backend/app/services/scraper_agent/{agent.py, browser_tools.py, models.py, path_cache.py, compliance.py, content_hash.py}`.
 
-**Loop**: LLM sees structured page state (text/links/buttons/iframes from BeautifulSoup — **never screenshots**) → decides a tool call → `BrowserSession` executes via Playwright → observation appended → repeat until `submit_findings` or hard stop.
+**Loop**: LLM sees structured page state (BeautifulSoup — never screenshots) → decides tool call → `BrowserSession` executes via Playwright → observation → repeat until `submit_findings` or 22-iter no-data early stop.
 
 **Tools**: `navigate_to`, `click_link`, `click_button`, `scroll_down`, `read_iframe`, `extract_all_units`, `submit_findings`.
 
-**Model**: `MiniMax-M2.5` via OpenAI-compatible API at `https://api.minimax.io/v1`. Pricing: $0.30/M input, $1.10/M output.
+**Model**: `MiniMax-M2.5` via OpenAI-compatible API. $0.30/M input, $1.10/M output.
 
-**Scrape flow** (current):
-1. `load_path(url)` → if cached, replay tool calls via browser only (0 LLM calls), parse via `_parse_units_to_apartment_data`.
-2. If cache miss or replay fails, invalidate cache and run full ReAct loop.
-3. On success, `save_path(url, ...)` stores the trace for next time. Only paths ending in `extract_all_units` are cached (only deterministic-replay action).
-4. `_sanitize(result)` runs on all output to strip price-slider contamination.
+**Scrape flow in worker.py per apartment**:
 
-**Scrape flow** (after Phase 2 blockers fixed):
-1. HTTP GET + content hash → if unchanged since yesterday, carry forward prices (0 LLM, 0 Playwright).
-2. `load_path(url)` → replay if cached.
-3. Full ReAct loop only if both above miss.
+1. **Content-hash short-circuit** — HTTP GET + `compute_content_hash` → if `last_content_hash` unchanged: `_carry_forward_prices`, write `ScrapeRun outcome="content_unchanged"`, return. **0 LLM, 0 Playwright**.
+2. **Path cache replay** (`load_path(url)`) — if cached, replay browser steps only, parse via `_parse_units_to_apartment_data`. **0 LLM calls**.
+3. **Full ReAct loop** (cache miss or replay fail) — agent runs, max 35 iter, early stop at 22 no-data.
+4. `_sanitize(result)` strips price-slider contamination.
+5. **`_persist_scraped_prices`** — writes `PlanPriceHistory`, updates `Plan.current_price`, apartment `current_special`, `last_content_hash`. **⚠ Currently DOES NOT update area_sqft / bedrooms / bathrooms / name — see B1.**
+6. **`_match_plan`** — exact name → fuzzy (beds+sqft ±10%). **⚠ Currently returns None on mismatch, dropping data — see B2.**
 
 ---
 
 ## Celery Tasks
 
-| Task | Current Schedule | Purpose |
-|------|------------------|---------|
-| `task_check_price_drops` | Daily 08:00 PT | Check subscriptions, send alerts |
+| Task | Schedule | Purpose |
+|------|----------|---------|
+| `task_check_price_drops` | Daily 08:00 PT | Check subscriptions, send alerts, auto-pause on fire |
 | `task_refresh_apartment_data` | Daily 02:00 PT | Re-scrape all `is_available` apartments |
-
-**Phase 2 changes**: `task_refresh_apartment_data` becomes a dispatcher; actual work moves to `task_refresh_apartment_chunk` (50 apts/chunk, countdown-staggered). Only apartments with `next_refresh_at <= now()` get dispatched.
+| `task_daily_health_report` | Daily 09:00 PT | **(to add during Week 1 dogfood)** email admin summary |
 
 ---
 
 ## Auth & Security
 
-- JWT (HS256) via `python-jose`, 24h expiry, bcrypt passwords.
-- `require_admin` on all write endpoints + Google Maps import.
+- JWT (HS256), 24h expiry, bcrypt passwords.
+- `require_admin` on write endpoints + Google Maps import.
 - `get_current_user` on subscription endpoints, scoped to own `user_id`.
-- GET endpoints are public.
+- GET endpoints public.
 - Rate limits: write 10/min, auth 5/min, read 60/min, import 3/hr.
-- `JWT_SECRET_KEY` validator refuses to start in production with default value.
-- **Never commit `.env`**; `.env.example` is the template.
+- `JWT_SECRET_KEY` validator refuses default in production.
+- `unsubscribe_token` unguessable, per-subscription.
+- **⚠ B5 outstanding**: current `/auth/reset-password` accepts unauthenticated password change by email. Fix before dogfood.
 
 ---
 
 ## Scraper Compliance (hard rules)
 
-- **NEVER scrape Craigslist or other UGC/marketplace aggregators.** `Craigslist v. RadPad` (N.D. Cal. 2017) = $60.5M judgment.
-- **NEVER scrape behind login walls.**
-- **NEVER collect PII** (user emails, personal phone numbers, names).
-- **Only store factual data**: prices, sqft, bedrooms, availability, business phone, official listing URL.
-- **robots.txt must be checked before adding any new domain** (`ScrapeSiteRegistry.robots_txt_allows`).
-- **C&D protocol**: On any cease & desist, `is_active=False` on the registry row → delete all `Apartment` rows from that domain → respond within 48h → log in `ceased_reason`. See top-of-file docstring in `compliance.py`.
-- **User-Agent**: identify honestly. Do not impersonate Chrome to bypass bot detection.
-- **Rate limit**: 5s minimum between scrapes of the same domain.
+- NEVER scrape Craigslist or UGC aggregators (`Craigslist v. RadPad` $60.5M).
+- NEVER scrape behind login walls.
+- NEVER collect PII.
+- Only factual data: prices, sqft, bedrooms, availability, business phone, official URL, public amenity flags.
+- robots.txt checked before new domains (`ScrapeSiteRegistry.robots_txt_allows`).
+- C&D protocol in `compliance.py` header docstring.
+- 5s minimum between scrapes of same domain.
+
+### Content Replication
+
+- **Original-source images**: never stored or displayed.
+- **Google Places Photos** (deferred): allowed — Google hosts, we'd store references + "Powered by Google" attribution.
+- **Listing descriptions, HTML body, floor-plan artwork**: never stored.
+- Derived facts (price, sqft, bed/bath, amenity flags) are fine.
 
 ---
 
 ## Environment Variables
 
-See `.env.example`. Critical: `DATABASE_URL`, `JWT_SECRET_KEY` (must change for prod), `MINIMAX_API_KEY`, `GOOGLE_MAPS_API_KEY`, `REDIS_URL`, `SENDGRID_API_KEY`, `TELEGRAM_BOT_TOKEN`.
+Critical:
+- `DATABASE_URL`, `REDIS_URL`
+- `JWT_SECRET_KEY` (refused at startup if default)
+- `MINIMAX_API_KEY`, `GOOGLE_MAPS_API_KEY`
+- `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`
+- `TELEGRAM_BOT_TOKEN` (optional)
+- `APP_BASE_URL`
+- `DEFAULT_DEMO_CITY`
+- `CORS_ORIGINS` (must match frontend URL exactly, no wildcard with credentials)
 
 ---
 
 ## Development
 
 ```bash
-./start.sh                    # Docker full stack
+./start.sh                    # Docker full stack (6 services)
 ./start.sh local              # Local dev
-python seed_apartments.py     # Seed with 10 real apartments
-pytest tests/unit/ -v         # Unit tests (no network)
-pytest tests/integration/agentic_scraper/ -m "not integration" -v   # Scraper unit tests
-pytest tests/integration/agentic_scraper/ -m integration -v         # Live scraper (needs MINIMAX_API_KEY)
-alembic revision --autogenerate -m "description"                     # New migration
-alembic upgrade head                                                 # Apply
-ruff check backend/                                                  # Lint
+python seed_apartments.py --urls-file dev/my_apartments.txt   # Seed
+pytest tests/unit/ -v
+pytest tests/api/ -v
+pytest tests/integration/agentic_scraper/ -m "not integration" -v
+pytest tests/integration/agentic_scraper/ -m integration -v   # Live scraper, ~$0.10
+alembic revision --autogenerate -m "description"
+alembic upgrade head
+ruff check backend/
+python dev/cost_summary.py --days 7
+python dev/audit.py                                            # (after B1-B5)
 ```
 
 ---
 
 ## Coding Conventions
 
-- Python 3.11, type hints required on all public functions, SQLAlchemy 2.0 ORM syntax (`select(...)`).
-- Pydantic v2 (`model_dump`, `model_validate`, not `dict()`/`parse_obj`).
-- Endpoints organized by domain in folders, each with `core.py` + `__init__.py` router assembly.
+- Python 3.11, type hints on public functions, SQLAlchemy 2.0 ORM (`select(...)`).
+- Pydantic v2 (`model_dump`, `model_validate`).
+- Endpoints by domain folder, `core.py` + `__init__.py` router assembly.
 - Every write endpoint: `@limiter.limit(...)` + auth dependency.
-- Frontend: React functional + hooks, TypeScript strict, Tailwind.
-- Tests: pytest, `@pytest.mark.integration` for network tests.
-- Lint: ruff (`backend/ruff.toml`), 120-char lines.
+- Frontend: React functional + hooks, TypeScript strict, Tailwind, sonner toasts.
+- Tests: pytest, `@pytest.mark.integration` for network.
+- Lint: ruff, 120-char lines.
+- Migrations: one concept per migration, descriptive names.
 
 ---
 
-## Tech Debt (active)
+## Active Tech Debt
 
-1. **Scraper code duplication** between `backend/app/services/scraper_agent/` and `tests/integration/agentic_scraper/`. Consolidate to one location; tests should import from the service module.
-2. **Serial Celery refresh** (Phase 2 blocker #1 above).
-3. **Domain-only path cache key** (Phase 2 blocker #4 above).
-4. **15-keyword Google Maps discovery** (Phase 2 blocker #3 above).
-5. **No `ScrapeRun` table** — every scrape's metrics live in memory only; can't retrospectively analyze cost/quality drift.
-6. **No frontend map view** — listings are list-only; map view on the roadmap.
-7. **Mock adapter fallback in `api.ts`** should be deleted once Phase 2 backend is stable.
-
----
-
-## What's NOT Built
-
-1. ML price prediction (Prophet, XGBoost).
-2. "Best time to rent" seasonal analysis.
-3. Public data integration (ZORI, Apartment List, HUD FMR) for cross-validation.
-4. Crowdsourced actual lease prices.
-5. Geographic expansion beyond Bay Area.
-6. Adaptive refresh cadence (Phase 2).
-7. Content-hash short-circuit (Phase 2).
-8. Nightly cost/quality digest (Phase 2).
-9. Transparency dashboard for AB 325 regime-change detection (product positioning opportunity).
+1. **B1-B5 outstanding** (see top section).
+2. **Scraper code duplication** between `scraper_agent/` and `tests/integration/agentic_scraper/`.
+3. **`Plan.price` deprecated** but still populated by seed script — remove after confirming no read paths use it.
+4. **`ApartmentImage` table unused** — added for future image support; will repurpose or drop.
+5. **Cost log JSONL fallback** (legacy path in `cost_log.py`) — remove after `api_cost_log` proven stable in production.
+6. **`extract_all_units` capped at 15 floors** — insufficient for high-rise SF (NEMA 23 floors, Austin 42). Bump to 30.
 
 ---
 
 ## References
 
-- `.claude/instructions.md` — working rules for Claude Code on this repo.
+- `.claude/prompts.md` — copy-paste prompts for B1-B5 fixes + dogfood + post-dogfood work.
 - `backend/app/services/scraper_agent/compliance.py` — legal context, C&D protocol, case citations.
-- `CLAUDE.md` (this file) — living project doc; update it when architecture changes.
+- `docs/dogfood-papercuts.md` — active UX log during dogfood.
+- `dev/cost_summary.py` — API spend observability.
+- `dev/audit.py` (to be added) — plan data-quality SQL audit.

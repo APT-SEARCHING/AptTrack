@@ -1,15 +1,16 @@
 from typing import List
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
 from app.core.limiter import limiter
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.apartment import Apartment
 from app.models.favorite import ApartmentFavorite
 from app.models.user import User
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/favorites", tags=["favorites"])
 

@@ -3,14 +3,15 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
 from app.core.limiter import limiter
 from app.core.security import require_admin
 from app.db.session import get_db
 from app.models.user import User
 from app.services.google_maps import GoogleMapsService
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -114,6 +115,7 @@ async def _import_background_task(location: str, db: Session, task_id: str) -> N
         # Pre-load cached Place Details from GooglePlaceRaw — avoids re-paying
         # for Place Details ($7/1K Pro) on places already fetched in a prior import.
         from sqlalchemy import select as sa_select
+
         from app.models.google_place import GooglePlaceRaw
         cached_details: dict = {}
         for row in db.execute(sa_select(GooglePlaceRaw)).scalars().all():

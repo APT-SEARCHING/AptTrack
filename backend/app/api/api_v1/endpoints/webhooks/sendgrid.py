@@ -61,7 +61,6 @@ def _verify_sendgrid_signature(
     Signature = base64-decoded ECDSA-P256 signature over SHA-256 of message.
     """
     try:
-        from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric.ec import ECDSA
         from cryptography.hazmat.primitives.serialization import load_pem_public_key

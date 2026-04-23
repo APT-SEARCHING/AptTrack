@@ -5,9 +5,10 @@ See ``backend/app/services/scraper_agent/compliance.py`` for the robots.txt
 checker and the Cease & Desist response protocol.
 """
 
-from app.db.base_class import Base
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
+
+from app.db.base_class import Base
 
 
 class ScrapeSiteRegistry(Base):
