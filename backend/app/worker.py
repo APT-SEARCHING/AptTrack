@@ -284,6 +284,8 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
         from app.services.scraper_agent.content_hash import compute_content_hash
 
         t_start = time.monotonic()
+        original_url = url          # preserved for ScrapeRun.url regardless of redirect
+        effective_url: Optional[str] = None  # set when corporate redirect fires
         db = _SessionLocal()
         try:
             domain = urlparse(url).netloc.lower()
@@ -305,9 +307,55 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                 return
 
             # ------------------------------------------------------------------
+            # Negative-path cache check — skip URLs that have repeatedly failed
+            # until their exponential backoff window expires.
+            # ------------------------------------------------------------------
+            from app.services.scraper_agent.negative_cache import (
+                clear as _neg_clear,
+                record_failure as _neg_record,
+                should_skip as _neg_should_skip,
+            )
+            neg = _neg_should_skip(original_url, db)
+            if neg is not None:
+                elapsed = time.monotonic() - t_start
+                logger.info(
+                    "apt %d: negative cache hit (%s, attempt #%d) — retry_after %s",
+                    apt_id, neg.last_reason, neg.attempt_count,
+                    neg.retry_after.date().isoformat(),
+                )
+                _write_scrape_run(db, apt_id, original_url, ScrapeRun(
+                    apartment_id=apt_id,
+                    url=original_url,
+                    outcome="skipped_negative_cache",
+                    elapsed_sec=elapsed,
+                ))
+                return
+
+            # ------------------------------------------------------------------
+            # Corporate-parent redirect
+            # Brand-front subdomains (e.g. 121tasman.com) serve JS placeholders.
+            # When corporate_parent_url is set we scrape the corporate page
+            # instead.  original_url is preserved for ScrapeRun.url; the
+            # rebound `url` propagates to all downstream code automatically.
+            # If the corporate URL is unreachable we fall back to original_url
+            # so the LLM agent can still attempt the brand-front site.
+            # ------------------------------------------------------------------
+            if registry.corporate_parent_url:
+                effective_url = registry.corporate_parent_url
+                url = registry.corporate_parent_url
+                logger.info(
+                    "apt %d: corporate redirect %s → %s (%s)",
+                    apt_id,
+                    original_url,
+                    url,
+                    registry.corporate_platform or "unknown",
+                )
+
+            # ------------------------------------------------------------------
             # Phase 1: content-hash short-circuit (no browser, no LLM)
             # ------------------------------------------------------------------
             new_hash: Optional[str] = None
+            _corporate_get_ok: bool = True
             try:
                 timeout = aiohttp.ClientTimeout(total=10)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -315,11 +363,26 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                         if resp.status == 200:
                             html = await resp.text(errors="replace")
                             new_hash = compute_content_hash(html)
+                        elif effective_url:
+                            _corporate_get_ok = False
             except Exception as exc:
                 logger.warning(
                     "Content-hash GET failed for apt %d (%s): %s — proceeding to scrape",
                     apt_id, url, exc,
                 )
+                if effective_url:
+                    _corporate_get_ok = False
+
+            # If corporate redirect target is unreachable, fall back to the
+            # original brand-front URL for Phase 2 so we don't silently drop
+            # the apartment from the scrape cycle.
+            if effective_url and not _corporate_get_ok:
+                logger.warning(
+                    "apt %d: corporate parent %s unreachable — falling back to original %s",
+                    apt_id, url, original_url,
+                )
+                url = original_url
+                effective_url = None
 
             if new_hash is not None:
                 apt = db.execute(
@@ -334,14 +397,16 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                         "apt %d: content unchanged — prices carried forward, $0.00",
                         apt_id,
                     )
-                    _write_scrape_run(db, apt_id, url, ScrapeRun(
+                    _write_scrape_run(db, apt_id, original_url, ScrapeRun(
                         apartment_id=apt_id,
-                        url=url,
+                        url=original_url,
+                        effective_url=effective_url,
                         outcome="content_unchanged",
                         content_hash_short_circuit=True,
                         elapsed_sec=elapsed,
                     ))
-                    _log_scraper_cost(apt_id, url, "cache_hit", 0, 0, 0.0, db)
+                    _log_scraper_cost(apt_id, original_url, "cache_hit", 0, 0, 0.0, db)
+                    _neg_clear(original_url, db)
                     return
 
             # ------------------------------------------------------------------
@@ -355,13 +420,15 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                 except Exception as exc:
                     elapsed = time.monotonic() - t_start
                     logger.error("Failed to scrape apartment %d (%s): %s", apt_id, url, exc)
-                    _write_scrape_run(db, apt_id, url, ScrapeRun(
+                    _write_scrape_run(db, apt_id, original_url, ScrapeRun(
                         apartment_id=apt_id,
-                        url=url,
+                        url=original_url,
+                        effective_url=effective_url,
                         outcome="hard_fail",
                         elapsed_sec=elapsed,
                         error_message=str(exc)[:1000],
                     ))
+                    _neg_record(original_url, "hard_fail", db)
                     return
 
                 elapsed = time.monotonic() - t_start
@@ -383,9 +450,10 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                     "apt %d: outcome=%s, %d tok, $%.4f",
                     apt_id, outcome, metrics.total_tokens, metrics.total_cost_usd,
                 )
-                _write_scrape_run(db, apt_id, url, ScrapeRun(
+                _write_scrape_run(db, apt_id, original_url, ScrapeRun(
                     apartment_id=apt_id,
-                    url=url,
+                    url=original_url,
+                    effective_url=effective_url,
                     outcome=outcome,
                     path_cache_hit=metrics.cache_hit,
                     content_hash_short_circuit=False,
@@ -396,6 +464,14 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                     cost_usd=metrics.total_cost_usd,
                     elapsed_sec=elapsed,
                 ))
+                from app.services.scraper_agent.negative_cache import (
+                    SUCCESS_OUTCOMES as _NEG_SUCCESS,
+                    FAILURE_OUTCOMES as _NEG_FAIL,
+                )
+                if outcome in _NEG_SUCCESS:
+                    _neg_clear(original_url, db)
+                elif outcome in _NEG_FAIL:
+                    _neg_record(original_url, outcome, db)
                 _log_scraper_cost(
                     apt_id, url,
                     "cache_hit" if metrics.cache_hit else outcome,
@@ -411,13 +487,19 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
         except Exception as exc:
             elapsed = time.monotonic() - t_start
             logger.error("Failed to scrape apartment %d (%s): %s", apt_id, url, exc)
-            _write_scrape_run(db, apt_id, url, ScrapeRun(
+            _write_scrape_run(db, apt_id, original_url, ScrapeRun(
                 apartment_id=apt_id,
-                url=url,
+                url=original_url,
+                effective_url=effective_url if effective_url != original_url else None,
                 outcome="hard_fail",
                 elapsed_sec=elapsed,
                 error_message=str(exc)[:1000],
             ))
+            try:
+                from app.services.scraper_agent.negative_cache import record_failure as _nr
+                _nr(original_url, "hard_fail", db)
+            except Exception:
+                pass
         finally:
             db.close()
 

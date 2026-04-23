@@ -70,6 +70,22 @@ class ScrapeSiteRegistry(Base):
         comment="e.g. 'C&D received 2026-05-01', 'robots.txt disallow added'",
     )
 
+    # Corporate platform redirect — for brand-front subdomains (e.g. 121tasman.com → greystar.com)
+    corporate_parent_url = Column(
+        String,
+        nullable=True,
+        comment=(
+            "Corporate platform URL to scrape instead of this domain. "
+            "Set via dev/set_corporate_parent.py."
+        ),
+    )
+    corporate_platform = Column(
+        String(32),
+        nullable=True,
+        comment="Platform tag matching a PlatformAdapter name, e.g. 'greystar'",
+    )
+    corporate_parent_set_at = Column(DateTime(timezone=True), nullable=True)
+
     # Audit timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

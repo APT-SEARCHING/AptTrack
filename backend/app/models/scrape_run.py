@@ -2,12 +2,14 @@
 
 Outcome values
 --------------
-``success``           agent or path-cache replay returned ≥1 floor plan
-``validated_fail``    scrape completed without error but returned 0 plans
-``hard_fail``         exception raised during scrape
-``content_unchanged`` content-hash short-circuit — prices carried forward
-``cache_hit``         path-cache replay succeeded (subset of success)
-``stale``             reserved for future forced-retry logic
+``success``                  agent or path-cache replay returned ≥1 floor plan
+``validated_fail``           scrape completed without error but returned 0 plans
+``hard_fail``                exception raised during scrape
+``content_unchanged``        content-hash short-circuit — prices carried forward
+``cache_hit``                path-cache replay succeeded (subset of success)
+``platform_direct``          platform adapter short-circuit (0 LLM cost)
+``skipped_negative_cache``   URL is within its negative-cache suppression window
+``stale``                    reserved for future forced-retry logic
 """
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
@@ -33,7 +35,12 @@ class ScrapeRun(Base):
         nullable=False,
         comment="When this scrape attempt started",
     )
-    url = Column(String, nullable=False, comment="URL that was scraped")
+    url = Column(String, nullable=False, comment="Apartment's registered URL (original, pre-redirect)")
+    effective_url = Column(
+        String,
+        nullable=True,
+        comment="Actual URL scraped when a corporate_parent_url redirect fired; NULL if no redirect",
+    )
 
     # Outcome
     outcome = Column(
