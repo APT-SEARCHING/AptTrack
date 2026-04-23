@@ -25,6 +25,7 @@ def _build_registry() -> List[PlatformAdapter]:
     from .greystar import GreystarAdapter
     from .jonah_digital import JonahDigitalAdapter
     from .leasingstar import LeasingStarAdapter
+    from .rentcafe import RentCafeAdapter
     from .sightmap import SightMapAdapter
     from .windsor import WindsorAdapter
 
@@ -36,6 +37,7 @@ def _build_registry() -> List[PlatformAdapter]:
         LeasingStarAdapter(),     # before SightMap: RealPage/LeaseStar sites may also embed SightMap widgets
         SightMapAdapter(),
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
+        RentCafeAdapter(),        # Yardi RentCafe; static GA4 data on /floorplans subpage
         GenericDetailPageAdapter(),
     ]
 
