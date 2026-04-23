@@ -25,6 +25,7 @@ from openai import AsyncOpenAI
 
 from .browser_tools import BrowserSession
 from .models import ApartmentData, FloorPlan
+from .platforms.registry import try_platforms
 
 load_dotenv()
 
@@ -456,6 +457,28 @@ TOOLS = [
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _derive_name_from_html(html: str, url: str) -> str:
+    """Extract a human-readable apartment name from the homepage HTML.
+
+    Strategy: <title> text before the first '|' and '-' separator, then
+    fallback to <h1>, then the raw URL.  Used by platform adapters after
+    a successful fast-path extraction to populate ApartmentData.name.
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    title_tag = soup.find("title")
+    if title_tag:
+        name = title_tag.get_text(strip=True).split("|")[0].split("-")[0].strip()
+        if name:
+            return name
+    h1 = soup.find("h1")
+    if h1:
+        name = h1.get_text(strip=True)
+        if name:
+            return name
+    return url
+
+
 def _sanitize(data: Optional[ApartmentData]) -> Optional[ApartmentData]:
     """Remove prices that look like they were copied from a global filter slider."""
     if data is None:
@@ -769,130 +792,26 @@ class ApartmentAgent:
                 except Exception as _exc:
                     logger.warning("Apartment website check failed: %s — continuing", _exc)
 
-            # ── Platform pre-check: Jonah Digital fast path ──────────────────
-            # Jonah Digital sites render floor-plan cards in a JS widget; the
-            # LLM loop never calls extract_all_units because there is nothing
-            # obviously clickable in the initial page state.  We detect the
-            # platform via static HTML after the first navigation and bypass the
-            # ReAct loop entirely.
-            try:
-                import aiohttp as _aiohttp
-
-                from .browser_tools import (
-                    _extract_jonah_digital_hrefs,
-                    _fetch_jonah_digital_plans,
-                    _is_jonah_digital,
+            # ── Platform pre-checks (Jonah Digital / FatWin / SightMap) ─────────
+            # Registered adapters are tried in order; the first that both detects
+            # the platform and returns units short-circuits the ReAct loop entirely
+            # (0 LLM calls).  New platforms are added via the adapter registry —
+            # no changes needed here.  See scraper_agent/platforms/.
+            _platform_result = await try_platforms(_html, url, browser)
+            if _platform_result is not None:
+                _pt_units, _pt_name = _platform_result
+                _pt_data = _parse_units_to_apartment_data(
+                    _pt_units, _derive_name_from_html(_html, url), url
                 )
-
-                if _html and _is_jonah_digital(_html):
-                    _hrefs = _extract_jonah_digital_hrefs(_html, url)
-                    if _hrefs:
-                        async with _aiohttp.ClientSession(
-                            connector=_aiohttp.TCPConnector(ssl=False),
-                            headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
-                        ) as _sess2:
-                            _jd_units = await _fetch_jonah_digital_plans(_hrefs, _sess2)
-                        if _jd_units:
-                            # Extract complex name from page <title> or <h1>
-                            from bs4 import BeautifulSoup as _BS
-                            _soup = _BS(_html, "html.parser")
-                            _name = ""
-                            _title = _soup.find("title")
-                            if _title:
-                                _name = _title.get_text(strip=True).split("|")[0].split("-")[0].strip()
-                            if not _name:
-                                _h1 = _soup.find("h1")
-                                if _h1:
-                                    _name = _h1.get_text(strip=True)
-                            _name = _name or url
-
-                            _jd_data = _parse_units_to_apartment_data(_jd_units, _name, url)
-                            if _jd_data and _jd_data.floor_plans:
-                                metrics.outcome = "platform_direct"
-                                metrics.iterations = 0
-                                metrics.elapsed_sec = time.monotonic() - t0
-                                logger.info(
-                                    "Jonah Digital fast path — %d plans, $0.00, %.1fs",
-                                    len(_jd_data.floor_plans), metrics.elapsed_sec,
-                                )
-                                return _sanitize(_jd_data), metrics
-            except Exception as _exc:
-                logger.warning("Jonah Digital pre-check failed: %s — falling through to agent", _exc)
-
-            # ── Platform pre-check: FatWin fast path ─────────────────────────
-            try:
-                import aiohttp as _aiohttp
-
-                from .browser_tools import (
-                    _extract_fatwin_hrefs,
-                    _fetch_fatwin_plans,
-                    _is_fatwin,
-                )
-
-                if _html and _is_fatwin(_html):
-                    _hrefs = _extract_fatwin_hrefs(_html, url)
-                    if _hrefs:
-                        async with _aiohttp.ClientSession(
-                            connector=_aiohttp.TCPConnector(ssl=False),
-                            headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
-                        ) as _sess2:
-                            _fw_units = await _fetch_fatwin_plans(_hrefs, _sess2)
-                        if _fw_units:
-                            from bs4 import BeautifulSoup as _BS
-                            _soup = _BS(_html, "html.parser")
-                            _name = ""
-                            _title = _soup.find("title")
-                            if _title:
-                                _name = _title.get_text(strip=True).split("|")[0].strip()
-                            _name = _name or url
-                            _fw_data = _parse_units_to_apartment_data(_fw_units, _name, url)
-                            if _fw_data and _fw_data.floor_plans:
-                                metrics.outcome = "platform_direct"
-                                metrics.iterations = 0
-                                metrics.elapsed_sec = time.monotonic() - t0
-                                logger.info(
-                                    "FatWin fast path — %d plans, $0.00, %.1fs",
-                                    len(_fw_data.floor_plans), metrics.elapsed_sec,
-                                )
-                                return _sanitize(_fw_data), metrics
-            except Exception as _exc:
-                logger.warning("FatWin pre-check failed: %s — falling through to agent", _exc)
-
-            # ── Platform pre-check: SightMap direct-navigate ─────────────────
-            # SightMap embed URL is in static HTML. Navigate Playwright directly
-            # to the embed URL and call extract_all_units — bypasses unreliable
-            # wrapper CMS interactions (G5 DXM, etc.) without any LLM calls.
-            try:
-                from .browser_tools import _extract_sightmap_embed_url
-
-                _sm_embed_url = _extract_sightmap_embed_url(_html) if _html else None
-                if _sm_embed_url:
-                    logger.info("SightMap embed detected: %s — navigating directly", _sm_embed_url)
-                    _sm_state = await browser.navigate_to(_sm_embed_url)
-                    if not _sm_state.get("error"):
-                        await asyncio.sleep(3)  # let the SightMap widget initialise
-                        _sm_result = await browser.extract_all_units()
-                        _sm_units = _sm_result.get("units", [])
-                        if _sm_units:
-                            from bs4 import BeautifulSoup as _BS
-                            _soup = _BS(_html, "html.parser")
-                            _name = ""
-                            _title = _soup.find("title")
-                            if _title:
-                                _name = _title.get_text(strip=True).split("|")[0].split("-")[0].strip()
-                            _name = _name or url
-                            _sm_data = _parse_units_to_apartment_data(_sm_units, _name, url)
-                            if _sm_data and _sm_data.floor_plans:
-                                metrics.outcome = "platform_direct"
-                                metrics.iterations = 0
-                                metrics.elapsed_sec = time.monotonic() - t0
-                                logger.info(
-                                    "SightMap direct path — %d plans, $0.00, %.1fs",
-                                    len(_sm_data.floor_plans), metrics.elapsed_sec,
-                                )
-                                return _sanitize(_sm_data), metrics
-            except Exception as _exc:
-                logger.warning("SightMap pre-check failed: %s — falling through to agent", _exc)
+                if _pt_data and _pt_data.floor_plans:
+                    metrics.outcome = "platform_direct"
+                    metrics.iterations = 0
+                    metrics.elapsed_sec = time.monotonic() - t0
+                    logger.info(
+                        "Platform '%s' → %d plans, $0.00, %.1fs",
+                        _pt_name, len(_pt_data.floor_plans), metrics.elapsed_sec,
+                    )
+                    return _sanitize(_pt_data), metrics
 
             # ── 1.3: try cached path first ───────────────────────────────────
             cache_entry = load_path(url)
