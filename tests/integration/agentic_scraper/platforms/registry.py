@@ -24,6 +24,7 @@ def _build_registry() -> List[PlatformAdapter]:
     from .generic_detail import GenericDetailPageAdapter
     from .greystar import GreystarAdapter
     from .jonah_digital import JonahDigitalAdapter
+    from .leasingstar import LeasingStarAdapter
     from .sightmap import SightMapAdapter
     from .windsor import WindsorAdapter
 
@@ -32,6 +33,7 @@ def _build_registry() -> List[PlatformAdapter]:
         FatWinAdapter(),
         AvalonBayAdapter(),       # before SightMap: Avalon pages embed SightMap iframes but data is in Fusion.globalContent
         WindsorAdapter(),         # Spaces/Nestio; 2 Windsor properties
+        LeasingStarAdapter(),     # before SightMap: RealPage/LeaseStar sites may also embed SightMap widgets
         SightMapAdapter(),
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
         GenericDetailPageAdapter(),

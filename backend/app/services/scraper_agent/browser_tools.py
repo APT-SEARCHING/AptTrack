@@ -378,13 +378,26 @@ async def _fetch_fatwin_plans(
 # The embed URL is present in the outer page's static HTML.  By navigating
 # Playwright directly to this URL we bypass unreliable wrapper CMS interactions.
 
-_SIGHTMAP_EMBED_RE = re.compile(r'https://sightmap\.com/embed/(\w+)', re.I)
+# (\w+) must be ≥6 chars to exclude `api` from `sightmap.com/embed/api.js`
+_SIGHTMAP_EMBED_RE = re.compile(r'https://sightmap\.com/embed/([a-z0-9]{6,})', re.I)
+# Shea Apartments pattern: engrain_id="yzvgdo6zvln" in HTML attribute
+_SIGHTMAP_ENGRAIN_RE = re.compile(r'engrain[_-]?id=["\']([a-z0-9]{6,})["\']', re.I)
 
 
 def _extract_sightmap_embed_url(html: str) -> Optional[str]:
-    """Return the full SightMap embed URL if found in *html*, else None."""
+    """Return the full SightMap embed URL if found in *html*, else None.
+
+    Handles two embed patterns:
+    - Direct iframe/link: ``https://sightmap.com/embed/XXXX``
+    - Shea/Engrain attribute: ``engrain_id="XXXX"`` (widget configured in JS)
+    """
     m = _SIGHTMAP_EMBED_RE.search(html)
-    return m.group(0) if m else None
+    if m:
+        return m.group(0)
+    m = _SIGHTMAP_ENGRAIN_RE.search(html)
+    if m:
+        return f"https://sightmap.com/embed/{m.group(1)}"
+    return None
 
 
 class BrowserSession:
@@ -582,13 +595,16 @@ class BrowserSession:
 
             found: list[dict] = []
             import re
-            # SightMap pattern: "HOME XXXX\nPlanName\nN Bed / N Bath / NNN sq. ft.\nAvailability\n$X,XXX /mo*"
-            blocks = re.split(r"\n(?=HOME\s+\w+)", text)
+            # SightMap patterns:
+            #   Standard:  "HOME XXXX\nPlanName\nN Bed / N Bath / NNN sq. ft.\n..."
+            #   Engrain:   "APT XXXX\nPlan 1F\n1 Bed / 1 Bath / 841 sq. ft.\n...\n$3,774"
+            _UNIT_HEADER_RE = re.compile(r"^(?:HOME|APT)\s+\w+")
+            blocks = re.split(r"\n(?=(?:HOME|APT)\s+\w+)", text)
             for block in blocks:
                 lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-                if not lines or not re.match(r"HOME\s+\w+", lines[0]):
+                if not lines or not _UNIT_HEADER_RE.match(lines[0]):
                     continue
-                unit_no = re.sub(r"^HOME\s+", "", lines[0])
+                unit_no = re.sub(r"^(?:HOME|APT)\s+", "", lines[0])
                 unit: dict = {"unit_number": unit_no}
                 for line in lines[1:]:
                     # Plan name — first line that passes all filters
@@ -598,7 +614,7 @@ class BrowserSession:
                                 and not re.search(r"\$|\d+\s*Bed|sq\.?\s*ft|waitlist", stripped, re.I)
                                 and stripped.lower() not in _UI_VERB_BLACKLIST
                                 and _PLAN_NAME_REGEX.match(stripped)
-                                and not stripped.upper().startswith("HOME ")):
+                                and not _UNIT_HEADER_RE.match(stripped.upper())):
                             unit["plan_name"] = stripped
                     # Studio detection (must precede bed-count regex)
                     if "bedrooms" not in unit and re.search(r"\bstudio\b", line, re.I):
@@ -621,13 +637,16 @@ class BrowserSession:
                     # Availability
                     if re.search(r"available|waitlist", line, re.I):
                         unit["availability"] = line
-                    # Price — prefer "Base Rent $X,XXX" over total monthly
+                    # Price — prefer "Base Rent $X,XXX", then "$X,XXX /mo", then bare "$X,XXX"
                     m_base = re.search(r"Base Rent\s+\$?([\d,]+)", line, re.I)
                     m_price = re.search(r"\$([\d,]+)\s*/mo", line, re.I)
+                    m_bare = re.match(r"^\$([\d,]+)$", line.strip())
                     if m_base:
                         unit["price"] = int(m_base.group(1).replace(",", ""))
                     elif m_price and "price" not in unit:
                         unit["price"] = int(m_price.group(1).replace(",", ""))
+                    elif m_bare and "price" not in unit:
+                        unit["price"] = int(m_bare.group(1).replace(",", ""))
                 found.append(unit)
             return found
 
@@ -645,8 +664,8 @@ class BrowserSession:
             soup = BeautifulSoup(html, "html.parser")
             import re
             text = soup.get_text(separator="\n", strip=True)
-            # Find lines like "3\n2 HOMES" or "5\n1 Home"
-            floor_matches = re.findall(r"(\d{1,2})\n(\d+)\s+Home", text, re.I)
+            # Find lines like "3\n2 HOMES", "5\n1 Home", or "3\n7 Units" (Engrain variant)
+            floor_matches = re.findall(r"(\d{1,2})\n(\d+)\s+(?:Home|Unit)", text, re.I)
             non_empty_floors = sorted(int(f) for f, n in floor_matches if int(n) > 0)
         except Exception:
             non_empty_floors = []
