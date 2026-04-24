@@ -64,28 +64,30 @@ def get_apartments(
     if is_available is not None:
         stmt = stmt.where(Apartment.is_available == is_available)
 
-    # Plan-level filters: join once if any are needed, then .distinct()
-    plan_filters = [min_bedrooms, max_bedrooms, min_price, max_price, min_sqft, max_sqft, available_before]
-    if any(f is not None for f in plan_filters):
-        stmt = stmt.join(Plan)
-        if min_bedrooms is not None:
-            stmt = stmt.where(Plan.bedrooms >= min_bedrooms)
-        if max_bedrooms is not None:
-            stmt = stmt.where(Plan.bedrooms <= max_bedrooms)
-        if min_price is not None:
-            stmt = stmt.where(Plan.price >= min_price)
-        if max_price is not None:
-            stmt = stmt.where(Plan.price <= max_price)
-        if min_sqft is not None:
-            stmt = stmt.where(Plan.area_sqft >= min_sqft)
-        if max_sqft is not None:
-            stmt = stmt.where(Plan.area_sqft <= max_sqft)
-        if available_before is not None:
-            stmt = stmt.where(
-                Plan.available_from.isnot(None),
-                Plan.available_from <= available_before,
-            )
-        stmt = stmt.distinct()
+    # Plan-level filters: use a subquery (WHERE id IN ...) rather than JOIN+DISTINCT.
+    # JOIN+DISTINCT conflicts with the price-sort ORDER BY because PostgreSQL requires
+    # ORDER BY columns to appear in the SELECT list when DISTINCT is used.
+    plan_filter_clauses = []
+    if min_bedrooms is not None:
+        plan_filter_clauses.append(Plan.bedrooms >= min_bedrooms)
+    if max_bedrooms is not None:
+        plan_filter_clauses.append(Plan.bedrooms <= max_bedrooms)
+    if min_price is not None:
+        plan_filter_clauses.append(Plan.price >= min_price)
+    if max_price is not None:
+        plan_filter_clauses.append(Plan.price <= max_price)
+    if min_sqft is not None:
+        plan_filter_clauses.append(Plan.area_sqft >= min_sqft)
+    if max_sqft is not None:
+        plan_filter_clauses.append(Plan.area_sqft <= max_sqft)
+    if available_before is not None:
+        plan_filter_clauses.extend([
+            Plan.available_from.isnot(None),
+            Plan.available_from <= available_before,
+        ])
+    if plan_filter_clauses:
+        plan_subq = select(Plan.apartment_id).where(*plan_filter_clauses).subquery()
+        stmt = stmt.where(Apartment.id.in_(select(plan_subq.c.apartment_id)))
 
     # price_asc / price_desc: sort by the minimum available plan price for each
     # apartment.  Apartments with no priced plans sort last (NULLs last).

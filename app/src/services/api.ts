@@ -369,10 +369,13 @@ async function getMockListings(filters: ListingsFilter): Promise<Listing[]> {
 
 const api = {
   async getApartments(filters: ListingsFilter = {}): Promise<ApartmentSummary[]> {
+    // "Studio" means exactly 0 bedrooms → send max_bedrooms=0 (not min_bedrooms=0 which matches all)
+    const isStudio = filters.bedrooms === 0;
     const params = {
       min_price: filters.min_price,
       max_price: filters.max_price,
-      min_bedrooms: filters.bedrooms,
+      min_bedrooms: isStudio ? undefined : filters.bedrooms,
+      max_bedrooms: isStudio ? 0 : undefined,
       skip: filters.skip ?? 0,
       limit: filters.limit ?? 100,
       sort: filters.sort ?? 'price_asc',
