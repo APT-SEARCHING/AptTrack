@@ -23,6 +23,26 @@ _UI_VERB_BLACKLIST = frozenset({
 
 _PLAN_NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z0-9\s\-\/\.]{1,40}$")
 
+# ---------------------------------------------------------------------------
+# Price regexes (keep in sync with browser_tools)
+# ---------------------------------------------------------------------------
+
+_BASE_RENT_BEFORE_RE = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)\s+Base\s+Rent", re.I)
+_BASE_RENT_AFTER_RE  = re.compile(r"Base\s+Rent\s+\$?\s*([\d,]+(?:\.\d{1,2})?)", re.I)
+_MO_PRICE_RE         = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)\s*(?:/|\s+per\s+)\s*mo", re.I)
+_STANDALONE_PRICE_RE = re.compile(r"^\$\s*([\d,]+(?:\.\d{1,2})?)\s*$")
+_FLOOR_RE            = re.compile(r"(\d{1,2})\n(\d+)\s+(?:Home|Unit|Apt)s?", re.I)
+
+
+def _parse_price(s: str):
+    try:
+        val = float(s.replace(",", ""))
+        if 500 <= val <= 25_000:
+            return val
+    except ValueError:
+        pass
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Parser replicated from browser_tools._scrape_visible_units
@@ -31,13 +51,14 @@ _PLAN_NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z0-9\s\-\/\.]{1,40}$")
 
 def _parse_sightmap_text(text: str) -> List[dict]:
     """Parse SightMap-style text into a list of unit dicts."""
-    blocks = re.split(r"\n(?=HOME\s+\w+)", text)
+    _UNIT_HEADER_RE = re.compile(r"^(?:HOME|APT)\s+\w+")
+    blocks = re.split(r"\n(?=(?:HOME|APT)\s+\w+)", text)
     found: list[dict] = []
     for block in blocks:
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        if not lines or not re.match(r"HOME\s+\w+", lines[0]):
+        if not lines or not _UNIT_HEADER_RE.match(lines[0]):
             continue
-        unit_no = re.sub(r"^HOME\s+", "", lines[0])
+        unit_no = re.sub(r"^(?:HOME|APT)\s+", "", lines[0])
         unit: dict = {"unit_number": unit_no}
         for line in lines[1:]:
             # Plan name — first line that passes all filters
@@ -47,7 +68,7 @@ def _parse_sightmap_text(text: str) -> List[dict]:
                         and not re.search(r"\$|\d+\s*Bed|sq\.?\s*ft|waitlist", stripped, re.I)
                         and stripped.lower() not in _UI_VERB_BLACKLIST
                         and _PLAN_NAME_REGEX.match(stripped)
-                        and not stripped.upper().startswith("HOME ")):
+                        and not _UNIT_HEADER_RE.match(stripped.upper())):
                     unit["plan_name"] = stripped
             # Studio detection (must precede bed-count regex)
             if "bedrooms" not in unit and re.search(r"\bstudio\b", line, re.I):
@@ -70,15 +91,37 @@ def _parse_sightmap_text(text: str) -> List[dict]:
             # Availability
             if re.search(r"available|waitlist", line, re.I):
                 unit["availability"] = line
-            # Price — prefer "Base Rent $X,XXX" over total monthly
-            m_base = re.search(r"Base Rent\s+\$?([\d,]+)", line, re.I)
-            m_price = re.search(r"\$([\d,]+)\s*/mo", line, re.I)
-            if m_base:
-                unit["price"] = int(m_base.group(1).replace(",", ""))
-            elif m_price and "price" not in unit:
-                unit["price"] = int(m_price.group(1).replace(",", ""))
+
+        # Price — three passes: Base Rent preferred, then /mo total, then bare $
+        price = None
+        for ln in lines[1:]:
+            _m = _BASE_RENT_BEFORE_RE.search(ln) or _BASE_RENT_AFTER_RE.search(ln)
+            if _m:
+                price = _parse_price(_m.group(1))
+                break
+        if price is None:
+            for ln in lines[1:]:
+                _m = _MO_PRICE_RE.search(ln)
+                if _m:
+                    price = _parse_price(_m.group(1))
+                    break
+        if price is None:
+            for ln in lines[1:]:
+                _m = _STANDALONE_PRICE_RE.match(ln.strip())
+                if _m:
+                    price = _parse_price(_m.group(1))
+                    break
+        if price is not None:
+            unit["price"] = price
+
         found.append(unit)
     return found
+
+
+def _floor_buttons(text: str) -> list[int]:
+    """Replicate the floor-button detection regex from extract_all_units."""
+    matches = _FLOOR_RE.findall(text)
+    return sorted(int(f) for f, n in matches if int(n) > 0)
 
 
 # ---------------------------------------------------------------------------
@@ -341,3 +384,80 @@ def test_dollar_line_not_plan_name():
     )
     units = _parse_sightmap_text(text)
     assert units[0].get("plan_name") == "Plan I3"
+
+
+# ---------------------------------------------------------------------------
+# New tests: Revela/decimal price formats + floor button variants
+# ---------------------------------------------------------------------------
+
+def test_revela_price_base_rent_preferred():
+    """Base Rent line wins over /mo* total when both present (Revela format)."""
+    block = (
+        "APT 1103\nRevela Floorplan Studio 0-1A\n"
+        "Studio / 1 Bath / 514 sq. ft.\n14 Months\nAvailable Now\n"
+        "$3,445.12 /mo*\n$3,412 Base Rent\n"
+    )
+    units = _parse_sightmap_text(block)
+    assert len(units) == 1
+    assert units[0]["price"] == 3412.0
+
+
+def test_decimal_mo_only():
+    """$X,XXX.XX /mo* with no Base Rent line → use the decimal /mo price."""
+    block = "APT 101\nPlan A\n1 Bed / 1 Bath / 600 sq. ft.\nAvailable Now\n$3,200.50 /mo*\n"
+    units = _parse_sightmap_text(block)
+    assert units[0]["price"] == 3200.5
+
+
+def test_integer_mo_only():
+    """$X,XXX /mo* (integer, no decimal) — back-compat with existing sites."""
+    block = "HOME A201\nPlan A2\n1 Bed / 1 Bath / 680 sq. ft.\nAvailable 6/16\n$3,100 /mo*\n"
+    units = _parse_sightmap_text(block)
+    assert units[0]["price"] == 3100.0
+
+
+def test_bare_dollar_line():
+    """Bare $X,XXX line (last-resort pattern) is captured."""
+    block = "HOME Z999\nPlan Z\n2 Bed / 2 Bath / 900 sq. ft.\nAvailable Now\n$3,200\n"
+    units = _parse_sightmap_text(block)
+    assert units[0]["price"] == 3200.0
+
+
+def test_floor_regex_apt_singular():
+    """APTS / APT suffixes are matched by the updated floor regex."""
+    text = "1\n5 APTS\n2\n4 APTS\n3\n3 APTS\n4\n1 APT"
+    assert _floor_buttons(text) == [1, 2, 3, 4]
+
+
+def test_floor_regex_home_back_compat():
+    """Original 'Homes' variant still matches."""
+    text = "1\n5 Homes\n2\n3 Homes"
+    assert _floor_buttons(text) == [1, 2]
+
+
+def test_floor_regex_unit_back_compat():
+    """Original 'Units' variant still matches."""
+    text = "1\n5 Units"
+    assert _floor_buttons(text) == [1]
+
+
+def test_price_clamp_too_low():
+    """Price below $500 is rejected (not a valid rent)."""
+    block = "HOME X1\nPlan X\n1 Bed / 1 Bath / 500 sq. ft.\nAvailable Now\n$100 /mo\n"
+    units = _parse_sightmap_text(block)
+    assert units[0].get("price") is None
+
+
+def test_price_clamp_too_high():
+    """Price above $25,000 is rejected."""
+    block = "HOME X2\nPlan X\n1 Bed / 1 Bath / 500 sq. ft.\nAvailable Now\n$50,000 /mo\n"
+    units = _parse_sightmap_text(block)
+    assert units[0].get("price") is None
+
+
+def test_no_price_found():
+    """Block with no dollar amounts → price absent, no crash."""
+    block = "HOME X3\nPlan X\n1 Bed / 1 Bath / 500 sq. ft.\nAvailable Now\n"
+    units = _parse_sightmap_text(block)
+    assert len(units) == 1
+    assert units[0].get("price") is None

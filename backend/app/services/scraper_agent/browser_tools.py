@@ -400,6 +400,31 @@ def _extract_sightmap_embed_url(html: str) -> Optional[str]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# SightMap price-parsing helpers (used by _scrape_visible_units)
+# ---------------------------------------------------------------------------
+
+# "$3,412 Base Rent" — price before label (Revela / newer Engrain format)
+_BASE_RENT_BEFORE_RE = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)\s+Base\s+Rent", re.I)
+# "Base Rent $3,800" — label before price (older Engrain format)
+_BASE_RENT_AFTER_RE = re.compile(r"Base\s+Rent\s+\$?\s*([\d,]+(?:\.\d{1,2})?)", re.I)
+# "$3,445.12 /mo*" or "$3,100 /mo" — decimal-safe, handles asterisk suffix
+_MO_PRICE_RE = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)\s*(?:/|\s+per\s+)\s*mo", re.I)
+# Bare "$3,200" or "$3,200.50" on a line by itself
+_STANDALONE_PRICE_RE = re.compile(r"^\$\s*([\d,]+(?:\.\d{1,2})?)\s*$")
+
+
+def _parse_price(s: str) -> Optional[float]:
+    """Parse '3,445.12' or '3,445' → float. Returns None if outside [500, 25000]."""
+    try:
+        val = float(s.replace(",", ""))
+        if 500 <= val <= 25_000:
+            return val
+    except ValueError:
+        pass
+    return None
+
+
 class BrowserSession:
     """Async context manager that wraps a headless Chromium browser.
 
@@ -637,16 +662,29 @@ class BrowserSession:
                     # Availability
                     if re.search(r"available|waitlist", line, re.I):
                         unit["availability"] = line
-                    # Price — prefer "Base Rent $X,XXX", then "$X,XXX /mo", then bare "$X,XXX"
-                    m_base = re.search(r"Base Rent\s+\$?([\d,]+)", line, re.I)
-                    m_price = re.search(r"\$([\d,]+)\s*/mo", line, re.I)
-                    m_bare = re.match(r"^\$([\d,]+)$", line.strip())
-                    if m_base:
-                        unit["price"] = int(m_base.group(1).replace(",", ""))
-                    elif m_price and "price" not in unit:
-                        unit["price"] = int(m_price.group(1).replace(",", ""))
-                    elif m_bare and "price" not in unit:
-                        unit["price"] = int(m_bare.group(1).replace(",", ""))
+                # Price — three passes: Base Rent preferred, then /mo total, then bare $
+                # TODO: expose total_monthly_rent as a second field once FloorPlan
+                #       model supports it (needs migration + persistence changes).
+                _price: Optional[float] = None
+                for _ln in lines[1:]:
+                    _m = _BASE_RENT_BEFORE_RE.search(_ln) or _BASE_RENT_AFTER_RE.search(_ln)
+                    if _m:
+                        _price = _parse_price(_m.group(1))
+                        break
+                if _price is None:
+                    for _ln in lines[1:]:
+                        _m = _MO_PRICE_RE.search(_ln)
+                        if _m:
+                            _price = _parse_price(_m.group(1))
+                            break
+                if _price is None:
+                    for _ln in lines[1:]:
+                        _m = _STANDALONE_PRICE_RE.match(_ln.strip())
+                        if _m:
+                            _price = _parse_price(_m.group(1))
+                            break
+                if _price is not None:
+                    unit["price"] = _price
                 found.append(unit)
             return found
 
@@ -665,7 +703,7 @@ class BrowserSession:
             import re
             text = soup.get_text(separator="\n", strip=True)
             # Find lines like "3\n2 HOMES", "5\n1 Home", or "3\n7 Units" (Engrain variant)
-            floor_matches = re.findall(r"(\d{1,2})\n(\d+)\s+(?:Home|Unit)", text, re.I)
+            floor_matches = re.findall(r"(\d{1,2})\n(\d+)\s+(?:Home|Unit|Apt)s?", text, re.I)
             non_empty_floors = sorted(int(f) for f, n in floor_matches if int(n) > 0)
         except Exception:
             non_empty_floors = []
