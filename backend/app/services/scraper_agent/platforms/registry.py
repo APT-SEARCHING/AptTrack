@@ -27,6 +27,7 @@ def _build_registry() -> List[PlatformAdapter]:
     from .leasingstar import LeasingStarAdapter
     from .rentcafe import RentCafeAdapter
     from .sightmap import SightMapAdapter
+    from .universal_dom import UniversalDOMExtractor
     from .windsor import WindsorAdapter
 
     return [
@@ -39,6 +40,7 @@ def _build_registry() -> List[PlatformAdapter]:
         GreystarAdapter(),        # before generic_detail; URL-based detect fires on redirected pages
         RentCafeAdapter(),        # Yardi RentCafe; static GA4 data on /floorplans subpage
         GenericDetailPageAdapter(),
+        UniversalDOMExtractor(),  # fires last — catches unknown CMS card-list layouts
     ]
 
 
@@ -70,6 +72,11 @@ async def try_platforms(
         try:
             units = await adapter.extract(html, url, browser)
             if units:
+                if adapter.name == "universal_dom":
+                    logger.info(
+                        "Universal DOM fallback used for %s — candidate for specific adapter if pattern recurs",
+                        url,
+                    )
                 return units, adapter.name
         except Exception as exc:
             logger.warning(
