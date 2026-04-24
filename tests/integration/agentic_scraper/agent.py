@@ -29,6 +29,12 @@ from .platforms.registry import try_platforms
 
 load_dotenv()
 
+# Adapters too generic to cache as a sticky hint — they're last-resort fallbacks
+# that match many sites by HTML structure rather than platform-specific signals.
+# Storing them as hints would prevent retrying specific adapters on the next
+# scrape even if the platform's own signals have recovered.
+HINT_EXCLUDED_ADAPTERS = frozenset({"universal_dom"})
+
 MODEL = "MiniMax-M2.5"
 BASE_URL = "https://api.minimax.io/v1"
 MAX_ITERATIONS = 35
@@ -777,8 +783,15 @@ class ApartmentAgent:
                     _hint_reg = _hint_db.execute(
                         _sa_select(_SiteReg).where(_SiteReg.domain == _domain)
                     ).scalar_one_or_none()
-                    if _hint_reg:
-                        _hint = _hint_reg.last_successful_adapter
+                    if _hint_reg and _hint_reg.last_successful_adapter:
+                        _candidate = _hint_reg.last_successful_adapter
+                        if _candidate in HINT_EXCLUDED_ADAPTERS:
+                            logger.debug(
+                                "Ignoring excluded hint '%s' for %s — will walk full registry",
+                                _candidate, _domain,
+                            )
+                        else:
+                            _hint = _candidate
             except Exception as _exc:
                 logger.warning("Failed to load registry hint for %s: %s", _domain, _exc)
 
@@ -836,7 +849,14 @@ class ApartmentAgent:
                         len(_pt_data.floor_plans), metrics.elapsed_sec,
                     )
                     # ── Persist adapter hint for next scrape ─────────────────
-                    if _hint != _pt_name:
+                    # Skip fallback adapters — caching them as hints would lock
+                    # the domain out of specific-adapter retry on recovery.
+                    if _pt_name in HINT_EXCLUDED_ADAPTERS:
+                        logger.debug(
+                            "Skipping hint write for fallback adapter '%s' on %s",
+                            _pt_name, _domain,
+                        )
+                    elif _hint != _pt_name:
                         try:
                             from app.db.session import SessionLocal as _SessionLocal2
                             from app.models.site_registry import ScrapeSiteRegistry as _SiteReg2
