@@ -202,4 +202,20 @@ class GenericDetailPageAdapter(PlatformAdapter):
             connector=aiohttp.TCPConnector(ssl=False),
             headers={"User-Agent": _USER_AGENT},
         ) as session:
-            return await _fetch_generic_plans(hrefs, session)
+            units = await _fetch_generic_plans(hrefs, session)
+
+        # Soft-404 guard: if ≥3 results share the same plan_name (>50% of batch),
+        # every detail page returned the same error/redirect page — discard the batch.
+        if len(units) >= 3:
+            from collections import Counter
+            name_counts = Counter(u.get("plan_name") for u in units)
+            most_common_name, most_common_count = name_counts.most_common(1)[0]
+            if most_common_count / len(units) > 0.5:
+                logger.warning(
+                    "GenericDetailPage: %s — %d/%d units share plan_name %r; "
+                    "soft-404 suspected, discarding batch",
+                    url, most_common_count, len(units), most_common_name,
+                )
+                return []
+
+        return units
