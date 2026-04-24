@@ -224,6 +224,7 @@ export interface ListingsFilter {
   min_price?: number;
   max_price?: number;
   bedrooms?: number;
+  bedroom_counts?: number[];  // multi-select exact bedroom counts (0=Studio, 1, 2, 3)
   skip?: number;
   limit?: number;
   sort?: SortOption;

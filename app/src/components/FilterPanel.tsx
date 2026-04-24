@@ -24,6 +24,18 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
     });
   };
 
+  const toggleBedroom = (count: number | null) => {
+    if (count === null) {
+      onFilterChange({ ...filters, bedroom_counts: undefined });
+      return;
+    }
+    const current = filters.bedroom_counts ?? [];
+    const next = current.includes(count)
+      ? current.filter(c => c !== count)
+      : [...current, count];
+    onFilterChange({ ...filters, bedroom_counts: next.length > 0 ? next : undefined });
+  };
+
   const setBool = (key: keyof ListingsFilter, checked: boolean) => {
     onFilterChange({ ...filters, [key]: checked || undefined });
   };
@@ -119,19 +131,32 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
           Bedrooms
         </label>
         <div className="flex gap-1.5 flex-wrap">
-          {[['Any', ''], ['Studio', '0'], ['1+', '1'], ['2+', '2'], ['3+', '3']].map(([label, val]) => (
-            <button
-              key={val}
-              onClick={() => set('bedrooms', val)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium border transition-colors ${
-                (filters.bedrooms?.toString() ?? '') === val || (val === '' && !filters.bedrooms)
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          <button
+            onClick={() => toggleBedroom(null)}
+            className={`px-3 py-1 rounded-lg text-sm font-medium border transition-colors ${
+              !filters.bedroom_counts?.length
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+            }`}
+          >
+            Any
+          </button>
+          {([['Studio', 0], ['1', 1], ['2', 2], ['3', 3]] as [string, number][]).map(([label, count]) => {
+            const active = filters.bedroom_counts?.includes(count) ?? false;
+            return (
+              <button
+                key={count}
+                onClick={() => toggleBedroom(count)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border transition-colors ${
+                  active
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

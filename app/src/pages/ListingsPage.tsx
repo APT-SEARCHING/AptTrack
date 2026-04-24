@@ -145,10 +145,12 @@ const ListingsPage: React.FC = () => {
       result = result.filter(a => filters.cities!.includes(a.city));
     if (filters.min_price) result = result.filter(a => a.max_price != null && a.max_price >= filters.min_price!);
     if (filters.max_price) result = result.filter(a => a.min_price != null && a.min_price <= filters.max_price!);
-    if (filters.bedrooms === 0)
-      result = result.filter(a => a.min_beds === 0);
-    else if (filters.bedrooms !== undefined)
-      result = result.filter(a => a.max_beds >= filters.bedrooms!);
+    if (filters.bedroom_counts && filters.bedroom_counts.length > 0) {
+      const counts = filters.bedroom_counts;
+      result = result.filter(a =>
+        a._raw.plans.some(p => counts.includes(p.bedrooms))
+      );
+    }
     return result;
   }, [apts, filters]);
 
