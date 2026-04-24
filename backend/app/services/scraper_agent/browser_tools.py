@@ -425,6 +425,87 @@ def _parse_price(s: str) -> Optional[float]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Link scoring for _page_state rank-then-truncate
+# ---------------------------------------------------------------------------
+
+# (pattern, score) pairs — first match wins within each group (break after hit)
+_LINK_TEXT_POSITIVE: List[tuple] = [
+    (r"\bfloor\s*plans?\b", 100),
+    (r"\bplans?\s*&?\s*pricing\b", 95),
+    (r"\bavailability\b", 90),
+    (r"\bresidences?\b", 80),
+    (r"\blive\s+here\b", 40),
+    (r"\bapartments?\b", 50),
+    (r"\brentals?\b", 50),
+    (r"\bhomes?\b", 30),
+]
+
+_HREF_POSITIVE: List[tuple] = [
+    (r"/floor-?plans?/?$", 80),
+    (r"/availability/?$", 70),
+    (r"/plans?/?$", 60),
+    (r"/apartments?/?$", 40),
+    (r"/residences?/?$", 40),
+    (r"/rentals?/?$", 40),
+]
+
+_LINK_TEXT_NEGATIVE: List[tuple] = [
+    (r"\binstagram\b|\bfacebook\b|\btwitter\b|\blinkedin\b|\btiktok\b", -80),
+    (r"\bprivacy\b|\bterms\b|\baccessibility\b|\bfair\s+housing\b", -60),
+    (r"\bsitemap\b|\bcookie", -50),
+    (r"\bcontact\s+us\b", -40),
+    (r"\bschedule\s+tour\b", -30),
+    (r"\bapply\s+now\b", -30),
+    (r"\blogin\b|\bsign\s*in\b|\bresident\s+portal\b", -30),
+]
+
+_HREF_NEGATIVE: List[tuple] = [
+    (r"instagram\.com|facebook\.com|twitter\.com|linkedin\.com|tiktok\.com", -90),
+    (r"^(?:mailto|tel):", -90),
+    (r"/(?:privacy|terms|accessibility|sitemap|cookies?)\b", -60),
+    (r"/(?:login|signin|portal|resident)\b", -30),
+]
+
+_PLATFORM_DOMAINS = ("sightmap", "rentcafe", "entrata", "yardi")
+
+
+def _score_link(text: str, href: str, base_domain: str) -> int:
+    """Score a link for floor-plan discovery relevance. Higher = more relevant."""
+    score = 0
+    text_lower = text.lower()
+    href_lower = href.lower()
+
+    for pattern, weight in _LINK_TEXT_POSITIVE:
+        if re.search(pattern, text_lower):
+            score += weight
+            break
+    for pattern, weight in _HREF_POSITIVE:
+        if re.search(pattern, href_lower):
+            score += weight
+            break
+    for pattern, weight in _LINK_TEXT_NEGATIVE:
+        if re.search(pattern, text_lower):
+            score += weight
+            break
+    for pattern, weight in _HREF_NEGATIVE:
+        if re.search(pattern, href_lower):
+            score += weight
+            break
+
+    # External-domain penalty — but spare known platform embeds
+    if href.startswith("http"):
+        try:
+            link_domain = urlparse(href).netloc.lower()
+            if link_domain and link_domain != base_domain:
+                if not any(p in link_domain for p in _PLATFORM_DOMAINS):
+                    score -= 20
+        except Exception:
+            pass
+
+    return score
+
+
 class BrowserSession:
     """Async context manager that wraps a headless Chromium browser.
 
@@ -769,12 +850,18 @@ class BrowserSession:
         lines = [line for line in raw_text.splitlines() if line.strip()]
         text = self._smart_truncate("\n".join(lines), MAX_TEXT_CHARS)
 
-        # Clickable links
-        links: List[dict] = []
+        # Clickable links — rank by floor-plan relevance, then keep top MAX_LINKS
+        base_domain = urlparse(self.page.url).netloc.lower()
+        scored: List[tuple] = []
         for a in soup.find_all("a", href=True):
             link_text = a.get_text(strip=True)
-            if link_text and len(links) < MAX_LINKS:
-                links.append({"text": link_text[:80], "href": str(a["href"])[:150]})
+            if not link_text:
+                continue
+            href = str(a["href"])
+            scored.append((_score_link(link_text, href, base_domain),
+                           {"text": link_text[:80], "href": href[:150]}))
+        scored.sort(key=lambda x: -x[0])  # stable sort preserves DOM order for ties
+        links = [entry for _, entry in scored[:MAX_LINKS]]
 
         # Buttons and ARIA tabs
         seen: set = set()
