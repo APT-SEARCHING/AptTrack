@@ -86,6 +86,19 @@ class ScrapeSiteRegistry(Base):
     )
     corporate_parent_set_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Data source classification
+    data_source_type = Column(
+        String(32),
+        nullable=False,
+        default="brand_site",
+        comment=(
+            "brand_site: scrape normally | "
+            "corporate_parent: redirect via corporate_parent_url | "
+            "unscrapeable: site doesn't publish pricing, skip all scraping | "
+            "aggregator_readonly: reserved"
+        ),
+    )
+
     # Audit timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

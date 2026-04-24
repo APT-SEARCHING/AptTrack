@@ -289,12 +289,14 @@ const ListingDetailPage: React.FC = () => {
               {minP != null && <span className="text-slate-400 text-sm">/mo</span>}
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={openAlertFromHeader}
-                className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
-              >
-                🔔 Set Alert
-              </button>
+              {apt?.data_source_type !== 'unscrapeable' && (
+                <button
+                  onClick={openAlertFromHeader}
+                  className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+                >
+                  🔔 Set Alert
+                </button>
+              )}
               {apt?.source_url && (
                 <a
                   href={apt.source_url}
@@ -327,6 +329,37 @@ const ListingDetailPage: React.FC = () => {
             beds={allPlans[0]?.bedrooms ?? 1}
             planCount={similar.city_plan_count ?? undefined}
           />
+        </div>
+      )}
+
+      {/* Unscrapeable banner — shown instead of floor plans for sites that don't publish pricing */}
+      {apt?.data_source_type === 'unscrapeable' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="font-medium text-amber-900">Pricing not published online</p>
+              <p className="text-sm text-amber-800 mt-1">
+                This property requires direct contact for current rates.
+                AptTrack can&apos;t track price history for listings that don&apos;t publish prices.
+              </p>
+              {apt?.source_url && (() => {
+                try {
+                  return (
+                    <a href={apt.source_url} target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-amber-900 underline">
+                      Visit {new URL(apt.source_url).hostname} →
+                    </a>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
+            </div>
+          </div>
         </div>
       )}
 
@@ -622,7 +655,7 @@ const ListingDetailPage: React.FC = () => {
           </div>
         );
       })()}
-      {showAlert && apt && (
+      {showAlert && apt && apt.data_source_type !== 'unscrapeable' && (
         <AlertModal
           apartmentId={apt.id}
           apartmentTitle={listing.title}

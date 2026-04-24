@@ -52,6 +52,7 @@ export interface ApartmentResponse {
   pets_allowed: boolean | null;
   is_available: boolean;
   source_url: string | null;
+  data_source_type: string;
   plans: PlanResponse[];
   images: { url: string; caption: string | null; is_primary: boolean }[];
   created_at: string;
@@ -94,6 +95,7 @@ export interface ApartmentSummary {
   location: string;
   city: string;
   source_url: string | null;
+  data_source_type: string;
   plan_count: number;
   available_count: number;
   min_price: number | null;

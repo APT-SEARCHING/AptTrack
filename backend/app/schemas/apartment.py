@@ -100,6 +100,7 @@ class ApartmentBase(BaseModel):
 
     # Metadata
     source_url: Optional[str] = None
+    data_source_type: str = "brand_site"
 
 
 class ApartmentCreate(ApartmentBase):

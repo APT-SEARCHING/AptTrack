@@ -307,6 +307,23 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                 return
 
             # ------------------------------------------------------------------
+            # Unscrapeable check — site doesn't publish pricing, skip all scraping
+            # ------------------------------------------------------------------
+            if registry.data_source_type == "unscrapeable":
+                logger.info(
+                    "apt %d url=%s: registry data_source_type=unscrapeable — skipping",
+                    apt_id, url,
+                )
+                elapsed = time.monotonic() - t_start
+                _write_scrape_run(db, apt_id, original_url, ScrapeRun(
+                    apartment_id=apt_id,
+                    url=original_url,
+                    outcome="skipped_unscrapeable",
+                    elapsed_sec=elapsed,
+                ))
+                return
+
+            # ------------------------------------------------------------------
             # Negative-path cache check — skip URLs that have repeatedly failed
             # until their exponential backoff window expires.
             # ------------------------------------------------------------------

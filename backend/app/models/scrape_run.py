@@ -9,6 +9,7 @@ Outcome values
 ``cache_hit``                path-cache replay succeeded (subset of success)
 ``platform_direct``          platform adapter short-circuit (0 LLM cost)
 ``skipped_negative_cache``   URL is within its negative-cache suppression window
+``skipped_unscrapeable``     registry.data_source_type == 'unscrapeable' — site doesn't publish pricing
 ``stale``                    reserved for future forced-retry logic
 """
 

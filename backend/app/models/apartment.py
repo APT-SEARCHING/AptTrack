@@ -71,6 +71,19 @@ class Apartment(Base):
     last_content_hash = Column(String(64), nullable=True, comment="SHA256 of stripped HTML from last fetch — skip scrape when unchanged")
     last_scraped_at = Column(DateTime(timezone=True), nullable=True, comment="When last_content_hash was last computed")
 
+    # Data source classification (mirrors scrape_site_registry.data_source_type — saves frontend join)
+    data_source_type = Column(
+        String(32),
+        nullable=False,
+        default="brand_site",
+        comment=(
+            "brand_site: scrape normally | "
+            "corporate_parent: redirect via corporate_parent_url | "
+            "unscrapeable: site doesn't publish pricing, skip all scraping | "
+            "aggregator_readonly: reserved"
+        ),
+    )
+
     # Relationships
     plans = relationship("Plan", back_populates="apartment", cascade="all, delete-orphan")
     images = relationship("ApartmentImage", back_populates="apartment", cascade="all, delete-orphan")
