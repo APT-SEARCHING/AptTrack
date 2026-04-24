@@ -112,6 +112,21 @@ def q_scrape_outcomes(db: Session, days: int) -> None:
     """)).fetchall()
     print(_rows_to_table(rows, ["outcome", "runs", "avg_cost_usd", "avg_elapsed_sec"]))
 
+    # Per-adapter split for platform_direct rows
+    adapter_rows = db.execute(text(f"""
+        SELECT coalesce(adapter_name, '(unknown)')         AS adapter,
+               count(*)                                    AS runs,
+               round(avg(elapsed_sec)::numeric, 1)         AS avg_elapsed_sec
+        FROM scrape_runs
+        WHERE run_at > now() - interval '{days} days'
+          AND outcome = 'platform_direct'
+        GROUP BY 1
+        ORDER BY 2 DESC
+    """)).fetchall()
+    if adapter_rows:
+        print("\n  platform_direct by adapter:")
+        print(_rows_to_table(adapter_rows, ["adapter", "runs", "avg_elapsed_sec"]))
+
 
 def q_price_history_growth(db: Session, days: int) -> None:
     _print_header(f"PlanPriceHistory growth (last {days} days)")

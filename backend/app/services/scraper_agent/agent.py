@@ -78,6 +78,7 @@ class ScrapeMetrics:
     elapsed_sec: float = 0.0
     cache_hit: bool = False    # True when data came from path cache (0 LLM calls)
     outcome: str = "scraped"   # see docstring for allowed values
+    adapter_name: Optional[str] = None  # set when outcome == "platform_direct"
 
     @property
     def total_input_tokens(self) -> int:
@@ -805,6 +806,7 @@ class ApartmentAgent:
                 )
                 if _pt_data and _pt_data.floor_plans:
                     metrics.outcome = "platform_direct"
+                    metrics.adapter_name = _pt_name
                     metrics.iterations = 0
                     metrics.elapsed_sec = time.monotonic() - t0
                     logger.info(

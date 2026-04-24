@@ -450,7 +450,7 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
 
                 elapsed = time.monotonic() - t_start
                 if result and result.floor_plans:
-                    outcome = "cache_hit" if metrics.cache_hit else "success"
+                    outcome = metrics.outcome if metrics.outcome in ("platform_direct", "cache_hit") else "success"
                     _persist_scraped_prices(apt_id, result, db)
                     if new_hash is not None:
                         apt = db.execute(
@@ -480,6 +480,7 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                     output_tokens=metrics.total_output_tokens,
                     cost_usd=metrics.total_cost_usd,
                     elapsed_sec=elapsed,
+                    adapter_name=metrics.adapter_name,
                 ))
                 from app.services.scraper_agent.negative_cache import (
                     SUCCESS_OUTCOMES as _NEG_SUCCESS,

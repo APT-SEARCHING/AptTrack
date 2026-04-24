@@ -71,6 +71,13 @@ class ScrapeRun(Base):
     cost_usd = Column(Float, default=0.0, nullable=False)
     elapsed_sec = Column(Float, default=0.0, nullable=False)
 
+    # Platform adapter (set when outcome = 'platform_direct')
+    adapter_name = Column(
+        String(32),
+        nullable=True,
+        comment="Platform adapter that handled this scrape, e.g. 'sightmap'. NULL unless outcome='platform_direct'.",
+    )
+
     # Error details
     error_message = Column(Text, nullable=True, comment="Exception message for hard_fail rows")
 
