@@ -1,0 +1,143 @@
+{
+  "url": "https://www.rentprism.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=Prism_GoogleLocalListing",
+  "domain": "www_rentprism_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=Prism_GoogleLocalListing"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/amenities/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/floor-plans/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "about:srcdoc"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "service_worker"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/features/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/specials/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/floor-plans/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "cookie"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "srcdoc"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Show 10 Results"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Filter Your Results"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "srcdoc"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/floor-plans/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/neighborhood/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/contact/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentprism.com/features/"
+      }
+    }
+  ],
+  "apartment_name": "Prism",
+  "last_success": "2026-04-24T02:13:39.579689+00:00",
+  "success_count": 1
+}

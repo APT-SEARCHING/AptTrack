@@ -1,0 +1,83 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/emeryville/essex-emeryville/floor-plans",
+  "domain": "www_essexapartmenthomes_com__4960cb61",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/essex-emeryville/floor-plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Emeryville&type=communities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/avenue-64/floor-plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/avenue-64"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Floor Plans▾"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "List View"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/avenue-64"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features & Amenities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Leasing Info"
+      }
+    }
+  ],
+  "apartment_name": "Avenue 64",
+  "last_success": "2026-04-24T21:51:46.196183+00:00",
+  "success_count": 1
+}

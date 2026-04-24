@@ -228,7 +228,7 @@ async def scrape_all(dry_run: bool, urls_file: str | None, filter_: str | None) 
         engine = create_engine(db_url)
         Session = sessionmaker(bind=engine)
 
-    sem = asyncio.Semaphore(2)  # 2 concurrent to be polite
+    sem = asyncio.Semaphore(10)  # 10 concurrent for bulk seeding
 
     async def scrape_one(name, url, city, state, zipcode):
         async with sem:

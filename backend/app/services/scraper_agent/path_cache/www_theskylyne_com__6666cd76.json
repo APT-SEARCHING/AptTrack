@@ -1,0 +1,121 @@
+{
+  "url": "https://www.theskylyne.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=TheSkylyneatTemescal_GoogleLocalListing",
+  "domain": "www_theskylyne_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/?utm_source=GoogleLocalListing&utm_medium=organic&utm_campaign=TheSkylyneatTemescal_GoogleLocalListing"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/floor-plans/"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Show More"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/sightmap/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/floor-plans/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/floor-plans/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/amenities/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/features/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/floor-plans/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/sightmap/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap.com"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/floor-plans/"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.theskylyne.com/features/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/features/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.theskylyne.com/floor-plans/"
+      }
+    }
+  ],
+  "apartment_name": "The Skylyne at Temescal",
+  "last_success": "2026-04-24T02:26:16.114776+00:00",
+  "success_count": 1
+}

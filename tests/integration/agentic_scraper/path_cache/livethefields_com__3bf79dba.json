@@ -1,0 +1,81 @@
+{
+  "url": "https://livethefields.com/gideon/",
+  "domain": "livethefields_com__3bf79dba",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://livethefields.com/gideon/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "View Floor Plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.livethefields.com/apartments/ca/milpitas/gideon"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.livethefields.com/apartments/ca/milpitas/gideon"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "View 2 Apartments"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "View 1 Apartment"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.livethefields.com/apartments/ca/milpitas/gideon"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Site Map"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Gideon at The Fields",
+  "last_success": "2026-04-24T19:34:49.645886+00:00",
+  "success_count": 1
+}

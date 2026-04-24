@@ -1,0 +1,77 @@
+{
+  "url": "http://www.roemcorp.com/projects/oaks-of-almaden/",
+  "domain": "www_roemcorp_com__93846bc5",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "http://www.roemcorp.com/projects/oaks-of-almaden/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.roemcorp.com/projects/oaks-of-almaden/"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.roemcorp.com"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Communities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Oaks of Almaden"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Floorplans"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "View Other Lease Opportunities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Oaks of Almaden"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Amenities"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Overview"
+      }
+    }
+  ],
+  "apartment_name": "Oaks of Almaden",
+  "last_success": "2026-04-24T22:20:33.726518+00:00",
+  "success_count": 1
+}
