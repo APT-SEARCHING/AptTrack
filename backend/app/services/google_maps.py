@@ -48,11 +48,11 @@ class GoogleMapsService:
             if not self.api_key:
                 return {}, "No Google Maps API key provided. Please provide a valid API key."
 
-            # Three broad queries cover the target population without redundant calls.
-            # More synonyms add API cost but rarely surface new unique complexes.
+            # One broad query covers the target population.
+            # "affordable housing" was removed — it returns org-level entities
+            # (housing authorities, nonprofits) rather than individual buildings.
             search_queries = [
                 "apartment complex",
-                "affordable housing",
             ]
 
             all_places = {}  # Use dict to avoid duplicates based on place_id

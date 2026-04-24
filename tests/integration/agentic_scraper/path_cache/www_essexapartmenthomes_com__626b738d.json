@@ -1,0 +1,43 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/floor-plans",
+  "domain": "www_essexapartmenthomes_com__626b738d",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/floor-plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Mountain%20View&type=metroareas"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/apartments/mountain-view/regency-at-mountain-view"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Regency at Mountain View",
+  "last_success": "2026-04-24T17:40:42.461363+00:00",
+  "success_count": 1
+}

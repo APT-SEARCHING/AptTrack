@@ -1,0 +1,103 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/walnut-creek/the-marque/floor-plans",
+  "domain": "www_essexapartmenthomes_com__2b4b9430",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/walnut-creek/the-marque/floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.essexapartmenthomes.com/apartments"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "East Bay Area"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Walnut Creek&type=city"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=The Marque Walnut Creek"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/walnut-creek/the-marque"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "East Bay Area"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Agora at South Main"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Walnut%20Creek&type=city"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/apartments/walnut-creek/agora-at-south-main"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/walnut-creek/agora-at-south-main"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Agora at South Main",
+  "last_success": "2026-04-24T04:21:44.586752+00:00",
+  "success_count": 1
+}

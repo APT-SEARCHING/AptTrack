@@ -1,36 +1,43 @@
 # AptTrack - Apartment Rental Tracking System
 
-AptTrack is a comprehensive apartment rental tracking system that helps users find, compare, and track apartment listings over time. The application monitors rental prices, provides detailed apartment information, and offers analytics on rental market trends.
+AptTrack is a Bay Area apartment **rental price transparency** system. It collects publicly available listing prices from individual apartment complex websites, stores full price history in PostgreSQL, and serves a REST API consumed by a React frontend. Users can subscribe to price-drop alerts delivered via email or Telegram.
+
+**Live**: https://apttrack-production-6c87.up.railway.app/
 
 ## Features
 
-- **Apartment Listings**: Browse and search for apartments with detailed information
-- **Multiple Floor Plans**: Each apartment can have multiple floor plans with different configurations
-- **Price History Tracking**: Monitor how rental prices change over time
-- **Advanced Search**: Filter apartments by location, price range, bedrooms, and more
-- **Neighborhood Information**: Get details about neighborhoods including walkability scores
-- **Statistics & Analytics**: View market trends and price comparisons
-- **Image Management**: Store and manage apartment images
-- **Google Maps Integration**: Import apartment data from Google Maps based on location
+- **Apartment Listings**: Browse and search Bay Area apartments with detailed floor plan info
+- **Multiple Floor Plans**: Each apartment has per-plan pricing (beds, baths, sqft, price)
+- **Price History Tracking**: Full `PlanPriceHistory` table — every daily scrape is recorded
+- **Price Drop Alerts**: Subscribe to a plan; get notified by email or Telegram when price drops
+- **Advanced Filters**: Pets, parking, sqft range, available-before date, city multi-select
+- **Market Context**: Median rent stats, similar apartments, cheapest-in-city
+- **Favorites**: Shortlist apartments for comparison
+- **Google Maps Integration**: Import apartment metadata (location, rating, phone) from Google Places
 
 ## Tech Stack
 
 ### Backend
-- **Framework**: FastAPI (Python)
-- **Database**: PostgreSQL
-- **ORM**: SQLAlchemy
-- **Migrations**: Alembic
-- **Data Scraping**: BeautifulSoup, aiohttp
-- **External APIs**: Google Maps Places API
+- **Framework**: FastAPI (Python 3.11) + Pydantic v2
+- **Database**: PostgreSQL 14 + SQLAlchemy 2.0 + Alembic
+- **Task Queue**: Celery + Redis (daily scrape at 02:00 PT, alerts at 08:00 PT)
+- **Scraper**: MiniMax-M2.5 agentic loop + Playwright + platform adapters (see below)
+- **Auth**: JWT (HS256), bcrypt, token-based password reset
+- **Notifications**: SendGrid (email) + Telegram Bot API
+- **Rate limiting**: slowapi
+- **External APIs**: Google Maps Places API (New)
 
 ### Frontend
-- **Framework**: React
+- **Framework**: React 18 + TypeScript
 - **Styling**: Tailwind CSS
-- **State Management**: React Hooks
+- **Charts**: Recharts (price history)
+- **Maps**: Leaflet
+- **Toasts**: sonner
 - **Routing**: React Router
 
 ### Infrastructure
-- **Containerization**: Docker & Docker Compose
+- **Hosting**: Railway (web + worker + beat + Postgres + Redis)
+- **Containerization**: Docker & Docker Compose (local dev)
 - **API Documentation**: Swagger UI (via FastAPI)
 
 ## Project Structure
@@ -159,10 +166,15 @@ cp .env.example .env
 ```
 
 **Required Environment Variables:**
-- `GOOGLE_MAPS_API_KEY`: Your Google Maps API key
-- `DATABASE_URL`: Database connection string
-- `BACKEND_PORT`: Backend service port (default: 8000)
-- `FRONTEND_PORT`: Frontend service port (default: 3000)
+- `DATABASE_URL`: PostgreSQL connection string
+- `REDIS_URL`: Redis connection string
+- `JWT_SECRET_KEY`: Secret for JWT signing (refused at startup if left as default)
+- `MINIMAX_API_KEY`: MiniMax-M2.5 API key (for agentic scraper)
+- `GOOGLE_MAPS_API_KEY`: Google Maps Places API key (New)
+- `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`: For email alerts
+- `APP_BASE_URL`: Public URL of the frontend (used in alert email links)
+- `CORS_ORIGINS`: Comma-separated list of allowed frontend origins (must match exactly)
+- `TELEGRAM_BOT_TOKEN` *(optional)*: For Telegram alerts
 
 ### Installation
 
@@ -231,71 +243,102 @@ curl -X POST "http://localhost:8000/api/v1/apartments/import/google-maps" \
 
 Or use the Swagger UI at http://localhost:8000/docs to trigger the import.
 
-### Agentic Scraper (Recommended)
+### Agentic Scraper
 
-The agentic scraper uses **MiniMax-M2.5** (via the OpenAI-compatible API) and a real Playwright browser to extract floor plan and pricing data from any apartment website — including sites with dynamic UIs, iframes, and tab-based layouts that break traditional HTML-parsing approaches.
+The scraper extracts floor plan names, bed/bath counts, sqft, and prices from apartment websites. It uses a three-stage pipeline designed to minimise LLM cost — most daily scrapes cost $0.00.
 
-The agent navigates the site autonomously, clicks through floor plan tabs, scrolls to load lazy content, and submits structured JSON once it has collected pricing data.
+#### Cost tiers (fastest / cheapest first)
 
-**Setup:**
+| Stage | Trigger | LLM tokens | Approx cost |
+|-------|---------|-----------|-------------|
+| **Content-hash short-circuit** | Page HTML unchanged since last scrape | 0 | $0.00 |
+| **Platform adapter** | Known REIT/CMS detected in static HTML | 0 | $0.00 |
+| **Path-cache replay** | Navigation path cached from prior agent run | 0 | $0.00 |
+| **Full ReAct agent loop** | Cache miss on unknown site | ~100k tok | ~$0.04 |
+
+#### Platform adapters
+
+Static-HTML adapters fire before the browser or LLM are involved. Each adapter detects its platform by a unique HTML fingerprint and extracts floor plan data directly:
+
+| Adapter | Detects | Properties covered |
+|---------|---------|-------------------|
+| `avalonbay.py` | `Fusion.globalContent` JSON blob | AvalonBay, eaves communities |
+| `essex.py` (via Windsor adapter) | Essex domain + `/floor-plans` path | Essex Apartment Homes, Windsor Ridge |
+| `greystar.py` | `LodgingBusiness` JSON-LD with `containsPlace` | Greystar-managed properties |
+| `rentcafe.py` | `cdngeneralmvc.rentcafe.com` script tag | RentCafe / Yardi sites |
+| `leasingstar.py` | LeaseStar property ID in HTML | LeaseStar-managed properties |
+| `sightmap.py` | Engrain SightMap iframe embed | SightMap interactive floor maps |
+| `fatwin.py` | FatWin widget script | FatWin-powered sites |
+| `jonah_digital.py` | Jonah Digital JSON feed | Jonah Digital CMS |
+| `windsor.py` | `windsorcommunities.com` domain | Windsor Communities |
+| `generic_detail.py` | Schema.org `FloorPlan` structured data | Any site with schema.org markup |
+
+#### Full ReAct agent loop
+
+When no adapter matches and no path cache exists, the agent uses **MiniMax-M2.5** (OpenAI-compatible API, $0.30/M input / $1.10/M output) with a real Playwright browser:
+
+1. Agent receives a structured BeautifulSoup page state (never screenshots).
+2. LLM decides which browser tool to call: `navigate_to`, `click_link`, `click_button`, `scroll_down`, `read_iframe`, `extract_all_units`, or `submit_findings`.
+3. `BrowserSession` executes the tool and returns an observation.
+4. Loop continues until `submit_findings` is called or a 22-iteration no-data early stop.
+5. On success, the navigation path is saved to `path_cache/` — future scrapes of the same URL replay the steps at $0 cost.
+6. `_sanitize()` strips prices leaked from the site's price-range filter slider.
+
+#### Seeding new apartments
 
 ```bash
-pip install -r tests/requirements-test.txt
-playwright install chromium
+# Seed from a JSON list of {name, url, city, state, zip} objects
+python seed_apartments.py --urls-file dev/my_apartments.json
+
+# Dry-run to preview scraped data without writing to DB
+python seed_apartments.py --urls-file dev/my_apartments.json --dry-run
 ```
 
-Add `MINIMAX_API_KEY=your_key` to your `.env` file.
+The seed script runs up to 2 apartments concurrently. Each URL gets a stable `external_id` derived from `SHA256(hostname + path)` so re-seeding the same URL is idempotent and REIT properties on the same domain (e.g. multiple Avalon communities) each get their own DB record.
 
-**Scrape a single apartment:**
+#### Daily scraping (Celery)
 
-```python
-import asyncio
-from tests.integration.agentic_scraper.agent import ApartmentAgent
-
-async def main():
-    agent = ApartmentAgent()   # reads MINIMAX_API_KEY from .env
-    result = await agent.scrape("https://www.rentmiro.com/floorplans")
-    for plan in result.floor_plans:
-        print(plan.name, plan.min_price, plan.size_sqft)
-
-asyncio.run(main())
-```
-
-**Batch-scrape 10 Bay Area apartments:**
+The Celery worker scrapes all active apartments daily at **02:00 PT** via `task_refresh_apartment_data`. Price-drop alerts are checked at **08:00 PT** via `task_check_price_drops`.
 
 ```bash
-python tests/integration/agentic_scraper/batch_runner.py
+# Local full stack (includes Celery worker + beat)
+./start.sh
 ```
 
-Results are printed as a table and saved to `tests/integration/agentic_scraper/batch_results.json`.
-
-**How it works:**
-
-1. The agent calls `navigate_to`, `click_link`, `click_button`, and `scroll_down` tools in a loop driven by the LLM.
-2. When it has collected enough data it calls `submit_findings`, which terminates the loop and returns an `ApartmentData` Pydantic model.
-3. A post-scrape validator (`_sanitize`) detects and removes prices that were mistakenly copied from a site's price-range filter slider rather than from individual plan cards.
-4. The LLM call layer retries automatically on 429 / 5xx / overload errors with exponential back-off.
-
-**Agentic scraper files:**
+#### Scraper files
 
 ```
-tests/integration/agentic_scraper/
+backend/app/services/scraper_agent/    # Production scraper (used by Celery worker)
+├── agent.py           # ApartmentAgent, ReAct loop, path-cache logic
+├── browser_tools.py   # BrowserSession (Playwright), extract_all_units (SightMap)
 ├── models.py          # ApartmentData, FloorPlan Pydantic models
-├── browser_tools.py   # BrowserSession wrapping Playwright async API
-├── agent.py           # ApartmentAgent + tool definitions + sanitizer
-├── batch_runner.py    # Scrape 10 apartments concurrently and print a table
-└── test_agentic_scraper.py  # 13 unit tests + 3 live integration tests
+├── path_cache.py      # Save/load browser navigation sequences
+├── content_hash.py    # SHA256 of stripped HTML for short-circuit
+├── compliance.py      # robots.txt check, C&D protocol, blocked domains
+└── platforms/         # Static-HTML adapters (see table above)
+
+tests/integration/agentic_scraper/     # Mirror used for integration tests
 ```
 
-**Run tests:**
+> **Note**: the two directories above are kept in sync manually. Consolidation is tracked as tech debt.
+
+**Run scraper tests:**
 
 ```bash
-# Unit tests — no API key or internet required
+# Unit tests — no API key or browser required
 pytest tests/integration/agentic_scraper/ -m "not integration" -v
 
-# Live integration tests — requires MINIMAX_API_KEY
+# Live integration tests — requires MINIMAX_API_KEY + Playwright
 pytest tests/integration/agentic_scraper/ -m integration -v -s
 ```
+
+#### Compliance
+
+- Only publicly accessible pages — never behind login walls.
+- `robots.txt` is checked for every new domain via `ScrapeSiteRegistry`.
+- 5-second minimum delay between requests to the same domain.
+- Only factual data collected: prices, sqft, bed/bath counts, availability, public amenity flags.
+- Never: Craigslist/UGC aggregators, original images, listing descriptions, or PII.
 
 ### Legacy Scraper
 

@@ -1,0 +1,71 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/emeryville/essex-emeryville/floor-plans",
+  "domain": "www_essexapartmenthomes_com__4960cb61",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/essex-emeryville/floor-plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "East Bay Area"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Emeryville&type=city"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "See Details"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/emme"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/emeryville/emme/floor-plans-and-pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Emme",
+  "last_success": "2026-04-24T04:09:37.627655+00:00",
+  "success_count": 1
+}

@@ -1,0 +1,71 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/san-francisco/rincon-hill/floor-plans",
+  "domain": "www_essexapartmenthomes_com__7bcc17b6",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/san-francisco/rincon-hill/floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "San Francisco Bay Area"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Rincon%20Hill&type=community"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=San%20Francisco&type=metroareas"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments?query=rincon"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "500 Folsom"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/san-francisco/500-folsom"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/san-francisco/500-folsom/floor-plans-and-pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "500 Folsom",
+  "last_success": "2026-04-24T04:23:30.800661+00:00",
+  "success_count": 1
+}

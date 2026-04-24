@@ -1,0 +1,93 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire/floor-plans",
+  "domain": "www_essexapartmenthomes_com__ef3b7029",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire/floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Sunnyvale"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Sunnyvale&type=cities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=The%20Montclaire&type=communities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features & Amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire/amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire/specials"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/the-montclaire/floor-plans-and-pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "The Montclaire",
+  "last_success": "2026-04-24T16:50:37.944036+00:00",
+  "success_count": 1
+}

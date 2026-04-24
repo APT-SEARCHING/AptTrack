@@ -14,11 +14,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse, urlencode, parse_qsl
 
 from dotenv import load_dotenv
 
@@ -52,9 +54,19 @@ APARTMENTS = [
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def _slug(url: str) -> str:
-    """Derive a stable external_id from a URL."""
-    host = re.sub(r"^www\.", "", url.split("//")[-1].split("/")[0])
-    return f"scraper_{host}"
+    """Derive a stable per-apartment external_id from a URL.
+
+    Uses hostname + path (UTM params stripped) so each apartment
+    URL on the same REIT domain gets its own DB record.
+    """
+    p = urlparse(url)
+    host = re.sub(r"^www\.", "", p.netloc.lower())
+    # Strip UTM / tracking params; keep remaining query params (e.g. funnelleasing)
+    clean_params = [(k, v) for k, v in parse_qsl(p.query) if not k.startswith("utm_")]
+    path_key = host + p.path.rstrip("/")
+    if clean_params:
+        path_key += "?" + urlencode(sorted(clean_params))
+    return "scraper_" + hashlib.sha256(path_key.encode()).hexdigest()[:20]
 
 
 def _is_available(fp: FloorPlan) -> bool:
@@ -138,7 +150,7 @@ def _save_apartment(apt_data: ApartmentData, url: str, city: str, state: str,
                 name=fp.name,
                 bedrooms=fp.bedrooms or 0,
                 bathrooms=fp.bathrooms or 1,
-                area_sqft=fp.size_sqft,
+                area_sqft=fp.size_sqft or 0.0,
                 price=fp.min_price,
                 current_price=fp.min_price,
                 is_available=_is_available(fp),

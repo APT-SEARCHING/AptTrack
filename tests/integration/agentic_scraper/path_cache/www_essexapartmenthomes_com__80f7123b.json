@@ -1,0 +1,55 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/san-jose/willow-lake/floor-plans",
+  "domain": "www_essexapartmenthomes_com__80f7123b",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/san-jose/willow-lake/floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/apartments/search-results"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Willow%20Lake&type=community"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=San%20Jose&type=city"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/san-jose/willow-lake"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Willow Lake",
+  "last_success": "2026-04-24T16:09:18.175609+00:00",
+  "success_count": 1
+}

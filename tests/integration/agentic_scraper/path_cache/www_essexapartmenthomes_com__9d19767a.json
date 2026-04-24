@@ -1,0 +1,49 @@
+{
+  "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view/floor-plans",
+  "domain": "www_essexapartmenthomes_com__9d19767a",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view/floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Apartments"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Arlo%20Mountain%20View"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/apartments/mountain-view/arlo-mountain-view"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    }
+  ],
+  "apartment_name": "ARLO Mountain View",
+  "last_success": "2026-04-24T17:45:08.934164+00:00",
+  "success_count": 1
+}
