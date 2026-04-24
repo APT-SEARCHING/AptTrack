@@ -9,6 +9,16 @@ Usage:
     python dev/audit.py --days 7
     python dev/audit.py > audit-$(date +%Y-%m-%d).txt
 """
+# ---------------------------------------------------------------------------
+# Target metrics (Phase 1 + Hint deployed)
+#   platform_direct_static:    30-50%
+#   platform_direct_rendered:  20-40%
+#   content_unchanged:         10-20%
+#   cache_hit:                  5-10%
+#   not_apartment:              0-5%
+#   no_data + hard_fail:       <5%
+#   success (LLM fallback):    <5%
+# ---------------------------------------------------------------------------
 from __future__ import annotations
 
 import argparse
@@ -226,6 +236,90 @@ def q_adapter_hint_health(db: Session) -> None:
     print(f"\n  {len(rows)} site(s) with stale/missing hints — may need manual scrape or adapter coverage.")
 
 
+def q_hint_distribution(db: Session) -> None:
+    _print_header("Registry Hint Distribution")
+    rows = db.execute(text("""
+        SELECT last_successful_adapter, count(*) AS n,
+               max(last_adapter_success_at) AS last_success
+        FROM scrape_site_registry
+        WHERE is_active = true AND last_successful_adapter IS NOT NULL
+        GROUP BY 1
+        ORDER BY n DESC
+    """)).all()
+
+    if not rows:
+        print("  (no hints recorded yet)")
+        return
+
+    pollution_found = False
+    for r in rows:
+        flag = ""
+        if r.last_successful_adapter == "universal_dom":
+            flag = "   ⚠ POLLUTED — should not be hint (fallback adapter)"
+            pollution_found = True
+        print(f"  {r.last_successful_adapter:<20} {r.n:>4}    last: {r.last_success}{flag}")
+
+    if pollution_found:
+        print("\n  ⚠ Run: UPDATE scrape_site_registry SET last_successful_adapter = NULL")
+        print("         WHERE last_successful_adapter = 'universal_dom';")
+
+
+def q_rendered_latency(db: Session) -> None:
+    _print_header("Rendered Fetch Latency (last 3 days)")
+    rows = db.execute(text("""
+        SELECT
+            outcome,
+            adapter_name,
+            count(*) AS n,
+            round(avg(elapsed_sec)::numeric, 1) AS avg_s,
+            round(percentile_cont(0.95) WITHIN GROUP (ORDER BY elapsed_sec)::numeric, 1) AS p95_s
+        FROM scrape_runs
+        WHERE run_at > now() - interval '3 days'
+          AND outcome IN ('platform_direct_rendered', 'not_apartment', 'no_data')
+        GROUP BY 1, 2
+        HAVING count(*) >= 3
+        ORDER BY avg_s DESC
+    """)).all()
+
+    if not rows:
+        print("  (no rendered-fetch runs in last 3 days, or < 3 per bucket)")
+        return
+
+    for r in rows:
+        flag = ""
+        if r.avg_s is not None and float(r.avg_s) > 13:
+            flag = "   ⚠ fetch_rendered waiting for timeout"
+        print(f"  {r.outcome:<30} {(r.adapter_name or '-'):<18} n={r.n:<4} avg={r.avg_s}s p95={r.p95_s}s{flag}")
+
+
+def q_outcome_24h(db: Session) -> None:
+    _print_header("Scrape Outcome Distribution (last 24h)")
+    rows = db.execute(text("""
+        SELECT
+            outcome,
+            count(*) AS n,
+            round(100.0 * count(*) / sum(count(*)) OVER (), 1) AS pct,
+            round(avg(elapsed_sec)::numeric, 1) AS avg_s,
+            round(avg(cost_usd)::numeric, 4) AS avg_cost
+        FROM scrape_runs
+        WHERE run_at > now() - interval '24 hours'
+        GROUP BY 1
+        ORDER BY n DESC
+    """)).all()
+
+    if not rows:
+        print("  (no scrape_runs in last 24h)")
+        return
+
+    total = sum(r.n for r in rows)
+    print(f"  Total scrapes in last 24h: {total}")
+    successful_outcomes = ("platform_direct_static", "platform_direct_rendered", "cache_hit", "content_unchanged")
+    successful = sum(r.n for r in rows if r.outcome in successful_outcomes)
+    print(f"  Successful (platform/cache/unchanged): {successful}/{total} ({100*successful/max(total,1):.1f}%)\n")
+    for r in rows:
+        print(f"  {r.outcome:<32} n={r.n:<4} ({r.pct:>5.1f}%) avg={r.avg_s}s ${r.avg_cost}")
+
+
 def q_area_sqft_zero(db: Session) -> None:
     _print_header("Plans with area_sqft = 0 (B1 stale placeholder check)")
     rows = db.execute(text("""
@@ -262,11 +356,14 @@ def main() -> None:
         q_plan_quality(db)
         q_area_sqft_zero(db)
         q_scrape_outcomes(db, args.days)
+        q_outcome_24h(db)
+        q_rendered_latency(db)
         q_price_history_growth(db, args.days)
         q_notification_health(db, args.days)
         q_cost_summary(db, args.days)
         q_suspicious_names(db)
         q_adapter_hint_health(db)
+        q_hint_distribution(db)
     finally:
         db.close()
 
