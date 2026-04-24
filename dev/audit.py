@@ -119,7 +119,7 @@ def q_scrape_outcomes(db: Session, days: int) -> None:
                round(avg(elapsed_sec)::numeric, 1)         AS avg_elapsed_sec
         FROM scrape_runs
         WHERE run_at > now() - interval '{days} days'
-          AND outcome = 'platform_direct'
+          AND outcome IN ('platform_direct', 'platform_direct_static', 'platform_direct_rendered')
         GROUP BY 1
         ORDER BY 2 DESC
     """)).fetchall()

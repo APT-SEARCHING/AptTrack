@@ -7,7 +7,9 @@ Outcome values
 ``hard_fail``                exception raised during scrape
 ``content_unchanged``        content-hash short-circuit — prices carried forward
 ``cache_hit``                path-cache replay succeeded (subset of success)
-``platform_direct``          platform adapter short-circuit (0 LLM cost)
+``platform_direct``          legacy — platform adapter short-circuit (0 LLM cost)
+``platform_direct_static``   adapter fired on static HTML (aiohttp)
+``platform_direct_rendered`` adapter fired on rendered HTML (Playwright)
 ``skipped_negative_cache``   URL is within its negative-cache suppression window
 ``skipped_unscrapeable``     registry.data_source_type == 'unscrapeable' — site doesn't publish pricing
 ``stale``                    reserved for future forced-retry logic

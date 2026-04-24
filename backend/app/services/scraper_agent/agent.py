@@ -763,57 +763,68 @@ class ApartmentAgent:
             browser_ctx = self._browser_class(headless=headless)
 
         async with browser_ctx as browser:
+            from .fetch import fetch_static, fetch_rendered, has_sufficient_plan_signals, is_cloudflare_challenge
+            from .browser_tools import is_apartment_website
 
-            # ── Fetch homepage HTML once — used by all pre-checks below ───────
-            _html = ""
-            try:
-                import aiohttp as _aiohttp
-                async with _aiohttp.ClientSession(
-                    connector=_aiohttp.TCPConnector(ssl=False),
-                    headers={"User-Agent": "AptTrack/1.0 (rental price transparency tool; contact@apttrack.app)"},
-                ) as _sess:
-                    try:
-                        async with _sess.get(url, timeout=_aiohttp.ClientTimeout(total=15)) as _r:
-                            _html = await _r.text(errors="replace")
-                    except Exception:
-                        _html = ""
-            except Exception:
-                _html = ""
+            # ── Stage 1: static HTML fast path ───────────────────────────────
+            _html_static = await fetch_static(url)
+            if is_cloudflare_challenge(_html_static):
+                logger.info("Cloudflare challenge on %s — upgrading to rendered", url)
+                _html_static = ""
+            _html = _html_static
+            _used_rendered = False
 
-            # ── Pre-check: is this actually an apartment website? ─────────────
             if _html:
-                try:
-                    from .browser_tools import is_apartment_website
-                    _apt_valid, _apt_reason = is_apartment_website(_html, url)
+                _apt_valid, _apt_reason = is_apartment_website(_html, url)
+                if not _apt_valid:
+                    metrics.outcome = "not_apartment"
+                    metrics.elapsed_sec = time.monotonic() - t0
+                    logger.info("Skipping %s — not an apartment website: %s", url, _apt_reason)
+                    return None, metrics
+
+            # ── Stage 2: try platform adapters on static HTML ─────────────────
+            _platform_result = await try_platforms(_html, url, browser) if _html else None
+
+            # ── Stage 3: static miss + weak signals → upgrade to rendered ─────
+            if _platform_result is None and not has_sufficient_plan_signals(_html):
+                logger.info(
+                    "Static adapters missed for %s (weak signals) — upgrading to rendered fetch",
+                    url,
+                )
+                _rendered = await fetch_rendered(url, browser)
+                if _rendered and len(_rendered) > max(len(_html) * 2, 10_000):
+                    # Re-check is_apartment_website on rendered HTML — catches SPA sites
+                    # whose static <title> is a blank shell but rendered title reveals
+                    # "Senior Living" or "Affordable Housing".
+                    _apt_valid, _apt_reason = is_apartment_website(_rendered, url)
                     if not _apt_valid:
                         metrics.outcome = "not_apartment"
                         metrics.elapsed_sec = time.monotonic() - t0
-                        logger.info("Skipping %s — not an apartment website: %s", url, _apt_reason)
+                        logger.info("Rejected after render: %s — %s", url, _apt_reason)
                         return None, metrics
-                except Exception as _exc:
-                    logger.warning("Apartment website check failed: %s — continuing", _exc)
+                    _html = _rendered
+                    _used_rendered = True
+                    _platform_result = await try_platforms(_html, url, browser)
 
-            # ── Platform pre-checks (Jonah Digital / FatWin / SightMap) ─────────
-            # Registered adapters are tried in order; the first that both detects
-            # the platform and returns units short-circuits the ReAct loop entirely
-            # (0 LLM calls).  New platforms are added via the adapter registry —
-            # no changes needed here.  See scraper_agent/platforms/.
-            _platform_result = await try_platforms(_html, url, browser)
+            # ── Stage 4: platform succeeded (static or rendered path) ─────────
             if _platform_result is not None:
                 _pt_units, _pt_name = _platform_result
                 _pt_data = _parse_units_to_apartment_data(
                     _pt_units, _derive_name_from_html(_html, url), url
                 )
                 if _pt_data and _pt_data.floor_plans:
-                    metrics.outcome = "platform_direct"
+                    metrics.outcome = "platform_direct_rendered" if _used_rendered else "platform_direct_static"
                     metrics.adapter_name = _pt_name
                     metrics.iterations = 0
                     metrics.elapsed_sec = time.monotonic() - t0
                     logger.info(
-                        "Platform '%s' → %d plans, $0.00, %.1fs",
-                        _pt_name, len(_pt_data.floor_plans), metrics.elapsed_sec,
+                        "Platform '%s' (%s path) → %d plans, $0.00, %.1fs",
+                        _pt_name, "rendered" if _used_rendered else "static",
+                        len(_pt_data.floor_plans), metrics.elapsed_sec,
                     )
                     return _sanitize(_pt_data), metrics
+
+            # ── Stage 5: path-cache + LLM agent (existing flow, unchanged) ───
 
             # ── 1.3: try cached path first ───────────────────────────────────
             cache_entry = load_path(url)

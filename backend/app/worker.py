@@ -450,7 +450,9 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
 
                 elapsed = time.monotonic() - t_start
                 if result and result.floor_plans:
-                    outcome = metrics.outcome if metrics.outcome in ("platform_direct", "cache_hit") else "success"
+                    outcome = metrics.outcome if metrics.outcome in (
+                        "platform_direct", "platform_direct_static", "platform_direct_rendered", "cache_hit",
+                    ) else "success"
                     _persist_scraped_prices(apt_id, result, db)
                     if new_hash is not None:
                         apt = db.execute(

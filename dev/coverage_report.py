@@ -40,7 +40,7 @@ def _make_session() -> Session:
 
 
 # Success outcomes — scrape delivered data (zero-cost or LLM)
-_SUCCESS = {"success", "cache_hit", "platform_direct", "content_unchanged"}
+_SUCCESS = {"success", "cache_hit", "platform_direct", "platform_direct_static", "platform_direct_rendered", "content_unchanged"}
 # Hard-failure outcomes — no data, worth investigating
 _FAILURES = {"validated_fail", "hard_fail", "skipped_negative_cache"}
 
@@ -60,7 +60,7 @@ def _print_aggregate(rows: list, since: datetime | None) -> None:
         print(f"  {outcome:<28} {count:>6}  {pct:>5.1f}%")
 
     # ── Per-adapter breakdown (platform_direct rows only) ──────────────────
-    platform_rows = [r for r in rows if r.outcome == "platform_direct"]
+    platform_rows = [r for r in rows if r.outcome in ("platform_direct", "platform_direct_static", "platform_direct_rendered")]
     if not platform_rows:
         print("\nNo platform_direct rows yet.")
         return
