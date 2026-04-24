@@ -195,8 +195,20 @@ const ListingsPage: React.FC = () => {
         {/* Main */}
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 flex items-center gap-2 flex-wrap">
               {loading ? 'Loading…' : `${filtered.length} apartment${filtered.length !== 1 ? 's' : ''}`}
+              {!loading && (
+                <button
+                  onClick={() => setFilters(f => ({ ...f, include_unscrapeable: !f.include_unscrapeable }))}
+                  className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                    filters.include_unscrapeable
+                      ? 'border-slate-400 bg-slate-100 text-slate-600'
+                      : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500'
+                  }`}
+                >
+                  {filters.include_unscrapeable ? '✓ showing unlisted' : '+ show unlisted'}
+                </button>
+              )}
             </p>
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Sort */}

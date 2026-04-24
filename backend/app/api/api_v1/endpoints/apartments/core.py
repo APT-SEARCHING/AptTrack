@@ -2,7 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import asc, desc, func, select
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.limiter import limiter
@@ -39,6 +39,7 @@ def get_apartments(
     max_sqft: Optional[float] = None,
     available_before: Optional[date] = None,
     sort: str = Query(default="price_asc", description="price_asc | price_desc | updated_desc | name_asc"),
+    include_unscrapeable: bool = Query(default=False),
 ):
     if sort not in _SORT_OPTIONS:
         raise HTTPException(status_code=422, detail=f"sort must be one of {sorted(_SORT_OPTIONS)}")
@@ -63,6 +64,14 @@ def get_apartments(
         stmt = stmt.where(Apartment.property_type == property_type)
     if is_available is not None:
         stmt = stmt.where(Apartment.is_available == is_available)
+
+    if not include_unscrapeable:
+        stmt = stmt.where(
+            or_(
+                Apartment.data_source_type != 'unscrapeable',
+                Apartment.data_source_type.is_(None),
+            )
+        )
 
     # Plan-level filters: use a subquery (WHERE id IN ...) rather than JOIN+DISTINCT.
     # JOIN+DISTINCT conflicts with the price-sort ORDER BY because PostgreSQL requires

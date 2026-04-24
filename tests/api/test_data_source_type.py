@@ -80,7 +80,7 @@ class TestDataSourceTypeInAPIResponse:
         db.add(apt)
         db.commit()
 
-        resp = client.get("/api/v1/apartments/")
+        resp = client.get("/api/v1/apartments/?include_unscrapeable=true")
         assert resp.status_code == 200
         data = resp.json()
         apartments = data if isinstance(data, list) else data.get("items", data.get("apartments", []))

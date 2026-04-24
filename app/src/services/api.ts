@@ -234,6 +234,7 @@ export interface ListingsFilter {
   min_sqft?: number;
   max_sqft?: number;
   available_before?: string; // ISO date string YYYY-MM-DD
+  include_unscrapeable?: boolean;
 }
 
 const _AMI_PATTERN = /\bami\b|\d+%\s*ami|area median income|income.restricted|income.qualified|lihtc|section 8/i;
@@ -386,6 +387,7 @@ const api = {
       min_sqft: filters.min_sqft,
       max_sqft: filters.max_sqft,
       available_before: filters.available_before,
+      include_unscrapeable: filters.include_unscrapeable || undefined,
     };
     const apts = await apiFetch<ApartmentResponse[]>('/apartments', params);
     return apts.map(aptToSummary).filter(a => a.plan_count > 0 && !a._isAffordableHousing);
