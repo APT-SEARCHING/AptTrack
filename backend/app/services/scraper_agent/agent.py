@@ -766,6 +766,24 @@ class ApartmentAgent:
             from .fetch import fetch_static, fetch_rendered, has_sufficient_plan_signals, is_cloudflare_challenge
             from .browser_tools import is_apartment_website
 
+            # ── Load adapter hint from registry (before any I/O) ─────────────
+            from datetime import datetime, timezone
+            from urllib.parse import urlparse
+            from sqlalchemy import select as _sa_select
+            _domain = urlparse(url).netloc.lower()
+            _hint: Optional[str] = None
+            try:
+                from app.db.session import SessionLocal as _SessionLocal
+                from app.models.site_registry import ScrapeSiteRegistry as _SiteReg
+                with _SessionLocal() as _hint_db:
+                    _hint_reg = _hint_db.execute(
+                        _sa_select(_SiteReg).where(_SiteReg.domain == _domain)
+                    ).scalar_one_or_none()
+                    if _hint_reg:
+                        _hint = _hint_reg.last_successful_adapter
+            except Exception as _exc:
+                logger.warning("Failed to load registry hint for %s: %s", _domain, _exc)
+
             # ── Stage 1: static HTML fast path ───────────────────────────────
             _html_static = await fetch_static(url)
             if is_cloudflare_challenge(_html_static):
@@ -783,7 +801,7 @@ class ApartmentAgent:
                     return None, metrics
 
             # ── Stage 2: try platform adapters on static HTML ─────────────────
-            _platform_result = await try_platforms(_html, url, browser) if _html else None
+            _platform_result = await try_platforms(_html, url, browser, hint_adapter_name=_hint) if _html else None
 
             # ── Stage 3: static miss + weak signals → upgrade to rendered ─────
             if _platform_result is None and not has_sufficient_plan_signals(_html):
@@ -804,7 +822,7 @@ class ApartmentAgent:
                         return None, metrics
                     _html = _rendered
                     _used_rendered = True
-                    _platform_result = await try_platforms(_html, url, browser)
+                    _platform_result = await try_platforms(_html, url, browser, hint_adapter_name=_hint)
 
             # ── Stage 4: platform succeeded (static or rendered path) ─────────
             if _platform_result is not None:
@@ -822,6 +840,22 @@ class ApartmentAgent:
                         _pt_name, "rendered" if _used_rendered else "static",
                         len(_pt_data.floor_plans), metrics.elapsed_sec,
                     )
+                    # ── Persist adapter hint for next scrape ─────────────────
+                    if _hint != _pt_name:
+                        try:
+                            from app.db.session import SessionLocal as _SessionLocal2
+                            from app.models.site_registry import ScrapeSiteRegistry as _SiteReg2
+                            with _SessionLocal2() as _hint_db2:
+                                _hint_reg2 = _hint_db2.execute(
+                                    _sa_select(_SiteReg2).where(_SiteReg2.domain == _domain)
+                                ).scalar_one_or_none()
+                                if _hint_reg2:
+                                    _hint_reg2.last_successful_adapter = _pt_name
+                                    _hint_reg2.last_adapter_success_at = datetime.now(timezone.utc)
+                                    _hint_db2.commit()
+                                    logger.debug("Registry hint updated: %s → %s", _domain, _pt_name)
+                        except Exception as _exc2:
+                            logger.warning("Failed to update registry hint for %s: %s", _domain, _exc2)
                     return _sanitize(_pt_data), metrics
 
             # ── Stage 5: path-cache + LLM agent (existing flow, unchanged) ───

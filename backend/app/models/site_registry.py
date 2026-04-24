@@ -99,6 +99,18 @@ class ScrapeSiteRegistry(Base):
         ),
     )
 
+    # Adapter hint — speeds up repeated scrapes of known-platform sites
+    last_successful_adapter = Column(
+        String(32),
+        nullable=True,
+        comment="Name of the platform adapter that last successfully extracted units for this domain",
+    )
+    last_adapter_success_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Timestamp of the last successful adapter extraction",
+    )
+
     # Audit timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

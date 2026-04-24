@@ -200,6 +200,32 @@ def q_suspicious_names(db: Session) -> None:
         print("  OK — no contaminated plan names found.")
 
 
+def q_adapter_hint_health(db: Session) -> None:
+    _print_header("Adapter hint health (sites with stale or missing last success)")
+    rows = db.execute(text("""
+        SELECT domain,
+               coalesce(last_successful_adapter, '-')  AS adapter,
+               last_adapter_success_at,
+               is_active
+        FROM scrape_site_registry
+        WHERE is_active = true
+          AND (last_adapter_success_at IS NULL
+               OR last_adapter_success_at < now() - interval '7 days')
+        ORDER BY last_adapter_success_at NULLS FIRST
+    """)).fetchall()
+    if not rows:
+        print("  OK — all active sites have a fresh adapter hint (< 7 days old).")
+        return
+    for row in rows:
+        if row.last_adapter_success_at is None:
+            age = "never"
+        else:
+            days_old = (datetime.now(timezone.utc) - row.last_adapter_success_at).days
+            age = f"{days_old}d ago"
+        print(f"  {row.domain:<45}  {row.adapter:<20}  {age}")
+    print(f"\n  {len(rows)} site(s) with stale/missing hints — may need manual scrape or adapter coverage.")
+
+
 def q_area_sqft_zero(db: Session) -> None:
     _print_header("Plans with area_sqft = 0 (B1 stale placeholder check)")
     rows = db.execute(text("""
@@ -240,6 +266,7 @@ def main() -> None:
         q_notification_health(db, args.days)
         q_cost_summary(db, args.days)
         q_suspicious_names(db)
+        q_adapter_hint_health(db)
     finally:
         db.close()
 

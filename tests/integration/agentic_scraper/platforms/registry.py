@@ -59,14 +59,47 @@ async def try_platforms(
     html: str,
     url: str,
     browser: "BrowserSession",
+    *,
+    hint_adapter_name: Optional[str] = None,
 ) -> Optional[Tuple[List[dict], str]]:
     """Try each registered platform adapter in order.
+
+    If ``hint_adapter_name`` is provided, that adapter is tried first (fast
+    path for previously-successful sites).  On hint miss the full registry is
+    walked, skipping the already-tried adapter.
 
     Returns ``(units, adapter_name)`` on the first adapter that both detects
     the platform and successfully extracts at least one unit.
     Returns ``None`` if no adapter matched or all raised exceptions.
     """
-    for adapter in get_registry():
+    registry = get_registry()
+    tried_first: Optional[str] = None
+
+    # ── Hint fast path ────────────────────────────────────────────────────────
+    if hint_adapter_name:
+        hinted = next((a for a in registry if a.name == hint_adapter_name), None)
+        if hinted:
+            tried_first = hinted.name
+            try:
+                if hinted.detect(html, url):
+                    units = await hinted.extract(html, url, browser)
+                    if units:
+                        logger.debug("Hint hit: %s → %d units", hinted.name, len(units))
+                        return units, hinted.name
+                    else:
+                        logger.info(
+                            "Hint '%s' detected but returned no units — falling through to full registry",
+                            hinted.name,
+                        )
+                else:
+                    logger.debug("Hint '%s' did not detect — falling through to full registry", hinted.name)
+            except Exception as exc:
+                logger.warning("Hinted adapter '%s' raised: %s — falling through", hint_adapter_name, exc)
+
+    # ── Full registry walk (skip adapter already tried above) ────────────────
+    for adapter in registry:
+        if adapter.name == tried_first:
+            continue
         if not adapter.detect(html, url):
             continue
         try:
