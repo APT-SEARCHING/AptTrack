@@ -70,6 +70,42 @@ def is_cloudflare_challenge(html: str) -> bool:
 # Rendered fetch
 # ---------------------------------------------------------------------------
 
+# Exported so unit tests can assert on the exact JS text without a browser.
+_HYDRATION_WAIT_JS = """() => {
+                    // ── Positive signals: floor-plan data present → stop waiting ──
+                    if (document.querySelector('[data-floorplan-id]')) return true;
+                    if (document.querySelectorAll('[class*="floorplan"]').length >= 2) return true;
+                    if (document.querySelectorAll('a[href*="/floorplans/"]').length >= 2
+                        && !document.querySelector('a[href="/floorplans/"]:only-of-type')) return true;
+                    if (document.querySelectorAll('[class*="plan-card"]').length >= 2) return true;
+
+                    // ── Still loading → keep waiting ────────────────────────────
+                    const bodyText = (document.body && document.body.innerText || '').toLowerCase();
+                    if (bodyText.includes('loading floorplans')
+                        || bodyText.includes('loading floor plans')
+                        || bodyText.includes('please wait')) return false;
+
+                    // ── Negative title signals: clearly NOT an apartment listing ─
+                    // is_apartment_website will reject; we just stop waiting early.
+                    const title = (document.title || '').toLowerCase();
+                    const negTitle = ['senior living', 'assisted living', 'memory care',
+                                      'affordable housing', 'income restricted',
+                                      'hotel', 'resort', 'motel', 'inn '];
+                    for (const kw of negTitle) {
+                        if (title.includes(kw)) return true;
+                    }
+
+                    // ── Generic hydration signal ─────────────────────────────────
+                    // Many links + at least one heading means the DOM is hydrated.
+                    // If no plan signals fired, this page has no floor-plan data.
+                    const linkCount = document.querySelectorAll('body a[href]').length;
+                    const hasHeading = document.querySelector('h1, h2') !== null;
+                    if (linkCount > 20 && hasHeading) return true;
+
+                    return false;
+                }"""
+
+
 async def fetch_rendered(
     url: str,
     browser: "BrowserSession",
@@ -86,24 +122,19 @@ async def fetch_rendered(
 
     NOT networkidle: RentCafe's CDN keeps polling indefinitely, causing
     networkidle to time out even when the page is fully usable.
+
+    The wait returns early in three cases:
+    1. Floor-plan data signals appear (typical success path).
+    2. The page title indicates a non-apartment site (senior living, hotel,
+       affordable housing) — lets is_apartment_website reject immediately.
+    3. The page is clearly hydrated (many links + a heading) but no plan
+       signals fired — the page doesn't contain floor-plan data at all
+       (contact page, landing page, 404, Parkmerced-style listing index).
     """
     try:
         await browser.page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
         try:
-            await browser.page.wait_for_function(
-                """() => {
-                    if (document.querySelector('[data-floorplan-id]')) return true;
-                    if (document.querySelectorAll('[class*="floorplan"]').length >= 2) return true;
-                    if (document.querySelectorAll('a[href*="/floorplans/"]').length >= 2
-                        && !document.querySelector('a[href="/floorplans/"]:only-of-type')) return true;
-                    if (document.querySelectorAll('[class*="plan-card"]').length >= 2) return true;
-                    const t = (document.body && document.body.innerText || '').toLowerCase();
-                    if (t.includes('loading floorplans') || t.includes('loading floor plans')
-                        || t.includes('please wait')) return false;
-                    return false;
-                }""",
-                timeout=12_000,
-            )
+            await browser.page.wait_for_function(_HYDRATION_WAIT_JS, timeout=12_000)
         except Exception:
             pass  # timeout OK — is_apartment_website + adapters decide next
         await asyncio.sleep(1.5)

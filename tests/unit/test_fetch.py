@@ -12,6 +12,7 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.services.scraper_agent.fetch import (
+    _HYDRATION_WAIT_JS,
     fetch_static,
     has_sufficient_plan_signals,
     is_cloudflare_challenge,
@@ -195,6 +196,31 @@ class TestFetchRendered:
         # wait_for_function must come before content
         assert call_order.index("wait_for_function") < call_order.index("content")
 
+    def test_wait_for_function_receives_hydration_js(self):
+        """wait_for_function must be called with _HYDRATION_WAIT_JS exactly."""
+        from app.services.scraper_agent.fetch import fetch_rendered
+
+        captured: list[str] = []
+
+        mock_page = MagicMock()
+        mock_page.goto = AsyncMock()
+        mock_page.wait_for_function = AsyncMock(
+            side_effect=lambda js, **kw: captured.append(js)
+        )
+        mock_page.content = AsyncMock(return_value="<html></html>")
+
+        mock_browser = MagicMock()
+        mock_browser.page = mock_page
+
+        async def _noop(*a, **kw): pass
+        with patch("asyncio.sleep", side_effect=_noop):
+            asyncio.get_event_loop().run_until_complete(
+                fetch_rendered("https://example.com/floorplans", mock_browser)
+            )
+
+        assert len(captured) == 1
+        assert captured[0] is _HYDRATION_WAIT_JS
+
     def test_returns_empty_on_goto_error(self):
         from app.services.scraper_agent.fetch import fetch_rendered
 
@@ -207,3 +233,53 @@ class TestFetchRendered:
             fetch_rendered("https://example.com/floorplans", mock_browser)
         )
         assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# _HYDRATION_WAIT_JS content regression tests
+#
+# These tests don't execute real JS — they assert the string contains the
+# signal blocks described in PR-E so a reviewer/future-author can't
+# accidentally regress them without a test failure.
+# ---------------------------------------------------------------------------
+
+class TestHydrationWaitJsContent:
+    """Regression guards for the three early-exit strategies in _HYDRATION_WAIT_JS."""
+
+    def test_positive_floorplan_signal_present(self):
+        """JS must check for floor-plan DOM signals (original behaviour)."""
+        assert "data-floorplan-id" in _HYDRATION_WAIT_JS
+        assert 'class*="floorplan"' in _HYDRATION_WAIT_JS
+        assert 'class*="plan-card"' in _HYDRATION_WAIT_JS
+
+    def test_loading_guard_present(self):
+        """JS must keep waiting when 'loading floorplans' text is visible."""
+        assert "loading floorplans" in _HYDRATION_WAIT_JS
+        assert "please wait" in _HYDRATION_WAIT_JS
+
+    def test_negative_title_signals_present(self):
+        """JS must return true early for senior living / hotel title keywords."""
+        for kw in ("senior living", "assisted living", "memory care",
+                   "affordable housing", "hotel", "resort"):
+            assert kw in _HYDRATION_WAIT_JS, f"Missing negative title keyword: {kw!r}"
+
+    def test_generic_hydration_signal_present(self):
+        """JS must return true when >20 links + heading exist (no plan data)."""
+        assert "linkCount > 20" in _HYDRATION_WAIT_JS
+        assert "h1, h2" in _HYDRATION_WAIT_JS
+
+    def test_js_is_callable_arrow_function(self):
+        """JS string must be an arrow-function expression (Playwright requirement)."""
+        stripped = _HYDRATION_WAIT_JS.strip()
+        assert stripped.startswith("()"), "wait_for_function must start with '()'"
+        assert "=>" in stripped
+
+    def test_fetch_rendered_exits_on_senior_living_title(self):
+        """fetch_rendered passes the JS to wait_for_function; the JS contains
+        the senior-living early-exit path (actual execution needs a real browser)."""
+        assert "senior living" in _HYDRATION_WAIT_JS
+
+    def test_fetch_rendered_exits_on_hydrated_no_signals(self):
+        """JS contains the generic hydration check that exits for pages with
+        many links and a heading but no plan signals (Parkmerced-style)."""
+        assert "linkCount > 20 && hasHeading" in _HYDRATION_WAIT_JS
