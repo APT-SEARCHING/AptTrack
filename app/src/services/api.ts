@@ -260,6 +260,7 @@ function aptToSummary(apt: ApartmentResponse): ApartmentSummary {
     location,
     city: apt.city,
     source_url: apt.source_url,
+    data_source_type: apt.data_source_type,
     plan_count: apt.plans.length,
     available_count: availableCount,
     min_price: prices.length ? Math.min(...prices) : null,
