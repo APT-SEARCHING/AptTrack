@@ -1,0 +1,25 @@
+{
+  "url": "https://housing.sanjoseca.gov/listing/afa26682-166b-4d5b-bf6e-e997a4e8dad3/solaire_427_auzerais_ave_san_jose_ca",
+  "domain": "housing_sanjoseca_gov__0b8db1eb",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://housing.sanjoseca.gov/listing/afa26682-166b-4d5b-bf6e-e997a4e8dad3/solaire_427_auzerais_ave_san_jose_ca"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "1 BR: 1 unit, 520 square feet"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Solaire Apartments",
+  "last_success": "2026-04-25T16:34:48.937179+00:00",
+  "success_count": 1
+}

@@ -1,0 +1,115 @@
+{
+  "url": "https://www.diridonwest.com/?switch_cls[id]=65053&utm_source=GoogleBusinessProfile&utm_medium=organic&utm_campaign=DiridonWest_GBP",
+  "domain": "www_diridonwest_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.diridonwest.com/?switch_cls[id]=65053&utm_source=GoogleBusinessProfile&utm_medium=organic&utm_campaign=DiridonWest_GBP"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://diridonwest.com/floorplans/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Find Your Home"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://diridonwest.com/floorplans/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "FIND YOUR HOME"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Find Your Home"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "engrain"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "1 Bedroom"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://diridonwest.com/floorplans/"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Floor Plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://diridonwest.com/amenities/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://diridonwest.com/"
+      }
+    }
+  ],
+  "apartment_name": "Diridon West",
+  "last_success": "2026-04-25T16:39:55.792066+00:00",
+  "success_count": 1
+}

@@ -332,6 +332,37 @@ pytest tests/integration/agentic_scraper/ -m "not integration" -v
 pytest tests/integration/agentic_scraper/ -m integration -v -s
 ```
 
+#### Known unscrapeable apartments
+
+The following apartments are in the DB but cannot currently be scraped. Each is listed with its root cause so future contributors know what has already been investigated.
+
+| ID | Title | Root cause | Status |
+|----|-------|-----------|--------|
+| 153 | Mode Apartments | RentCafe with Cloudflare "Under Attack Mode" on `/floorplans` — urllib gets 403, Playwright re-challenged | `is_available=true`, no plans |
+| 164 | Viewpoint Apartments | Cloudflare challenge on every request | `is_available=true`, no plans |
+| 171 | Tan Plaza Apartments | Boutique building, contact-only leasing, 35 iterations found no prices | `is_available=true`, no plans |
+| 172 | Telegraph Gardens | Small building, pricing not published online | `is_available=true`, no plans |
+| 175 | Hanover FC | Proprietary Hanover Company leasing system, no public price data | `is_available=true`, no plans |
+| 177 | Camden Northpark | Site exists but shows "Contact for pricing" — no published rates | `is_available=true`, 1 plan (no price) |
+| 247 | Turnleaf Apartments | 20 LLM iterations, no pricing found; site may not publish prices | `is_available=true`, no plans |
+| 251 | Ilara Apartments | 35 LLM iterations exhausted; floor plan page present but data extraction fails | `is_available=true`, no plans |
+| 270 | Atrium Garden Apartments | RentCafe with `rcstdid=` parameter — HTTP 403 on programmatic access | `is_available=true`, no plans |
+| 69 | Sofia Apartments | Entrata platform — prices require JS API call, no static data, no Entrata adapter yet | `is_available=true`, 10 stale seed plans |
+| 68 | The Benton | Prometheus site blocks scraper (robots-like JS challenge) | `is_available=true`, 17 stale plans |
+| 234 | The Dean | Prometheus site blocks scraper | `is_available=true`, 4 stale plans |
+| 223 | Shadowbrook | Prometheus site blocks scraper | `is_available=true`, 1 stale plan |
+| 170 | Archstone Fremont Center | Equity Apartments — dynamic pricing not in static HTML | `is_available=true`, 3 stale plans |
+| 207 | Redwood Place | Irvine Company — Cloudflare / JS-gated pricing | `is_available=true`, 6 stale plans |
+| 210 | River View | Irvine Company — same as Redwood Place | `is_available=true`, 6 stale plans |
+| 173 | 360 Residences | Equity Apartments — dynamic pricing | `is_available=true`, 11 stale plans |
+| 71 | The Village Residences | Brookfield Properties — JS-rendered pricing | `is_available=true`, 12 stale plans |
+| 53 | The Oak SF | Validated fail after multiple attempts | `is_available=true`, 7 stale plans |
+| 59 | Coterie Cathedral Hill | Luxury senior living — scraped but no price data (likely contact-only) | `is_available=true`, 5 stale plans |
+| 24 | Redwood Seniors | **Senior housing** — should be marked inactive | `is_available=true`, needs cleanup |
+| 28 | Valley Village Retirement | **Retirement community** — should be marked inactive | `is_available=true`, needs cleanup |
+
+**To add a new apartment:** run `python seed_apartments.py --urls-file dev/my_list.json`. The scraper will attempt extraction and classify the domain in `scrape_site_registry`.
+
 #### Compliance
 
 - Only publicly accessible pages — never behind login walls.

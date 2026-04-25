@@ -31,9 +31,25 @@
       }
     },
     {
+      "action": "click_button",
+      "args": {
+        "text": "View Apartments"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "arrow_back BACK"
+      }
+    },
+    {
       "action": "click_link",
       "args": {
-        "text_or_href": "Amenities"
+        "text_or_href": "/apartments/ca/mountain-view/amenities"
       }
     },
     {
@@ -45,13 +61,7 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/floor-plans"
+        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/floor-plans#/"
       }
     },
     {
@@ -59,9 +69,13 @@
       "args": {
         "text": "View All Floor Plans"
       }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
     }
   ],
-  "apartment_name": "The Shadows Apartments",
-  "last_success": "2026-04-24T02:05:01.195371+00:00",
+  "apartment_name": "The Shadows",
+  "last_success": "2026-04-25T16:50:00.131496+00:00",
   "success_count": 1
 }

@@ -11,23 +11,13 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "https://www.theskylyne.com/floor-plans/"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
-      "action": "click_button",
-      "args": {
-        "text": "Show More"
+        "text_or_href": "View floor plans"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "https://www.theskylyne.com/sightmap/"
+        "text_or_href": "/sightmap/"
       }
     },
     {
@@ -55,19 +45,7 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "https://www.theskylyne.com/amenities/"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "https://www.theskylyne.com/features/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.theskylyne.com/floor-plans/"
+        "text_or_href": "https://www.theskylyne.com/floor-plans/apartments/?floorplanid=4022847"
       }
     },
     {
@@ -79,7 +57,7 @@
     {
       "action": "read_iframe",
       "args": {
-        "keyword": "sightmap.com"
+        "keyword": "sightmap.com/embed"
       }
     },
     {
@@ -87,35 +65,25 @@
       "args": {}
     },
     {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.theskylyne.com/floor-plans/"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
       "action": "click_link",
       "args": {
-        "text_or_href": "https://www.theskylyne.com/features/"
+        "text_or_href": "/amenities/"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.theskylyne.com/features/"
+        "url": "https://www.theskylyne.com/amenities/"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.theskylyne.com/floor-plans/"
+        "url": "https://www.theskylyne.com/"
       }
     }
   ],
   "apartment_name": "The Skylyne at Temescal",
-  "last_success": "2026-04-24T02:26:16.114776+00:00",
+  "last_success": "2026-04-25T16:54:59.165714+00:00",
   "success_count": 1
 }

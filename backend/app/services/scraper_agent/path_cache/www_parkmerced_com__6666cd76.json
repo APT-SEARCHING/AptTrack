@@ -15,27 +15,31 @@
       }
     },
     {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/1-bd-1-ba-tower-home/"
-      }
+      "action": "scroll_down",
+      "args": {}
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/2-bd-2-ba-tower-home/"
+        "url": "https://parkmerced.com/apartments/"
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://parkmerced.com/3-bd-3-ba-tower-home/"
+        "text_or_href": "View Available"
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://parkmerced.com/1x1-bd-townhome/"
+        "text_or_href": "Availability"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Pricing"
       }
     },
     {
@@ -45,27 +49,13 @@
       }
     },
     {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/1x1-bd-townhome-apartment/"
-      }
+      "action": "scroll_down",
+      "args": {}
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/1-bd-townhome/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/studio-apartment/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/amenities/"
+        "url": "https://parkmerced.com/apartments/"
       }
     },
     {
@@ -77,38 +67,18 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/floorplans/"
+        "url": "https://parkmerced.com/"
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://parkmerced.com/2x2-bd-townhome/"
+        "text_or_href": "Amenities"
       }
     },
     {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/2-bd-townhome-apartment/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/3-bd-townhome-apartment/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/1-bedroom-townhome/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://parkmerced.com/studio-tower-home/"
-      }
+      "action": "scroll_down",
+      "args": {}
     },
     {
       "action": "navigate_to",
@@ -117,15 +87,39 @@
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://parkmerced.com/studios/"
+        "text_or_href": "TOWER HOME"
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://parkmerced.com/junior-studio/"
+        "text_or_href": "rentbt"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "rentbt"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "yardi"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plan"
       }
     },
     {
@@ -137,23 +131,61 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/1-bd-1-ba-tower-home/"
+        "url": "https://properties-rentbt.securecafenet.com/"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/2-bd-2-ba-tower-home/"
+        "url": "https://parkmerced.com/contact/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Location"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://parkmerced.com/3-bd-3-ba-tower-home/"
+        "url": "https://parkmerced.com/about/"
       }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://parkmerced.com/"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://parkmerced.com/contact-us/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "PDF"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Townhome"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
     }
   ],
   "apartment_name": "Parkmerced",
-  "last_success": "2026-04-24T21:47:38.292270+00:00",
+  "last_success": "2026-04-25T16:58:43.346237+00:00",
   "success_count": 1
 }

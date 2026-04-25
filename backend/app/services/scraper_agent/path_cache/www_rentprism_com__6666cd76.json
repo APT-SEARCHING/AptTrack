@@ -11,6 +11,28 @@
     {
       "action": "click_link",
       "args": {
+        "text_or_href": "floor-plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/sightmap"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
         "text_or_href": "Floor Plans"
       }
     },
@@ -21,31 +43,19 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Amenities"
+        "text_or_href": "view=list"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/amenities/"
+        "url": "https://www.rentprism.com/floor-plans/?sort=unitrent&order=ASC&view=list"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/floor-plans/"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "about:srcdoc"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "service_worker"
+        "url": "https://www.rentprism.com/floor-plans/?view=list&sort=minsquarefeet&order=DESC"
       }
     },
     {
@@ -61,73 +71,39 @@
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://www.rentprism.com/specials/"
+        "text_or_href": "Amenities"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/floor-plans/"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "sightmap"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "cookie"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "srcdoc"
+        "url": "https://www.rentprism.com/floor-plans/?view=grid&sort=minsquarefeet&order=DESC"
       }
     },
     {
       "action": "click_button",
       "args": {
-        "text": "Show 10 Results"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "Filter Your Results"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "srcdoc"
+        "text": "Reset"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/floor-plans/"
+        "url": "https://www.rentprism.com/floor-plans"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/neighborhood/"
+        "url": "https://www.rentprism.com/"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.rentprism.com/contact/"
+        "url": "https://www.rentprism.com/amenities/"
       }
     },
     {
@@ -138,6 +114,6 @@
     }
   ],
   "apartment_name": "Prism",
-  "last_success": "2026-04-24T02:13:39.579689+00:00",
+  "last_success": "2026-04-25T16:46:40.778672+00:00",
   "success_count": 1
 }
