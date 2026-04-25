@@ -105,7 +105,8 @@ class Plan(Base):
 
     # Price and availability
     price = Column(Float, nullable=True, comment="Seed-time price. DEPRECATED — use current_price for live queries.")
-    current_price = Column(Float, nullable=True, comment="Latest scraped price. NULL until first scrape. Updated by _persist_scraped_prices and _carry_forward_prices.")
+    current_price = Column(Float, nullable=True, comment="Min unit price (from $X). Updated by _persist_scraped_prices.")
+    max_price = Column(Float, nullable=True, comment="Max unit price across available units. NULL when only 1 unit or no units.")
     available_from = Column(DateTime, nullable=True, comment="Date when this plan becomes available")
     is_available = Column(Boolean, default=True, comment="Whether this plan is currently available")
 
@@ -123,6 +124,27 @@ class Plan(Base):
     # Relationships
     apartment = relationship("Apartment", back_populates="plans")
     price_history = relationship("PlanPriceHistory", back_populates="plan", cascade="all, delete-orphan")
+    units = relationship("Unit", back_populates="plan", cascade="all, delete-orphan", order_by="Unit.price")
+
+
+class Unit(Base):
+    """Individual available unit under a floor plan type."""
+    __tablename__ = "units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    unit_number = Column(String, nullable=True, comment="Unit identifier from source site (e.g. S-4327). NULL for adapters without unit-level data.")
+    price = Column(Float, nullable=True, comment="This unit's current asking price.")
+    area_sqft = Column(Float, nullable=True)
+    floor_level = Column(Integer, nullable=True)
+    facing = Column(String, nullable=True)
+    available_from = Column(DateTime, nullable=True)
+    is_available = Column(Boolean, nullable=False, default=True)
+    last_scraped_at = Column(DateTime(timezone=True), nullable=True)
+
+    plan = relationship("Plan", back_populates="units")
+
 
 class PlanPriceHistory(Base):
     """

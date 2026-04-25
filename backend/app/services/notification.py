@@ -153,3 +153,37 @@ async def send_telegram_alert(chat_id: str, message: str) -> _NotifResult:
     except Exception as exc:
         logger.error("send_telegram_alert exception: %s", exc)
         return (None, "failed", False)
+
+
+def send_unit_unavailable_notice(sub, db) -> None:
+    """Notify user that a unit-level subscription was auto-paused (unit no longer available)."""
+    import asyncio
+    from app.models.apartment import Unit, Plan, Apartment
+    from sqlalchemy import select
+
+    unit = db.execute(select(Unit).where(Unit.id == sub.unit_id)).scalar_one_or_none()
+    plan = db.execute(select(Plan).where(Plan.id == unit.plan_id)).scalar_one_or_none() if unit else None
+    apt = db.execute(select(Apartment).where(Apartment.id == plan.apartment_id)).scalar_one_or_none() if plan else None
+    from app.models.user import User
+    user = db.execute(select(User).where(User.id == sub.user_id)).scalar_one_or_none()
+
+    unit_label = unit.unit_number or "your tracked unit"
+    apt_title = apt.title if apt else "your tracked property"
+    plan_label = plan.name if plan else ""
+    subject = f"Unit alert paused — {unit_label} at {apt_title} is no longer available"
+    body = (
+        f"Hi,\n\n"
+        f"We've paused your price alert for {unit_label} ({plan_label}) at {apt_title} "
+        f"because that unit is no longer listed as available.\n\n"
+        f"You can set up a new alert for a different unit or the floor plan type at "
+        f"{apt_title} on AptTrack.\n\n"
+        f"— AptTrack"
+    )
+
+    if sub.notify_email and user and user.email:
+        try:
+            asyncio.get_event_loop().run_until_complete(
+                send_email_alert(user.email, subject, body, body)
+            )
+        except Exception as exc:
+            logger.warning("send_unit_unavailable_notice email failed: %s", exc)

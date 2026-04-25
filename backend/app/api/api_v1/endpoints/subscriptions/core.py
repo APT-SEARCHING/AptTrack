@@ -24,10 +24,10 @@ def create_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if payload.apartment_id is None and payload.plan_id is None and payload.city is None:
+    if payload.apartment_id is None and payload.plan_id is None and payload.unit_id is None and payload.city is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one of apartment_id, plan_id, or city must be provided",
+            detail="At least one of apartment_id, plan_id, unit_id, or city must be provided",
         )
     if any(
         v is not None
@@ -254,6 +254,12 @@ def _refresh_baseline(sub: PriceSubscription, db: Session) -> None:
 
 def _infer_baseline(payload: SubscriptionCreate, db: Session) -> Optional[float]:
     """Compute the current price for the subscription target to use as baseline."""
+    if payload.unit_id is not None:
+        from app.models.apartment import Unit
+        return db.execute(
+            select(Unit.price).where(Unit.id == payload.unit_id, Unit.is_available.is_(True))
+        ).scalar_one_or_none()
+
     if payload.plan_id is not None:
         # Latest price history entry, falling back to Plan.price
         price = db.execute(

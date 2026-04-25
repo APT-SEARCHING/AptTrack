@@ -15,6 +15,19 @@ class PropertyType(str, Enum):
     STUDIO = "studio"
 
 
+class UnitResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    unit_number: Optional[str] = None
+    price: Optional[float] = None
+    area_sqft: Optional[float] = None
+    floor_level: Optional[int] = None
+    facing: Optional[str] = None
+    available_from: Optional[datetime] = None
+    is_available: bool = True
+
+
 class PlanPriceHistoryBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +43,8 @@ class PlanBase(BaseModel):
     bathrooms: float
     area_sqft: Optional[float] = None
     price: Optional[float] = None
+    current_price: Optional[float] = None
+    max_price: Optional[float] = None
     available_from: Optional[datetime] = None
     is_available: bool = True
     external_url: Optional[str] = None
@@ -60,6 +75,7 @@ class PlanInDB(PlanBase):
 
 class PlanResponse(PlanInDB):
     price_history: list[PlanPriceHistoryBase] = []
+    units: list[UnitResponse] = []
 
 
 class ApartmentImageBase(BaseModel):

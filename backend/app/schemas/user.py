@@ -42,9 +42,10 @@ class PasswordResetWithToken(BaseModel):
 # ---------------------------------------------------------------------------
 
 class SubscriptionCreate(BaseModel):
-    # Target (at least one of apartment_id/plan_id OR city must be provided)
+    # Target (at least one of apartment_id/plan_id/unit_id OR city must be provided)
     apartment_id: Optional[int] = None
     plan_id: Optional[int] = None
+    unit_id: Optional[int] = None
 
     # Area-level
     city: Optional[str] = None
@@ -100,6 +101,7 @@ class SubscriptionResponse(BaseModel):
     user_id: int
     apartment_id: Optional[int]
     plan_id: Optional[int]
+    unit_id: Optional[int] = None
     city: Optional[str]
     zipcode: Optional[str]
     min_bedrooms: Optional[float]

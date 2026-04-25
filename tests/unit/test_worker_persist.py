@@ -85,6 +85,7 @@ def _make_fp(**kwargs) -> SimpleNamespace:
         external_url=None,
         floor_level=None,
         facing=None,
+        unit_number=None,
     )
     defaults.update(kwargs)
     return SimpleNamespace(**defaults)

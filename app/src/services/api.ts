@@ -13,6 +13,17 @@ export interface PlanPriceHistory {
   recorded_at: string;
 }
 
+export interface UnitResponse {
+  id: number;
+  unit_number: string | null;
+  price: number | null;
+  area_sqft: number | null;
+  floor_level: number | null;
+  facing: string | null;
+  available_from: string | null;
+  is_available: boolean;
+}
+
 export interface PlanResponse {
   id: number;
   apartment_id: number;
@@ -21,12 +32,15 @@ export interface PlanResponse {
   bathrooms: number;
   area_sqft: number;
   price: number;
+  current_price: number | null;
+  max_price: number | null;
   available_from: string | null;
   is_available: boolean;
   external_url: string | null;
   floor_level: number | null;
   facing: string | null;
   price_history: PlanPriceHistory[];
+  units: UnitResponse[];
   created_at: string;
   updated_at: string;
 }
@@ -165,10 +179,12 @@ export interface UserProfile {
 export interface SubscriptionCreate {
   apartment_id?: number;
   plan_id?: number;
+  unit_id?: number;
   city?: string;
   target_price?: number;
   price_drop_pct?: number;
   notify_email?: boolean;
+  baseline_price?: number;
 }
 
 export interface SubscriptionResponse {
@@ -176,6 +192,7 @@ export interface SubscriptionResponse {
   user_id: number;
   apartment_id: number | null;
   plan_id: number | null;
+  unit_id: number | null;
   city: string | null;
   target_price: number | null;
   price_drop_pct: number | null;

@@ -9,11 +9,13 @@ interface Props {
   currentPrice?: number;
   planId?: number;
   planName?: string;
+  unitId?: number;
+  unitNumber?: string;
   onClose: () => void;
   onCreated: () => void;
 }
 
-const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, planId, planName, onClose, onCreated }) => {
+const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice, planId, planName, unitId, unitNumber, onClose, onCreated }) => {
   const { token, activeAlertsCount, updateAlertCount } = useAuth();
   const [type, setType] = useState<'price' | 'pct'>('price');
   const [targetPrice, setTargetPrice] = useState(currentPrice != null ? String(Math.floor(currentPrice * 0.95)) : '');
@@ -30,7 +32,9 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
       const payload: SubscriptionCreate = {
         apartment_id: apartmentId,
         ...(planId !== undefined && { plan_id: planId }),
+        ...(unitId !== undefined && { unit_id: unitId }),
         notify_email: true,
+        ...(currentPrice != null && { baseline_price: currentPrice }),
       };
       if (type === 'price') {
         payload.target_price = parseFloat(targetPrice);

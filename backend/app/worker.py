@@ -711,6 +711,66 @@ def _carry_forward_prices(apt_id: int, db) -> None:
     db.commit()
 
 
+def _match_or_create_unit(plan_id: int, fp, db):
+    """Find an existing Unit by unit_number (if available) or create one."""
+    from sqlalchemy import select
+    from app.models.apartment import Unit
+
+    if fp.unit_number:
+        unit = db.execute(
+            select(Unit).where(Unit.plan_id == plan_id, Unit.unit_number == fp.unit_number)
+        ).scalar_one_or_none()
+        if unit:
+            return unit
+
+    unit = Unit(
+        plan_id=plan_id,
+        unit_number=fp.unit_number,
+        price=fp.min_price,
+        area_sqft=fp.size_sqft,
+        floor_level=fp.floor_level,
+        facing=fp.facing,
+        is_available=True,
+    )
+    db.add(unit)
+    db.flush()
+    return unit
+
+
+def _pause_stale_unit_subscriptions(apt_id: int, db) -> None:
+    """Auto-pause unit-level subscriptions when the unit is no longer available (D1)."""
+    from sqlalchemy import select
+    from app.models.apartment import Plan, Unit
+    from app.models.user import PriceSubscription
+
+    stale_subs = db.execute(
+        select(PriceSubscription)
+        .join(Unit, Unit.id == PriceSubscription.unit_id)
+        .join(Plan, Plan.id == Unit.plan_id)
+        .where(
+            Plan.apartment_id == apt_id,
+            PriceSubscription.unit_id.isnot(None),
+            PriceSubscription.is_active.is_(True),
+            Unit.is_available.is_(False),
+        )
+    ).scalars().all()
+
+    for sub in stale_subs:
+        sub.is_active = False
+        logger.info(
+            "Auto-paused sub %d (unit %d no longer available)",
+            sub.id, sub.unit_id,
+        )
+        try:
+            from app.services.notification import send_unit_unavailable_notice
+            send_unit_unavailable_notice(sub, db)
+        except Exception as exc:
+            logger.warning("Failed to send unit-unavailable notice for sub %d: %s", sub.id, exc)
+
+    if stale_subs:
+        db.commit()
+
+
 def _persist_scraped_prices(apt_id: int, result, db) -> None:
     """Write scraped plan prices back to PlanPriceHistory."""
     from datetime import datetime, timezone
@@ -740,57 +800,89 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
             if hasattr(result, 'current_special'):
                 apt.current_special = result.current_special
 
-    # Aggregate per-unit FloorPlans to one representative per floor plan name.
-    # SightMap (and similar platforms) return one FloorPlan per available unit;
-    # without this, last-unit-processed wins current_price, causing spurious
-    # price-change alerts when scrape order shifts between runs.
-    # We keep the lowest-priced unit's full metadata so current_price = "from $X".
-    from collections import defaultdict
-    plan_groups: dict = defaultdict(lambda: {"price": None, "fp": None})
+    from app.models.apartment import Unit
+
+    now = datetime.now(timezone.utc)
+
+    # Pass 1: collect all FloorPlans grouped by matched Plan, preserving per-unit detail.
+    # Each FloorPlan becomes one Unit row; Plan gets min/max across its units.
+    plan_fps: dict = {}  # plan.id → {"plan": Plan, "fps": [FloorPlan]}
+
     for fp in result.floor_plans:
-        group = plan_groups[fp.name]
-        if fp.min_price is None:
-            if group["fp"] is None:
-                group["fp"] = fp
-            continue
-        if group["price"] is None or fp.min_price < group["price"]:
-            group["price"] = fp.min_price
-            group["fp"] = fp
-
-    for plan_name, group in plan_groups.items():
-        fp = group["fp"]
-        final_price = group["price"]
-
         plan = _match_plan(apt_id, fp, db)
         if plan is None:
             continue
-        # Always update plan.price (may be None for "Contact for pricing" sites)
-        plan.price = final_price
-        # current_price is the authoritative live value; plan.price is deprecated seed column
-        plan.current_price = final_price
-        # Backfill / refresh descriptor fields when the scraper found data the DB doesn't have
-        if fp.size_sqft is not None:
-            if plan.area_sqft is None or abs((plan.area_sqft or 0) - fp.size_sqft) > 10:
-                plan.area_sqft = fp.size_sqft
-        if fp.bedrooms is not None and plan.bedrooms != fp.bedrooms:
-            plan.bedrooms = fp.bedrooms
-        if fp.bathrooms is not None and plan.bathrooms != fp.bathrooms:
-            plan.bathrooms = fp.bathrooms
-        # Name: only update if DB has placeholder or empty
-        if fp.name and plan.name in (None, '', 'Unit'):
-            plan.name = fp.name
-        # Update deep link / position when the scraper found them; don't overwrite with None
-        if fp.external_url:
-            plan.external_url = fp.external_url
-        if fp.floor_level is not None:
-            plan.floor_level = fp.floor_level
-        if fp.facing:
-            plan.facing = fp.facing
-        if final_price is not None:
-            history = PlanPriceHistory(
-                plan_id=plan.id,
-                price=final_price,
-                recorded_at=datetime.now(timezone.utc),
+        if plan.id not in plan_fps:
+            plan_fps[plan.id] = {"plan": plan, "fps": []}
+        plan_fps[plan.id]["fps"].append(fp)
+
+    # Pass 2: persist per-plan aggregate + per-unit rows.
+    scraped_plan_ids: set = set()
+    for plan_id, data in plan_fps.items():
+        plan = data["plan"]
+        fps = data["fps"]
+        scraped_plan_ids.add(plan_id)
+
+        priced = [f.min_price for f in fps if f.min_price is not None]
+        min_price = min(priced) if priced else None
+        max_price = max(priced) if priced else None
+
+        plan.price = min_price
+        plan.current_price = min_price
+        plan.max_price = max_price if (max_price is not None and max_price != min_price) else None
+
+        # Backfill descriptors from the min-price representative FloorPlan
+        rep = min(fps, key=lambda f: f.min_price or float("inf")) if priced else fps[0]
+        if rep.size_sqft is not None:
+            if plan.area_sqft is None or abs((plan.area_sqft or 0) - rep.size_sqft) > 10:
+                plan.area_sqft = rep.size_sqft
+        if rep.bedrooms is not None and plan.bedrooms != rep.bedrooms:
+            plan.bedrooms = rep.bedrooms
+        if rep.bathrooms is not None and plan.bathrooms != rep.bathrooms:
+            plan.bathrooms = rep.bathrooms
+        if rep.name and plan.name in (None, "", "Unit"):
+            plan.name = rep.name
+        if rep.external_url:
+            plan.external_url = rep.external_url
+        if rep.floor_level is not None:
+            plan.floor_level = rep.floor_level
+        if rep.facing:
+            plan.facing = rep.facing
+
+        # PlanPriceHistory: one row per scrape cycle at the min (from $X) price
+        if min_price is not None:
+            db.add(PlanPriceHistory(plan_id=plan.id, price=min_price, recorded_at=now))
+
+        # Upsert Unit rows — one per FloorPlan entry
+        scraped_unit_numbers: set = set()
+        for fp in fps:
+            unit = _match_or_create_unit(plan.id, fp, db)
+            unit.price = fp.min_price
+            if fp.size_sqft is not None:
+                unit.area_sqft = fp.size_sqft
+            if fp.floor_level is not None:
+                unit.floor_level = fp.floor_level
+            if fp.facing:
+                unit.facing = fp.facing
+            unit.is_available = True
+            unit.last_scraped_at = now
+            if fp.unit_number:
+                scraped_unit_numbers.add(fp.unit_number)
+
+        # Mark units no longer returned as unavailable (they've been leased)
+        if scraped_unit_numbers:
+            from sqlalchemy import update as sa_update
+            db.execute(
+                sa_update(Unit)
+                .where(
+                    Unit.plan_id == plan.id,
+                    Unit.unit_number.notin_(scraped_unit_numbers),
+                    Unit.unit_number.isnot(None),
+                )
+                .values(is_available=False)
             )
-            db.add(history)
+
     db.commit()
+
+    # D1: auto-pause unit subscriptions whose unit is now unavailable + notify
+    _pause_stale_unit_subscriptions(apt_id, db)

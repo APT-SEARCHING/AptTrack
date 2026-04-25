@@ -40,9 +40,11 @@ class PriceSubscription(Base):
     # Owner
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # Optional target: specific apartment and/or plan
+    # Optional target: specific apartment, plan, and/or unit
     apartment_id = Column(Integer, ForeignKey("apartments.id", ondelete="CASCADE"), nullable=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=True)
+    unit_id = Column(Integer, ForeignKey("units.id", ondelete="SET NULL"), nullable=True,
+        comment="If set, monitors this specific unit's price. Auto-paused if unit becomes unavailable.")
 
     # Area-level subscription (used when apartment_id/plan_id are null)
     city = Column(String, nullable=True)
@@ -83,3 +85,4 @@ class PriceSubscription(Base):
     user = relationship("User", back_populates="subscriptions")
     apartment = relationship("Apartment")
     plan = relationship("Plan")
+    unit = relationship("Unit")

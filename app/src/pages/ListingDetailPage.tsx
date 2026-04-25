@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import api, { Listing, PlanResponse, SimilarApartment, SimilarResponse } from '../services/api';
+import api, { Listing, PlanResponse, UnitResponse, SimilarApartment, SimilarResponse } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import AlertModal from '../components/AlertModal';
 import AuthModal from '../components/AuthModal';
@@ -65,6 +65,53 @@ function availLabel(plan: PlanResponse): string {
   if (!plan.is_available) return 'Unavailable';
   if (!plan.available_from) return 'Now';
   const d = new Date(plan.available_from);
+  if (d <= new Date()) return 'Now';
+  return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+}
+
+interface PriceRow {
+  key: string;
+  plan: PlanResponse;
+  unit?: UnitResponse;
+  price: number | null;
+  available_from: string | null;
+  external_url: string | null;
+}
+
+function priceRowsForGroup(group: PlanGroup): PriceRow[] {
+  const rows: PriceRow[] = [];
+  for (const plan of group.options) {
+    const availableUnits = (plan.units ?? []).filter(u => u.is_available);
+    if (availableUnits.length > 0) {
+      for (const unit of availableUnits) {
+        rows.push({
+          key: `u-${unit.id}`,
+          plan,
+          unit,
+          price: unit.price,
+          available_from: unit.available_from,
+          external_url: plan.external_url,
+        });
+      }
+    } else {
+      // Adapter without unit-level data — use plan as the price row
+      rows.push({
+        key: `p-${plan.id}`,
+        plan,
+        price: plan.current_price ?? plan.price,
+        available_from: plan.available_from,
+        external_url: plan.external_url,
+      });
+    }
+  }
+  rows.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  return rows;
+}
+
+function unitAvailLabel(row: PriceRow): string {
+  if (row.unit && !row.unit.is_available) return 'Unavailable';
+  if (!row.available_from) return 'Now';
+  const d = new Date(row.available_from);
   if (d <= new Date()) return 'Now';
   return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
@@ -161,21 +208,24 @@ const ListingDetailPage: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [alertPlan, setAlertPlan] = useState<PlanResponse | null>(null);
+  const [alertUnit, setAlertUnit] = useState<UnitResponse | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [similar, setSimilar] = useState<SimilarResponse | null>(null);
   const { token } = useAuth();
   // Stores the action to resume after a successful login from this page
   const authSuccessRef = useRef<(() => void) | null>(null);
 
-  const openAlertForPlan = (e: React.MouseEvent, plan: PlanResponse) => {
+  const openAlertForPlan = (e: React.MouseEvent, plan: PlanResponse, unit?: UnitResponse) => {
     e.stopPropagation();
     if (!token) {
-      setAlertPlan(plan); // set now so onSuccess can open the right plan
+      setAlertPlan(plan);
+      setAlertUnit(unit ?? null);
       authSuccessRef.current = () => { setShowAuth(false); setShowAlert(true); };
       setShowAuth(true);
       return;
     }
     setAlertPlan(plan);
+    setAlertUnit(unit ?? null);
     setShowAlert(true);
   };
 
@@ -418,10 +468,11 @@ const ListingDetailPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {planGroups.map(group => {
-                  const isSelected = group.options.some(o => o.id === selectedPlan?.id);
+                  const priceRows = priceRowsForGroup(group);
                   const rep = group.options[0];
-                  const selectedOpt = group.options.find(o => o.id === selectedPlan?.id) ?? rep;
-                  const useDropdown = group.options.length > 2;
+                  const isSelected = group.options.some(o => o.id === selectedPlan?.id);
+                  const useDropdown = priceRows.length > 2;
+                  const selectedRow = priceRows.find(r => r.plan.id === selectedPlan?.id) ?? priceRows[0];
                   return (
                     <tr key={group.key}
                       onClick={() => setSelectedPlanId(rep.id)}
@@ -440,49 +491,53 @@ const ListingDetailPage: React.FC = () => {
                       {hasFacing && <td className="px-4 py-3 text-slate-600">{rep.facing ?? '—'}</td>}
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         {useDropdown ? (
-                          /* Dropdown for groups with many options */
+                          /* Dropdown for groups with many price rows */
                           <div className="flex items-center gap-2">
                             <select
-                              value={selectedOpt.id}
+                              value={selectedRow?.key}
                               onChange={e => {
-                                const id = parseInt(e.target.value, 10);
-                                setSelectedPlanId(id);
+                                const row = priceRows.find(r => r.key === e.target.value);
+                                if (row) setSelectedPlanId(row.plan.id);
                               }}
                               className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 cursor-pointer"
                             >
-                              {group.options.map(opt => (
-                                <option key={opt.id} value={opt.id}>
-                                  {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'} — {availLabel(opt)}
+                              {priceRows.map(row => (
+                                <option key={row.key} value={row.key}>
+                                  {row.price != null ? `$${row.price.toLocaleString()}` : 'Contact'}
+                                  {row.unit?.unit_number ? ` · ${row.unit.unit_number}` : ''}
+                                  {' — '}{unitAvailLabel(row)}
                                 </option>
                               ))}
                             </select>
-                            {(selectedOpt.external_url || apt?.source_url) && (
-                              <a href={selectedOpt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
+                            {(selectedRow?.external_url || apt?.source_url) && (
+                              <a href={selectedRow?.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
                                 className="text-indigo-400 hover:text-indigo-600 text-xs">↗</a>
                             )}
-                            <button title="Set price alert" onClick={e => openAlertForPlan(e, selectedOpt)}
+                            <button title="Set price alert"
+                              onClick={e => openAlertForPlan(e, selectedRow.plan, selectedRow.unit)}
                               className="text-slate-400 hover:text-indigo-500 transition-colors">🔔</button>
                           </div>
                         ) : (
-                          /* Chips for 1–2 options */
+                          /* Chips for 1–2 price rows */
                           <div className="flex flex-wrap gap-2">
-                            {group.options.map(opt => {
-                              const avail = availLabel(opt);
+                            {priceRows.map(row => {
+                              const avail = unitAvailLabel(row);
                               const availColor = avail === 'Now' ? 'bg-emerald-100 text-emerald-700' : avail === 'Unavailable' ? 'bg-slate-100 text-slate-400' : 'bg-amber-100 text-amber-700';
                               return (
-                                <div key={opt.id} onClick={() => setSelectedPlanId(opt.id)}
+                                <div key={row.key} onClick={() => setSelectedPlanId(row.plan.id)}
                                   className="flex items-center gap-1.5 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors bg-white cursor-pointer">
                                   <span className="font-bold text-slate-900 whitespace-nowrap">
-                                    {opt.price != null ? `$${opt.price.toLocaleString()}` : 'Contact'}
+                                    {row.price != null ? `$${row.price.toLocaleString()}` : 'Contact'}
                                   </span>
                                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap ${availColor}`}>
                                     {avail}
                                   </span>
-                                  {(opt.external_url || apt?.source_url) && (
-                                    <a href={opt.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
+                                  {(row.external_url || apt?.source_url) && (
+                                    <a href={row.external_url || apt!.source_url!} target="_blank" rel="noopener noreferrer"
                                       onClick={e => e.stopPropagation()} className="text-indigo-300 hover:text-indigo-500 text-xs">↗</a>
                                   )}
-                                  <button title="Set price alert" onClick={e => openAlertForPlan(e, opt)}
+                                  <button title="Set price alert"
+                                    onClick={e => openAlertForPlan(e, row.plan, row.unit)}
                                     className="text-slate-300 hover:text-indigo-500 transition-colors">🔔</button>
                                 </div>
                               );
@@ -659,11 +714,13 @@ const ListingDetailPage: React.FC = () => {
         <AlertModal
           apartmentId={apt.id}
           apartmentTitle={listing.title}
-          currentPrice={alertPlan ? (alertPlan.price ?? undefined) : (minP ?? undefined)}
+          currentPrice={alertUnit?.price ?? alertPlan?.current_price ?? alertPlan?.price ?? minP ?? undefined}
           planId={alertPlan?.id}
           planName={alertPlan?.name}
-          onClose={() => { setShowAlert(false); setAlertPlan(null); }}
-          onCreated={() => { setShowAlert(false); setAlertPlan(null); }}
+          unitId={alertUnit?.id}
+          unitNumber={alertUnit?.unit_number ?? undefined}
+          onClose={() => { setShowAlert(false); setAlertPlan(null); setAlertUnit(null); }}
+          onCreated={() => { setShowAlert(false); setAlertPlan(null); setAlertUnit(null); }}
         />
       )}
       {showAuth && (

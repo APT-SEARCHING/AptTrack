@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.apartment import Apartment, Plan, PlanPriceHistory
+from app.models.apartment import Apartment, Plan, PlanPriceHistory, Unit
 from app.models.notification_event import NotificationEvent
 from app.models.user import PriceSubscription, User
 from app.services.notification import send_email_alert, send_telegram_alert
@@ -83,6 +83,12 @@ def _check_subscription(sub: PriceSubscription, db: Session) -> None:
 
 def _get_latest_price(sub: PriceSubscription, db: Session) -> Optional[float]:
     """Return the most recent price relevant to this subscription."""
+    if sub.unit_id is not None:
+        # Unit-level: use the unit's current price directly
+        return db.execute(
+            select(Unit.price).where(Unit.id == sub.unit_id, Unit.is_available.is_(True))
+        ).scalar_one_or_none()
+
     if sub.plan_id is not None:
         # Only use recorded price history — Plan.price is a stale seed column
         # and could trigger false alerts. Return None if no history yet.
@@ -129,6 +135,10 @@ def _get_immediately_previous_price(sub: PriceSubscription, db: Session) -> Opti
     so we fall back to baseline_price (captured at subscription-creation time), which
     is the best available reference for "was the price above the threshold before?"
     """
+    if sub.unit_id is not None:
+        # For unit-level subs, use baseline_price as previous (no Unit price history)
+        return sub.baseline_price
+
     if sub.plan_id is not None:
         rows = db.execute(
             select(PlanPriceHistory.price)
@@ -213,6 +223,7 @@ def _render_alert_context(
         "city_state": None,
         "plan_name": None,
         "plan_spec": None,
+        "unit_number": None,
         "thirty_day_low": None,
         "unsub_url": None,
         "unsub_all_url": None,
@@ -237,6 +248,28 @@ def _render_alert_context(
         ctx["unsub_all_url"] = (
             f"{settings.APP_BASE_URL}/unsubscribe/all/{user.unsubscribe_all_token}"
         )
+
+    # Resolve unit (for unit-level subscriptions)
+    if sub.unit_id is not None:
+        unit = db.execute(select(Unit).where(Unit.id == sub.unit_id)).scalar_one_or_none()
+        if unit:
+            ctx["unit_number"] = unit.unit_number
+            # derive plan + apartment from unit
+            plan = db.execute(select(Plan).where(Plan.id == unit.plan_id)).scalar_one_or_none()
+            if plan:
+                ctx["plan_name"] = plan.name
+                ctx["plan_spec"] = _fmt_plan_spec(plan)
+                apt_from_plan = db.execute(
+                    select(Apartment).where(Apartment.id == plan.apartment_id)
+                ).scalar_one_or_none()
+                if apt_from_plan:
+                    ctx["apartment_title"] = apt_from_plan.title
+                    ctx["apartment_id"] = apt_from_plan.id
+                    ctx["apartment_url_internal"] = f"{settings.APP_BASE_URL}/apartments/{apt_from_plan.id}"
+                    ctx["apartment_url_external"] = apt_from_plan.source_url or None
+                    if apt_from_plan.city and apt_from_plan.state:
+                        ctx["city_state"] = f"{apt_from_plan.city}, {apt_from_plan.state}"
+        return ctx
 
     # Resolve apartment
     apt: Optional[Apartment] = None
