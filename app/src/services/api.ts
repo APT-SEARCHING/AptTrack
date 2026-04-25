@@ -397,7 +397,7 @@ const api = {
       min_bedrooms: isStudio ? undefined : filters.bedrooms,
       max_bedrooms: isStudio ? 0 : undefined,
       skip: filters.skip ?? 0,
-      limit: filters.limit ?? 100,
+      limit: filters.limit ?? 500,
       sort: filters.sort ?? 'price_asc',
       pets_allowed: filters.pets_allowed,
       has_parking: filters.has_parking,
