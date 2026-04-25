@@ -110,7 +110,8 @@ def _parse_avalon_global_content(html: str) -> List[Dict]:
                         price = None
 
         status = unit.get("unitStatus", "")
-        is_available = status in ("VacantAvailable", "Available", "")
+        # NoticeAvailable = tenant has given notice, unit is listed for leasing with a price
+        is_available = status in ("VacantAvailable", "Available", "NoticeAvailable", "")
 
         if plan_name not in plans:
             plans[plan_name] = {
