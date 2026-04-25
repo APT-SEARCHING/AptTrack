@@ -740,14 +740,34 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
             if hasattr(result, 'current_special'):
                 apt.current_special = result.current_special
 
+    # Aggregate per-unit FloorPlans to one representative per floor plan name.
+    # SightMap (and similar platforms) return one FloorPlan per available unit;
+    # without this, last-unit-processed wins current_price, causing spurious
+    # price-change alerts when scrape order shifts between runs.
+    # We keep the lowest-priced unit's full metadata so current_price = "from $X".
+    from collections import defaultdict
+    plan_groups: dict = defaultdict(lambda: {"price": None, "fp": None})
     for fp in result.floor_plans:
+        group = plan_groups[fp.name]
+        if fp.min_price is None:
+            if group["fp"] is None:
+                group["fp"] = fp
+            continue
+        if group["price"] is None or fp.min_price < group["price"]:
+            group["price"] = fp.min_price
+            group["fp"] = fp
+
+    for plan_name, group in plan_groups.items():
+        fp = group["fp"]
+        final_price = group["price"]
+
         plan = _match_plan(apt_id, fp, db)
         if plan is None:
             continue
         # Always update plan.price (may be None for "Contact for pricing" sites)
-        plan.price = fp.min_price
+        plan.price = final_price
         # current_price is the authoritative live value; plan.price is deprecated seed column
-        plan.current_price = fp.min_price
+        plan.current_price = final_price
         # Backfill / refresh descriptor fields when the scraper found data the DB doesn't have
         if fp.size_sqft is not None:
             if plan.area_sqft is None or abs((plan.area_sqft or 0) - fp.size_sqft) > 10:
@@ -766,10 +786,10 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
             plan.floor_level = fp.floor_level
         if fp.facing:
             plan.facing = fp.facing
-        if fp.min_price is not None:
+        if final_price is not None:
             history = PlanPriceHistory(
                 plan_id=plan.id,
-                price=fp.min_price,
+                price=final_price,
                 recorded_at=datetime.now(timezone.utc),
             )
             db.add(history)

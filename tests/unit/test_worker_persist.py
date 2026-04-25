@@ -367,6 +367,108 @@ def test_strategy2_fires_before_strategy3(db):
     assert result.id == plan_a.id  # strategy 2 returned A1, not A2
 
 
+# ---------------------------------------------------------------------------
+# Min-price aggregation: multiple FloorPlans with same name (SightMap per-unit)
+# ---------------------------------------------------------------------------
+
+def test_single_unit_per_plan_unchanged(db):
+    """Single FloorPlan per name: existing behaviour preserved."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="A1", area_sqft=700.0)
+    db.commit()
+
+    fp = _make_fp(name="A1", size_sqft=700.0, min_price=3000.0)
+    _persist_scraped_prices(apt.id, _make_result([fp]), db)
+
+    db.refresh(plan)
+    assert plan.current_price == 3000.0
+
+
+def test_multi_unit_picks_min_price(db):
+    """3 FloorPlans named 'Edwards' → current_price = lowest ($3,195)."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="Edwards", bedrooms=1.0, area_sqft=750.0)
+    db.commit()
+
+    fps = [
+        _make_fp(name="Edwards", bedrooms=1.0, size_sqft=753.0, min_price=3515.0),
+        _make_fp(name="Edwards", bedrooms=1.0, size_sqft=753.0, min_price=3195.0),
+        _make_fp(name="Edwards", bedrooms=1.0, size_sqft=753.0, min_price=3365.0),
+    ]
+    _persist_scraped_prices(apt.id, _make_result(fps), db)
+
+    db.refresh(plan)
+    assert plan.current_price == 3195.0
+
+
+def test_multi_unit_with_one_priceless(db):
+    """[$3000, None, $2800] → current_price = $2800 (priceless unit ignored for price)."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="Blacow", bedrooms=2.0, area_sqft=1050.0)
+    db.commit()
+
+    fps = [
+        _make_fp(name="Blacow", bedrooms=2.0, size_sqft=1050.0, min_price=3000.0),
+        _make_fp(name="Blacow", bedrooms=2.0, size_sqft=1050.0, min_price=None),
+        _make_fp(name="Blacow", bedrooms=2.0, size_sqft=1050.0, min_price=2800.0),
+    ]
+    _persist_scraped_prices(apt.id, _make_result(fps), db)
+
+    db.refresh(plan)
+    assert plan.current_price == 2800.0
+
+
+def test_all_priceless_units(db):
+    """All FloorPlans have min_price=None → current_price stays None."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="Studio", area_sqft=500.0, current_price=None)
+    db.commit()
+
+    fps = [
+        _make_fp(name="Studio", size_sqft=500.0, min_price=None),
+        _make_fp(name="Studio", size_sqft=500.0, min_price=None),
+    ]
+    _persist_scraped_prices(apt.id, _make_result(fps), db)
+
+    db.refresh(plan)
+    assert plan.current_price is None
+
+
+def test_metadata_from_min_price_unit(db):
+    """sqft taken from the min-price unit (699 sqft at $3,235), not the pricier one (753 sqft at $3,515)."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="Edwards", bedrooms=1.0, area_sqft=0.0)
+    db.commit()
+
+    fps = [
+        _make_fp(name="Edwards", bedrooms=1.0, size_sqft=753.0, min_price=3515.0),
+        _make_fp(name="Edwards", bedrooms=1.0, size_sqft=699.0, min_price=3235.0),
+    ]
+    _persist_scraped_prices(apt.id, _make_result(fps), db)
+
+    db.refresh(plan)
+    assert plan.current_price == 3235.0
+    assert plan.area_sqft == 699.0  # from the min-price unit
+
+
+def test_price_history_written_once_per_plan_name(db):
+    """3 units with same name → only 1 PlanPriceHistory row (the min price)."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="Cherry", bedrooms=2.0, area_sqft=1100.0)
+    db.commit()
+
+    fps = [
+        _make_fp(name="Cherry", bedrooms=2.0, size_sqft=1100.0, min_price=4500.0),
+        _make_fp(name="Cherry", bedrooms=2.0, size_sqft=1100.0, min_price=4225.0),
+        _make_fp(name="Cherry", bedrooms=2.0, size_sqft=1100.0, min_price=4460.0),
+    ]
+    _persist_scraped_prices(apt.id, _make_result(fps), db)
+
+    history = db.query(PlanPriceHistory).filter_by(plan_id=plan.id).all()
+    assert len(history) == 1
+    assert history[0].price == 4225.0
+
+
 def test_autocreated_plan_gets_price_history(db):
     """Auto-created plan (strategy 4) still gets a PlanPriceHistory row written."""
     apt = _make_apt(db)
