@@ -68,4 +68,46 @@ scraper limitation; adapter sees all units regardless of Load More button.
 
 ---
 
+## BUG-04: LLM extracts sibling-property names as floor plan names (UDR / multi-property domains)
+
+**Status**: open  
+**Affected**: Verve Mountain View (id=194)  
+**Evidence**: DB plans named "Marina Playa", "Birch Creek", "River Terrace", "Almaden Lake Village"
+— these are other UDR apartment communities in the Bay Area, not floor plan names at Verve.
+Current site prices: $4,147–$5,356; DB shows $2,475–$3,506.  
+**Root cause**: At seed time the LLM navigated to a page that listed similar/nearby UDR properties
+and extracted their names+prices as if they were floor plans for Verve Mountain View.
+`universal_dom` on the actual pricing page returns "Details" as plan name (clickable buttons,
+not plan name text) and prices from $4,147–$5,356.  
+**Fix**: 
+1. Re-scrape Verve with LLM, explicitly starting at the `/apartments-pricing/` URL
+2. Add to `_sanitize()`: reject FloorPlan entries whose `name` matches a known property
+   pattern (contains "Village", "Creek", "Terrace", "Plaza" etc.) when other entries on the
+   same page have real plan codes — these are sibling-property cards, not plans
+3. Long-term: detect UDR's pricing widget and add a UDR adapter  
+**File**: `backend/app/services/scraper_agent/agent.py` + `platforms/universal_dom.py`
+
+---
+
+## BUG-05: LLM captures "starting from $X" overview price instead of per-plan prices
+
+**Status**: open  
+**Affected**: Savoy (id=248) — 23 DB plans all priced at $3,200 (= the "starting from" price)  
+**Evidence**: Savoy's floor plans page shows "Starting From $3,200" as a headline price.
+Individual plan pages show distinct prices (A1 $3,287, A2 $3,521, B1 $4,861, etc.).
+DB has 23 plans all at $3,200 — clearly extracted from the overview, not the detail pages.  
+**Root cause**: The LLM called `submit_findings` after seeing the overview page without navigating
+into each plan's detail. The `$3,200 starting from` was used for all plans.
+The Jonah Digital adapter did not fire (signal present but no hrefs extracted), so LLM took over
+but didn't go deep enough.  
+**Fix**:
+1. Debug why Jonah Digital hrefs extraction fails for liveatsavoy.com
+2. In `_sanitize()`: reject plans where >50% share the exact same price (likely a "starting from"
+   contamination) — log a warning, keep only the one with the lowest price as a single plan
+3. LLM prompt: "If all plans show the same price, that's a 'starting from' aggregate. Navigate
+   into individual plan detail pages to get per-plan prices before calling submit_findings."  
+**File**: `backend/app/services/scraper_agent/agent.py` + `backend/app/worker.py` `_sanitize()`
+
+---
+
 <!-- Add new bugs below this line -->
