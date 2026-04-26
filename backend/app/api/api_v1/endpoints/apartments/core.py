@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import asc, desc, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.limiter import limiter
 from app.core.security import require_admin
@@ -120,6 +120,10 @@ def get_apartments(
     elif sort == "name_asc":
         stmt = stmt.order_by(asc(Apartment.title))
 
+    stmt = stmt.options(
+        selectinload(Apartment.plans).selectinload(Plan.units),
+        selectinload(Apartment.plans).selectinload(Plan.price_history),
+    )
     return db.execute(stmt.offset(skip).limit(limit)).scalars().all()
 
 

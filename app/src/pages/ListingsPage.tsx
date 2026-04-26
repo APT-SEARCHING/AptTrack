@@ -107,6 +107,8 @@ const Skeleton = () => (
 );
 
 // ── Page ──────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 30;
+
 const ListingsPage: React.FC = () => {
   const { token, isFavorite, toggleFavorite } = useAuth();
   const [apts, setApts] = useState<ApartmentSummary[]>([]);
@@ -115,6 +117,7 @@ const ListingsPage: React.FC = () => {
   const [filters, setFilters] = useState<ListingsFilter>({});
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showAuth, setShowAuth] = useState(false);
+  const [page, setPage] = useState(1);
   const pendingFavoriteRef = useRef<number | null>(null);
 
   const handleFavorite = (e: React.MouseEvent, aptId: number) => {
@@ -132,6 +135,7 @@ const ListingsPage: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setPage(1);
     api.getApartments(filters)
       .then(setApts)
       .catch(err => setError(String(err)))
@@ -156,6 +160,8 @@ const ListingsPage: React.FC = () => {
 
   const medianPrice = Math.round(medianApartmentPrice(apts));
   const totalPlans = apts.reduce((s, a) => s + a.plan_count, 0);
+  const paginated = filtered.slice(0, page * PAGE_SIZE);
+  const hasMore = paginated.length < filtered.length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -274,7 +280,7 @@ const ListingsPage: React.FC = () => {
             </Suspense>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map(apt => (
+              {paginated.map(apt => (
                 <ApartmentCard
                   key={apt.id}
                   apt={apt}
@@ -282,6 +288,16 @@ const ListingsPage: React.FC = () => {
                   onFavoriteClick={e => handleFavorite(e, apt.id)}
                 />
               ))}
+            </div>
+          )}
+          {hasMore && viewMode === 'list' && !loading && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setPage(p => p + 1)}
+                className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-indigo-300 hover:text-indigo-600 transition-colors bg-white"
+              >
+                Show more ({filtered.length - paginated.length} remaining)
+              </button>
             </div>
           )}
         </div>
