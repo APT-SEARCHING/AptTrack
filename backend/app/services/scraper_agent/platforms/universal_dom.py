@@ -32,7 +32,64 @@ logger = logging.getLogger(__name__)
 _SPEC_RE = re.compile(r"\b(\d+)\s*(?:bed(?:room)?s?|br)\b|\bstudio\b", re.I)
 _BATH_RE = re.compile(r"\b(\d+(?:\.\d)?)\s*(?:bath(?:room)?s?|ba)\b", re.I)
 _SQFT_RE = re.compile(r"([\d,]+)\s*(?:sq\.?\s*ft\.?|sqft|square\s*feet)", re.I)
+
+# Price extraction — two-pass with deposit/fee stripping
+_RENT_PRICE_RE = re.compile(
+    r"\$\s*([\d,]+(?:\.\d{1,2})?)\s*(?:/|\s+per\s+)\s*(?:mo|month)\b",
+    re.I,
+)
+_PLAIN_PRICE_RE = re.compile(r"\$\s*([\d,]+(?:\.\d{1,2})?)")
+_DEPOSIT_PHRASE_RE = re.compile(
+    r"deposit(?:\s+starting\s+at)?[\s:]*\$\s*[\d,]+(?:\.\d{1,2})?",
+    re.I,
+)
+_FEE_PHRASE_RE = re.compile(
+    r"(?:admin|application|app|move-?in|amenity|parking|pet|holding)\s+fee[\s:]*\$\s*[\d,]+(?:\.\d{1,2})?",
+    re.I,
+)
+
+# Kept for _has_plan_signals only (signal detection doesn't need deposit-awareness)
 _PRICE_RE = re.compile(r"\$\s*([\d,]{3,6})(?:\s*[/\-]\s*\$?\s*([\d,]{3,6}))?", re.I)
+
+
+def _parse_price(s: str) -> Optional[float]:
+    try:
+        return float(s.replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_price_from_card_text(text: str) -> Optional[float]:
+    """Extract monthly rent from card text, filtering out deposit/fee amounts.
+
+    Strategy:
+    1. Pass A (raw text): $X /mo or per month — explicit suffix wins immediately,
+       no stripping needed (rent marker is unambiguous).
+    2. Strip deposit/fee phrases from text for Pass B only.
+    3. Pass B (stripped text): any bare $X >= $1,000 (Bay Area rent floor).
+    4. Return None if no plausible rent found.
+    """
+    if not text:
+        return None
+
+    # Pass A — explicit /mo or per month suffix on raw text
+    m = _RENT_PRICE_RE.search(text)
+    if m:
+        v = _parse_price(m.group(1))
+        if v is not None and 500 <= v <= 25_000:
+            return v
+
+    # Strip deposit/fee phrases before searching for bare $ amounts
+    cleaned = _DEPOSIT_PHRASE_RE.sub("", text)
+    cleaned = _FEE_PHRASE_RE.sub("", cleaned)
+
+    # Pass B — bare $ amounts with Bay Area rent floor ($1,000)
+    for m in _PLAIN_PRICE_RE.finditer(cleaned):
+        v = _parse_price(m.group(1))
+        if v is not None and 1_000 <= v <= 25_000:
+            return v
+
+    return None
 
 
 def _has_plan_signals(text: str) -> int:
@@ -127,14 +184,9 @@ def _parse_card(card: Tag) -> Dict:
             pass
 
     # --- Price ---
-    m = _PRICE_RE.search(text)
-    if m:
-        try:
-            low = int(m.group(1).replace(",", ""))
-            if 500 <= low <= 25_000:
-                unit["price"] = float(low)
-        except ValueError:
-            pass
+    price = _extract_price_from_card_text(text)
+    if price is not None:
+        unit["price"] = price
 
     # --- Plan name: first heading tag ---
     for tag_name in ("h2", "h3", "h4", "h5"):

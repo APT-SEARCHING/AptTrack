@@ -6,17 +6,26 @@ Open issues found during dogfood. Fix together in a batch.
 
 ## BUG-01: universal_dom picks up deposit as rent price
 
-**Status**: open  
-**Affected**: Camden Village (id=244) — `$1,000` shown instead of `$2,055/mo`  
-**Root cause**: `_PRICE_RE = re.compile(r"\$\s*([\d,]{3,6})")` in `universal_dom.py` matches
-the first `$` it finds. Camden Village HTML layout is:
+**Status**: RESOLVED — commit to be added  
+**Affected**: Camden Village (id=244), The Hazelwood (id=289)  
+**Root cause**: `_PRICE_RE = re.compile(r"\$\s*([\d,]{3,6})")` in `universal_dom.py` matched
+the first `$` in card text. Camden Village / Hazelwood HTML layout:
 ```
 Deposit: $1000   $2,055 per month
 ```
-The deposit `$1000` appears before the rent, so it wins.  
-**Fix**: Before running `_PRICE_RE`, strip `Deposit[:\s]+\$[\d,]+` from the card text.
-Alternatively, prefer prices followed by `/mo` or `per month` over bare amounts.  
-**File**: `backend/app/services/scraper_agent/platforms/universal_dom.py` — `_extract_unit_from_card()`
+The deposit `$1000` appeared before the rent, so it won.  
+**Fix applied**: Two-pass extraction in `_extract_price_from_card_text()`:
+- Pass A (raw text): prefer `$X /mo` or `$X per month` — explicit monthly suffix is unambiguous
+- Pass B (stripped text): strip deposit/fee phrases first, then take bare `$X >= $1,000`
+- Bay Area rent floor ($1,000) on Pass B rejects application fees and small deposits
+13 unit tests added in `tests/unit/test_universal_dom_price.py`. All pass.  
+**Note**: Camden/Hazelwood production re-scrapes (2026-04-27) went through the LLM agent path
+(not `universal_dom`), and the LLM also misread deposit prices. That's a separate LLM-level
+issue — the `universal_dom` fix is verified by unit tests only.  
+**Files changed**: 
+- `backend/app/services/scraper_agent/platforms/universal_dom.py`
+- `tests/integration/agentic_scraper/platforms/universal_dom.py` (mirror)
+- `tests/unit/test_universal_dom_price.py` (new)
 
 ---
 
