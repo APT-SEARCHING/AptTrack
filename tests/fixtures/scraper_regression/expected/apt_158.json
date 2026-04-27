@@ -1,0 +1,12 @@
+{
+  "adapter": "avalonbay",
+  "apt_id": 158,
+  "name": "Avalon Fremont",
+  "plans": [
+    {"plan_name": "A2G", "bedrooms": 1, "bathrooms": 1, "size_sqft": 761,  "price": 3105.0},
+    {"plan_name": "B3G", "bedrooms": 2, "bathrooms": 2, "size_sqft": 1056, "price": null},
+    {"plan_name": "B1G", "bedrooms": 2, "bathrooms": 2, "size_sqft": 1036, "price": null},
+    {"plan_name": "B4G", "bedrooms": 2, "bathrooms": 2, "size_sqft": 1120, "price": 3705.0},
+    {"plan_name": "C2G", "bedrooms": 3, "bathrooms": 3, "size_sqft": 1369, "price": 4120.0}
+  ]
+}
