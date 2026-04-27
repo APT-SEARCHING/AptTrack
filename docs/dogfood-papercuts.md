@@ -47,6 +47,16 @@ Copy the template below, prepend it to the **Entries** section (newest first), a
 
 <!-- newest first -->
 
+### [2026-04-26] Duplicate eaves San Jose (id=198) still active after Group A dedup
+- **Page/context**: Data quality — scrape pipeline
+- **What happened**: id=198 (GMB UTM URL) and id=179 (canonical /floor-plans URL) were both `is_available=true`, causing a wasted daily scrape. Missed in the Group A dedup pass. Surfaced in `docs/scraper-price-audit-2026-04-25.md`. Fixed via `dev/fix_eaves_san_jose_dedup.sql` — id=198 archived.
+- **Severity**: S3
+- **Category**: Data quality
+- **Phase**: Later (dedup tooling)
+- **Notes**: Root cause — Group A dedup matched on title only, not on source_url domain. The UTM URL has a different path so it wasn't caught as a duplicate.
+
+---
+
 ### [2026-04-20] Email-only alert subscription (no registration required)
 - **Page/context**: AlertsPage / subscription creation flow
 - **What happened**: Registration friction — users must create an account before they can subscribe to a price alert. Ideally a visitor could just enter their email on a listing page and start receiving alerts.

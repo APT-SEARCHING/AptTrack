@@ -590,6 +590,85 @@ def _log_scraper_cost(
         logger.warning("cost_log: failed to write scraper entry for apt %d: %s", apt_id, exc)
 
 
+import re as _re
+
+_GENERIC_NAME_RE = _re.compile(
+    r"^\s*(?:studio|\d+)\s*(?:bed)?(?:room)?s?\s*[/\-]\s*\d+\s*bath",
+    _re.I,
+)
+
+_AVALON_DOMAIN_PATTERNS = (
+    "avaloncommunities.com",
+    "eavesbyavalon.com",
+    "avabyavalon.com",
+)
+
+
+def _normalize_avalon_plan_names(
+    apt_id: int,
+    source_url: str,
+    scraped_floor_plans,
+    db,
+) -> int:
+    """For Avalon properties: rename DB plans with generic names to the
+    specific plan codes returned by AvalonBayAdapter, when beds+sqft match.
+
+    Returns count of plans renamed.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.apartment import Plan
+
+    url_lower = (source_url or "").lower()
+    if not any(domain in url_lower for domain in _AVALON_DOMAIN_PATTERNS):
+        return 0
+
+    existing = db.execute(
+        select(Plan).where(
+            Plan.apartment_id == apt_id,
+            Plan.is_available.is_(True),
+        )
+    ).scalars().all()
+
+    generic_existing = [p for p in existing if p.name and _GENERIC_NAME_RE.match(p.name)]
+    if not generic_existing:
+        return 0
+
+    renamed = 0
+    for fp in scraped_floor_plans:
+        if not fp.name or _GENERIC_NAME_RE.match(fp.name):
+            continue  # adapter returned generic too — nothing better to rename to
+        if fp.size_sqft is None:
+            continue  # need sqft to match
+
+        for plan in list(generic_existing):
+            if plan.bedrooms != fp.bedrooms:
+                continue
+            if plan.area_sqft is None:
+                continue
+            sqft_delta = abs(plan.area_sqft - fp.size_sqft) / plan.area_sqft
+            if sqft_delta > 0.05:
+                continue
+
+            logger.info(
+                "Avalon name normalize: apt=%d renaming '%s' → '%s' "
+                "(beds=%s, db_sqft=%.0f, fp_sqft=%.0f)",
+                apt_id, plan.name, fp.name,
+                plan.bedrooms, plan.area_sqft, fp.size_sqft,
+            )
+            plan.name = fp.name
+            plan.updated_at = datetime.now(timezone.utc)
+            generic_existing.remove(plan)
+            renamed += 1
+            break  # don't reuse this DB plan for a second fp
+
+    if renamed:
+        db.flush()
+    return renamed
+
+
 def _match_plan(apt_id: int, fp, db):
     """Find the DB Plan that best matches a scraped FloorPlan, or create one.
 
@@ -803,6 +882,25 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
     from app.models.apartment import Unit
 
     now = datetime.now(timezone.utc)
+
+    # Avalon name normalization pre-pass: rename generic DB plan names (e.g.
+    # "1 Bed / 1 Bath") to specific adapter codes (e.g. "A2G") so that
+    # _match_plan strategy 1 (exact name) succeeds on this and future scrapes.
+    try:
+        _apt_for_norm = db.execute(
+            select(Apartment).where(Apartment.id == apt_id)
+        ).scalar_one_or_none()
+        if _apt_for_norm and _apt_for_norm.source_url:
+            _renamed = _normalize_avalon_plan_names(
+                apt_id, _apt_for_norm.source_url, result.floor_plans, db,
+            )
+            if _renamed > 0:
+                logger.info(
+                    "apt %d: %d Avalon plan(s) renamed from generic to specific code",
+                    apt_id, _renamed,
+                )
+    except Exception as _exc:
+        logger.warning("Avalon name normalize failed for apt %d: %s", apt_id, _exc)
 
     # Pass 1: collect all FloorPlans grouped by matched Plan, preserving per-unit detail.
     # Each FloorPlan becomes one Unit row; Plan gets min/max across its units.
