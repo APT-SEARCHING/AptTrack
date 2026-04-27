@@ -124,4 +124,33 @@ but didn't go deep enough.
 
 ---
 
+## BUG-06: LLM agent submits deposit amount as rent price
+
+**Status**: open  
+**Affected**: Camden Village (id=244) — Studio Plan A $1,000, 1 Bed Plan J $1,000 (real rent ~$2,055/mo+)  
+          The Hazelwood (id=289) — Studio $500, 1 Bedroom $600 (real rent "Call for details")  
+**Root cause**: Sites like Camden Village / The Hazelwood show deposit before rent in their HTML:
+```
+Deposit: $1,000   $2,055 per month
+```
+The LLM reads both numbers and submits the deposit amount ($1,000 / $500) as `min_price` in
+`submit_findings`. BUG-01 fixed this for the `universal_dom` adapter (two-pass extraction with
+deposit stripping), but Camden/Hazelwood scrape via the **LLM agent path** (adapter_name=NULL in
+scrape_runs), so the universal_dom fix does not apply.  
+**Evidence (2026-04-27 re-scrape)**:
+- Camden LLM submitted: `Studio Plan A min_price=1000`, `1 Bed Plan J min_price=1000`
+- Hazelwood LLM submitted: `Studio min_price=500`, `1 Bedroom min_price=600`
+- DB still reflects these deposit amounts  
+**Fix options**:
+1. `_sanitize()` in `worker.py`: null out `min_price` / `max_price` on any FloorPlan where
+   price < $1,000 (Bay Area rent floor) before `_persist_scraped_prices` runs. Fast, safe,
+   doesn't touch LLM prompt.
+2. LLM system prompt: add instruction "Never use deposit amounts as rent prices. If you see
+   'Deposit: $X', ignore $X — look for the rent amount labeled '/mo' or 'per month'."
+3. Both: belt-and-suspenders — prompt reduces LLM errors, `_sanitize()` catches remainder.  
+**File**: `backend/app/worker.py` — `_sanitize()` (option 1)  
+          `backend/app/services/scraper_agent/agent.py` — system prompt (option 2)
+
+---
+
 <!-- Add new bugs below this line -->
