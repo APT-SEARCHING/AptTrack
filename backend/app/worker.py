@@ -592,6 +592,170 @@ def _log_scraper_cost(
 
 import re as _re
 
+# ────────────────────────────────────────────────────────────────────────
+# Sanitization heuristics for LLM-extracted floor plan data.
+# These are deterministic guards complementing the SYSTEM_PROMPT rules.
+# Each filter targets a specific bug class identified during dogfood audit
+# (see docs/scraper-bugs.md BUG-04, BUG-05, BUG-06).
+# ────────────────────────────────────────────────────────────────────────
+
+# Bay Area realistic monthly rent floor. We accept Phase 1 unscrapeable
+# policy excludes affordable/subsidized housing, so any rent value below
+# this floor is almost certainly a deposit, fee, or extraction error.
+_BAY_AREA_RENT_FLOOR = 1500
+
+# Implausibly high values are typos or mis-extraction (e.g. annual rent
+# stored as monthly).
+_BAY_AREA_RENT_CEILING = 25_000
+
+# Property-style keywords. If a "plan name" contains one AND has multiple
+# words AND doesn't look like a floor plan code, it's likely a sibling
+# property name extracted from a multi-property comparison page.
+_SIBLING_PROPERTY_KEYWORDS = (
+    "village", "creek", "terrace", "plaza", "heights", "park",
+    "ridge", "court", "place", "gardens", "estates", "hills",
+    "commons", "manor", "lake", "pointe",
+    "apartments", "playa", "marina",
+)
+
+# Plan code prefix patterns: "A1", "B2G", "1x1A", "Studio S1", "Plan A".
+# Names matching these are floor-plan codes, never sibling properties,
+# even if they happen to contain a keyword.
+_PLAN_CODE_PREFIX_RE = _re.compile(
+    r"^[A-Z]\d|^\d[xX]\d|^[Ss]tudio\b|^[Pp]lan\s",
+)
+
+
+def _looks_like_sibling_property(name: str) -> bool:
+    """Detect if a 'plan name' is actually a sibling property name
+    extracted from a multi-property comparison page (BUG-04).
+
+    Examples that should return True:
+        "Marina Playa", "Birch Creek", "River Terrace", "Almaden Lake Village",
+        "The Marc Apartments", "Briarwood Apartments"
+
+    Examples that should return False (legitimate plan names):
+        "A1", "B2G", "1x1A", "Studio S1", "Plan A", "Studio A Loft"
+    """
+    if not name or len(name) < 5:
+        return False
+    lower = name.lower()
+    words = lower.split()
+    if len(words) < 2:
+        return False
+    # Doesn't look like a plan code → could be property name
+    if _PLAN_CODE_PREFIX_RE.match(name):
+        return False
+    # Has a property-style keyword → likely sibling property
+    return any(kw in lower for kw in _SIBLING_PROPERTY_KEYWORDS)
+
+
+def _looks_like_starting_from_contamination(floor_plans) -> bool:
+    """Detect 'Starting From $X' overview-price contamination (BUG-05).
+
+    When the LLM submits findings after seeing only an overview/summary
+    page (rather than navigating into per-plan detail), all plans get
+    the same single 'starting from' price applied. Symptom: >50% of
+    priced plans share the exact same min_price.
+
+    Returns True if contamination is detected and prices should be nulled.
+    """
+    priced = [fp for fp in floor_plans if fp.min_price is not None]
+    if len(priced) < 4:
+        # Need enough samples; small lists may legitimately share a price
+        return False
+    prices = [fp.min_price for fp in priced]
+    most_common = max(set(prices), key=prices.count)
+    same_count = prices.count(most_common)
+    return (same_count / len(priced)) > 0.5
+
+
+def _sanitize_floor_plans(floor_plans: List) -> tuple:
+    """Apply three contamination filters to LLM-extracted floor plans
+    before they enter _persist_scraped_prices.
+
+    Filter A (BUG-04): drop FloorPlans whose name looks like a sibling
+        property (multi-property comparison contamination)
+    Filter B (BUG-06): null min_price/max_price below Bay Area rent floor
+        (deposit/fee values misread as rent)
+    Filter C (BUG-06): null min_price/max_price above ceiling (typos)
+    Filter D (BUG-05): if >50% of priced plans share the same price,
+        null all prices (overview "Starting From" contamination)
+
+    Returns a tuple of (cleaned_floor_plans, summary_dict) where
+    summary_dict has counts:
+        sibling_dropped, deposit_nulled, ceiling_nulled, starting_from_triggered
+    """
+    summary = {
+        "sibling_dropped": 0,
+        "deposit_nulled": 0,
+        "ceiling_nulled": 0,
+        "starting_from_triggered": False,
+    }
+
+    cleaned = []
+    for fp in floor_plans:
+        # Filter A: sibling property
+        if _looks_like_sibling_property(fp.name):
+            logger.warning(
+                "_sanitize: dropping suspected sibling-property name='%s' "
+                "(min_price=%s, max_price=%s)",
+                fp.name, fp.min_price, fp.max_price,
+            )
+            summary["sibling_dropped"] += 1
+            continue
+
+        # Filter B: deposit/fee floor
+        if fp.min_price is not None and fp.min_price < _BAY_AREA_RENT_FLOOR:
+            logger.warning(
+                "_sanitize: nulling min_price=%s for plan '%s' "
+                "(below $%d Bay Area rent floor)",
+                fp.min_price, fp.name, _BAY_AREA_RENT_FLOOR,
+            )
+            fp.min_price = None
+            summary["deposit_nulled"] += 1
+        if fp.max_price is not None and fp.max_price < _BAY_AREA_RENT_FLOOR:
+            fp.max_price = None
+
+        # Filter C: ceiling
+        if fp.min_price is not None and fp.min_price > _BAY_AREA_RENT_CEILING:
+            logger.warning(
+                "_sanitize: nulling min_price=%s for plan '%s' "
+                "(above $%d ceiling)",
+                fp.min_price, fp.name, _BAY_AREA_RENT_CEILING,
+            )
+            fp.min_price = None
+            summary["ceiling_nulled"] += 1
+        if fp.max_price is not None and fp.max_price > _BAY_AREA_RENT_CEILING:
+            fp.max_price = None
+
+        cleaned.append(fp)
+
+    # Filter D: starting-from contamination check (after A/B/C)
+    if _looks_like_starting_from_contamination(cleaned):
+        priced_count = sum(1 for fp in cleaned if fp.min_price is not None)
+        logger.warning(
+            "_sanitize: 'Starting From' contamination detected: %d/%d plans "
+            "share the same price. Nulling all prices to prevent misleading data.",
+            priced_count, len(cleaned),
+        )
+        for fp in cleaned:
+            fp.min_price = None
+            fp.max_price = None
+        summary["starting_from_triggered"] = True
+
+    if any([summary["sibling_dropped"], summary["deposit_nulled"],
+            summary["ceiling_nulled"], summary["starting_from_triggered"]]):
+        logger.info(
+            "_sanitize summary: dropped=%d sibling, nulled=%d below-floor, "
+            "nulled=%d above-ceiling, starting_from=%s",
+            summary["sibling_dropped"], summary["deposit_nulled"],
+            summary["ceiling_nulled"], summary["starting_from_triggered"],
+        )
+
+    return cleaned, summary
+
+
 _GENERIC_NAME_RE = _re.compile(
     r"^\s*(?:studio|\d+)\s*(?:bed)?(?:room)?s?\s*[/\-]\s*\d+\s*bath",
     _re.I,
@@ -882,6 +1046,11 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
     from app.models.apartment import Unit
 
     now = datetime.now(timezone.utc)
+
+    # Sanitize floor plans: filter contamination from LLM extraction
+    # (sibling properties, deposit/fee floor, "starting from" overview).
+    # See docs/scraper-bugs.md BUG-04, BUG-05, BUG-06.
+    result.floor_plans, _sanitize_summary = _sanitize_floor_plans(result.floor_plans)
 
     # Avalon name normalization pre-pass: rename generic DB plan names (e.g.
     # "1 Bed / 1 Bath") to specific adapter codes (e.g. "A2G") so that

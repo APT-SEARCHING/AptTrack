@@ -6,7 +6,7 @@ Open issues found during dogfood. Fix together in a batch.
 
 ## BUG-01: universal_dom picks up deposit as rent price
 
-**Status**: RESOLVED — commit to be added  
+**Status**: RESOLVED  
 **Affected**: Camden Village (id=244), The Hazelwood (id=289)  
 **Root cause**: `_PRICE_RE = re.compile(r"\$\s*([\d,]{3,6})")` in `universal_dom.py` matched
 the first `$` in card text. Camden Village / Hazelwood HTML layout:
@@ -51,7 +51,7 @@ unit data from a different API call (per-unit drill-down visible in the unit sel
 
 ## BUG-03: Avalon — generic seed plan names block specific floor plan code matching
 
-**Status**: RESOLVED — commit to be added  
+**Status**: RESOLVED  
 **Affected**: All Avalon/eaves/AVA properties — confirmed on Avalon Fremont (id=158), likely all ~15 Avalon keepers  
 **Evidence** (Avalon Fremont):
 - Fusion.globalContent contains 16 units across 5 distinct floor plan types (A2G, B3G, B1G, B4G, C2G)
@@ -84,49 +84,61 @@ to the adapter-returned specific code (e.g. "A2G") when beds + sqft match within
 
 ## BUG-04: LLM extracts sibling-property names as floor plan names (UDR / multi-property domains)
 
-**Status**: open  
-**Affected**: Verve Mountain View (id=194)  
+**Status**: PARTIALLY RESOLVED — sanitize guard in place; underlying sites still unscrapeable  
+**Affected**: Verve Mountain View (id=194), Reserve at Mountain View (id=218)  
 **Evidence**: DB plans named "Marina Playa", "Birch Creek", "River Terrace", "Almaden Lake Village"
-— these are other UDR apartment communities in the Bay Area, not floor plan names at Verve.
-Current site prices: $4,147–$5,356; DB shows $2,475–$3,506.  
-**Root cause**: At seed time the LLM navigated to a page that listed similar/nearby UDR properties
-and extracted their names+prices as if they were floor plans for Verve Mountain View.
-`universal_dom` on the actual pricing page returns "Details" as plan name (clickable buttons,
-not plan name text) and prices from $4,147–$5,356.  
-**Fix**: 
-1. Re-scrape Verve with LLM, explicitly starting at the `/apartments-pricing/` URL
-2. Add to `_sanitize()`: reject FloorPlan entries whose `name` matches a known property
-   pattern (contains "Village", "Creek", "Terrace", "Plaza" etc.) when other entries on the
-   same page have real plan codes — these are sibling-property cards, not plans
-3. Long-term: detect UDR's pricing widget and add a UDR adapter  
-**File**: `backend/app/services/scraper_agent/agent.py` + `platforms/universal_dom.py`
+(apt 194) and "Briarwood Apartments", "Arbor Terrace Apartments", "The Arches Apartments",
+"Lorien Apartments" (apt 218) — all sibling UDR/Equity properties, not floor plan names.  
+**Root cause**: At seed time the LLM navigated to a multi-property comparison page and extracted
+sibling property names+prices as if they were floor plans for the target apartment.  
+**Fix applied (2026-04-27)**:
+- `_sanitize_floor_plans()` Filter A in `backend/app/worker.py`: drops any scraped FloorPlan
+  whose name contains a property-style keyword (`village`, `creek`, `terrace`, `apartments`,
+  `plaza`, `heights`, `park`, `ridge`, `court`, `place`, `gardens`, `estates`, `hills`,
+  `commons`, `manor`, `lake`, `pointe`, `playa`, `marina`) AND has ≥2 words AND does not match
+  a plan-code prefix pattern (`^[A-Z]\d`, `^\d[xX]\d`, `^[Ss]tudio\b`, `^[Pp]lan\s`).
+- Contaminated DB plans for 194 and 218 archived (`is_available=false`) via manual SQL.
+- 23 unit tests in `tests/unit/test_sanitize_floor_plans.py`. All pass.
+- Verified on re-scrape 2026-04-27: sibling_dropped=4 for apt 194, sibling_dropped=4 for apt 218.
+- Canonical regression check (Miro, The Ryden, Atlas): sanitize silent — no false positives on
+  plan names like `Chabot`, `Joaquin Miller`, `Leona Canyon`, `A1 + Den`.
+
+**Remaining issue**: UDR (194) and Equity (218) pricing pages return only sibling-comparison data
+via both LLM and universal_dom — after sanitize drops all scraped plans, DB ends up with 0 active
+plans. Real fix requires a UDR/Equity platform adapter. Tracked as future work.  
+**File**: `backend/app/worker.py` — `_sanitize_floor_plans()`, `_looks_like_sibling_property()`
 
 ---
 
 ## BUG-05: LLM captures "starting from $X" overview price instead of per-plan prices
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — sanitize guard in place; Savoy self-corrected on re-scrape  
 **Affected**: Savoy (id=248) — 23 DB plans all priced at $3,200 (= the "starting from" price)  
 **Evidence**: Savoy's floor plans page shows "Starting From $3,200" as a headline price.
 Individual plan pages show distinct prices (A1 $3,287, A2 $3,521, B1 $4,861, etc.).
-DB has 23 plans all at $3,200 — clearly extracted from the overview, not the detail pages.  
+DB had 23 plans all at $3,200 — clearly extracted from the overview, not the detail pages.  
 **Root cause**: The LLM called `submit_findings` after seeing the overview page without navigating
 into each plan's detail. The `$3,200 starting from` was used for all plans.
 The Jonah Digital adapter did not fire (signal present but no hrefs extracted), so LLM took over
 but didn't go deep enough.  
-**Fix**:
-1. Debug why Jonah Digital hrefs extraction fails for liveatsavoy.com
-2. In `_sanitize()`: reject plans where >50% share the exact same price (likely a "starting from"
-   contamination) — log a warning, keep only the one with the lowest price as a single plan
-3. LLM prompt: "If all plans show the same price, that's a 'starting from' aggregate. Navigate
-   into individual plan detail pages to get per-plan prices before calling submit_findings."  
-**File**: `backend/app/services/scraper_agent/agent.py` + `backend/app/worker.py` `_sanitize()`
+**Fix applied (2026-04-27)**:
+- `_sanitize_floor_plans()` Filter D in `backend/app/worker.py`: if >50% of priced plans share
+  the exact same `min_price` (and ≥4 plans are priced), null all prices — overview contamination.
+  Threshold of 4 plans avoids false positives on small legitimate plan lists.
+- 5 unit tests covering threshold boundary, same-price trigger, and distinct-price passthrough.
+- On 2026-04-27 re-scrape, Savoy LLM navigated into per-plan detail and returned distinct prices
+  (A1 $3,309, A1.1 $3,200, etc.) — Filter D did not trigger. DB now has real per-plan prices.
+
+**Remaining issue**: Jonah Digital adapter hrefs extraction still fails for liveatsavoy.com.
+If the LLM regresses to overview-only on a future scrape, Filter D will catch it and null all
+prices rather than store the misleading single price across all 23 plans.  
+**File**: `backend/app/worker.py` — `_sanitize_floor_plans()`, `_looks_like_starting_from_contamination()`
 
 ---
 
 ## BUG-06: LLM agent submits deposit amount as rent price
 
-**Status**: open  
+**Status**: RESOLVED  
 **Affected**: Camden Village (id=244) — Studio Plan A $1,000, 1 Bed Plan J $1,000 (real rent ~$2,055/mo+)  
           The Hazelwood (id=289) — Studio $500, 1 Bedroom $600 (real rent "Call for details")  
 **Root cause**: Sites like Camden Village / The Hazelwood show deposit before rent in their HTML:
@@ -137,19 +149,27 @@ The LLM reads both numbers and submits the deposit amount ($1,000 / $500) as `mi
 `submit_findings`. BUG-01 fixed this for the `universal_dom` adapter (two-pass extraction with
 deposit stripping), but Camden/Hazelwood scrape via the **LLM agent path** (adapter_name=NULL in
 scrape_runs), so the universal_dom fix does not apply.  
-**Evidence (2026-04-27 re-scrape)**:
-- Camden LLM submitted: `Studio Plan A min_price=1000`, `1 Bed Plan J min_price=1000`
-- Hazelwood LLM submitted: `Studio min_price=500`, `1 Bedroom min_price=600`
-- DB still reflects these deposit amounts  
-**Fix options**:
-1. `_sanitize()` in `worker.py`: null out `min_price` / `max_price` on any FloorPlan where
-   price < $1,000 (Bay Area rent floor) before `_persist_scraped_prices` runs. Fast, safe,
-   doesn't touch LLM prompt.
-2. LLM system prompt: add instruction "Never use deposit amounts as rent prices. If you see
-   'Deposit: $X', ignore $X — look for the rent amount labeled '/mo' or 'per month'."
-3. Both: belt-and-suspenders — prompt reduces LLM errors, `_sanitize()` catches remainder.  
-**File**: `backend/app/worker.py` — `_sanitize()` (option 1)  
-          `backend/app/services/scraper_agent/agent.py` — system prompt (option 2)
+**Fix applied (2026-04-27) — belt-and-suspenders**:
+1. **LLM system prompt** (`backend/app/services/scraper_agent/agent.py` + integration mirror):
+   Replaced 3-line "NEVER use deposit" rule with a full `DEPOSIT VS RENT DISAMBIGUATION` block
+   containing labelled RENT vs NOT-RENT categories and 4 worked examples with explicit
+   Correct/Wrong annotations. Mirrors updated in `tests/integration/agentic_scraper/agent.py`.
+2. **`_sanitize_floor_plans()` Filter B** (`backend/app/worker.py`): nulls `min_price`/`max_price`
+   on any FloorPlan where price < $1,500 (Bay Area rent floor). Also Filter C nulls price > $25,000.
+   Applied before `_persist_scraped_prices` so deposit amounts never reach the DB.
+
+**Verified re-scrape 2026-04-27**:
+- Camden (244): LLM returned `Studio Plan A min_price=1000`, `1 Bed 1 Bath Plan B min_price=1000`.
+  Filter B nulled both. DB now has 5 plans with real rents: Studio $2,055, 1BR $2,395, 2BR $2,850.
+- Hazelwood (289): LLM returned `Studio min_price=500`, `1 Bedroom min_price=600`.
+  Filter B nulled both. DB has 3 plans: Studio NULL, 1BR NULL, 2BR $3,340 (site shows "Call" for studio/1BR).
+- Canonical regression check (Miro, The Ryden, Atlas): Filter B did not fire — no false positives.
+
+**Files changed**:
+- `backend/app/services/scraper_agent/agent.py` — SYSTEM_PROMPT deposit disambiguation block
+- `tests/integration/agentic_scraper/agent.py` — mirror
+- `backend/app/worker.py` — `_sanitize_floor_plans()` Filter B + Filter C, `_BAY_AREA_RENT_FLOOR`, `_BAY_AREA_RENT_CEILING`
+- `tests/unit/test_sanitize_floor_plans.py` — 23 unit tests covering all 4 filters
 
 ---
 

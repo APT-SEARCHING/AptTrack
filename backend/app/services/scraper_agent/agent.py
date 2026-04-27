@@ -160,10 +160,38 @@ CRITICAL — price extraction rules:
   row, or unit detail panel, clearly tied to that specific plan or unit.
 - If a plan card shows "Contact for pricing", "Call for details", "Waitlist", or no dollar amount
   at all, set min_price and max_price to null for that plan.
-- NEVER use deposit or security deposit amounts as the rent price. Deposits appear as
-  "Deposit: $500", "Security Deposit $1,000", "Deposit Starting at $600", etc. These are
-  one-time move-in costs, NOT monthly rent. If the rent says "Call for details" but a deposit
-  amount is shown, set min_price=null — do not substitute the deposit as the price.
+- DEPOSIT VS RENT DISAMBIGUATION: when a plan card or unit listing shows MULTIPLE
+  dollar amounts, identify which is which by reading the LABEL adjacent to each amount:
+
+  RENT (use for min_price/max_price):
+    * "$X /mo", "$X per month", "$X monthly"
+    * "Base Rent: $X", "Monthly Rent: $X"
+    * "$X" appearing on a floor-plan card alongside bedroom/sqft info, with no
+      conflicting fee label
+
+  NOT RENT (ignore for min_price/max_price):
+    * "Deposit: $X", "Security Deposit $X", "Refundable Deposit $X", "Deposit Starting at $X"
+    * "$X admin fee", "$X application fee", "Application: $X"
+    * "$X pet fee", "$X parking fee", "$X amenity fee"
+    * "Move-in: $X", "First month: $X"
+
+  Worked examples:
+
+  Page shows: "Deposit: $1,000   $3,000 per month"
+    Correct: min_price=3000 (the amount labeled "per month")
+    Wrong:   min_price=1000 (that is the deposit amount)
+
+  Page shows: "1 Bed | 720 sqft | $500 admin fee | $2,500/mo"
+    Correct: min_price=2500 (the amount labeled "/mo")
+    Wrong:   min_price=500 (that is the admin fee)
+
+  Page shows: "Studio · Deposit Starting at $500" (with NO rent amount visible)
+    Correct: min_price=null (rent not shown; deposit is not rent)
+    Wrong:   min_price=500 (do not substitute the deposit)
+
+  Page shows: "$2,500" (single amount with no other context labels)
+    If on a floor-plan card alongside bedroom/sqft info → treat as rent (min_price=2500)
+    If in a sidebar, fees section, or "What's included" panel → set min_price=null
 - Do NOT invent or interpolate prices. If you cannot find a price for a plan/unit, leave it null.
 - When a price looks like "$1,500 - $2,000", set min_price=1500 and max_price=2000.
 - When only one price is shown, set both min_price and max_price to that value.
