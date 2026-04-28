@@ -978,13 +978,24 @@ _AVAIL_DATE_RE = _re.compile(
     r"|(\d{4})-(\d{2})-(\d{2})",               # YYYY-MM-DD
 )
 
+# "Jun 4th", "May 10th", "December 1st", etc.
+_AVAIL_MONTH_RE = _re.compile(
+    r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(\d{4}))?",
+    _re.I,
+)
+_MONTH_NUM = {m: i+1 for i, m in enumerate(
+    ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+)}
+
 
 def _parse_availability(availability: str):
     """Parse a raw availability string into (is_available, available_from).
 
     Examples:
         "Available Now" / "Available" / None → (True, None)
-        "Available 06/04/2026"               → (False, date(2026, 6, 4))
+        "Available Jun 4th"                  → (False, datetime(2026, 6, 4))
+        "Available 06/04/2026"               → (False, datetime(2026, 6, 4))
+        "Available May 10th"                 → (False, datetime(2026, 5, 10))
         "Waitlist"                           → (False, None)
     """
     from datetime import date, datetime
@@ -997,6 +1008,7 @@ def _parse_availability(availability: str):
     if "waitlist" in low:
         return False, None
 
+    # Try numeric date first: MM/DD/YYYY, YYYY-MM-DD
     m = _AVAIL_DATE_RE.search(availability)
     if m:
         try:
@@ -1007,6 +1019,22 @@ def _parse_availability(availability: str):
             else:            # YYYY-MM-DD
                 yr, mo, dy = int(m.group(4)), int(m.group(5)), int(m.group(6))
             avail_date = datetime(yr, mo, dy)
+            is_now = avail_date.date() <= date.today()
+            return is_now, None if is_now else avail_date
+        except ValueError:
+            pass
+
+    # Try month-name date: "Jun 4th", "May 10th 2026"
+    m = _AVAIL_MONTH_RE.search(availability)
+    if m:
+        try:
+            mo = _MONTH_NUM[m.group(1).lower()[:3]]
+            dy = int(m.group(2))
+            yr = int(m.group(3)) if m.group(3) else date.today().year
+            # If the month already passed this year, assume next year
+            avail_date = datetime(yr, mo, dy)
+            if avail_date.date() < date.today() and not m.group(3):
+                avail_date = datetime(yr + 1, mo, dy)
             is_now = avail_date.date() <= date.today()
             return is_now, None if is_now else avail_date
         except ValueError:
