@@ -174,3 +174,119 @@ scrape_runs), so the universal_dom fix does not apply.
 ---
 
 <!-- Add new bugs below this line -->
+
+## BUG-07: RentCafe adapter blocked by HTTP 403
+
+**Status**: open  
+**Affected**: venue-apts.com (id=253), 808west-apts.com (id=259), ilaraapartments.com (id=251),
+turnleaf-apts.com (id=247), liveatorchardglen.com (id=281), atriumgardenapartments.com (id=270)
+— all newly seeded apartments using the RentCafe platform.  
+**Evidence**: `RentCafe: failed to fetch https://www.venue-apts.com/floorplans: HTTP Error 403: Forbidden`
+observed on all 6 sites during 2026-04-27 full re-scrape.  
+**Root cause**: RentCafe's CDN (Cloudflare) blocks the scraper's default `httpx` User-Agent on the
+`/floorplans` endpoint. The adapter fetches a JSON API endpoint that requires a browser-like UA or
+session cookie to pass the bot check.  
+**Fix options**:
+1. Add a browser-like `User-Agent` header to the RentCafe adapter's HTTP client
+2. Route the RentCafe fetch through Playwright (rendered fetch) instead of `httpx`
+3. Find RentCafe's public API endpoint (separate from the /floorplans page) that doesn't require a session  
+**File**: `backend/app/services/scraper_agent/platforms/rentcafe.py`
+
+---
+
+## BUG-08: Essex (essexapartmenthomes.com) SSL certificate error
+
+**Status**: open  
+**Affected**: ~10 Essex apartments — Windsor Ridge (id=232), 1250 Lakeside (id=231), Bridgeport (id=237),
+Mission Peaks (id=235), Stevenson Place (id=241), Briarwood at Central Park (id=242),
+Boulevard (id=236), Paragon (id=240), The Rexford (id=239), plus Essex Sunnyvale/MV properties.  
+**Evidence**: `SSLCertVerificationError: certificate verify failed: self signed certificate in certificate chain`
+on all `www.essexapartmenthomes.com` requests during 2026-04-27 full re-scrape.  
+**Root cause**: Essex's CDN presents a certificate chain that Python 3.8's `ssl` module rejects as
+self-signed. The SightMap adapter (which successfully extracted prices in earlier sessions) went through
+Playwright which uses Chromium's more permissive cert validation. The content-hash pre-check uses
+`httpx` which respects Python's SSL context and fails.  
+**Impact**: Content-hash check fails → proceeds to scrape → SightMap adapter (via Playwright) still
+works. So price extraction succeeds but generates excessive SSL warning noise in logs.  
+**Fix**: Add `verify=False` (or custom SSL context) to the `httpx` client used in the content-hash
+pre-check for domains known to have this issue, or suppress the warning and let Playwright handle it.  
+**File**: `backend/app/worker.py` — content-hash GET request, `backend/app/services/scraper_agent/fetch.py`
+
+---
+
+## BUG-09: Sibling property contamination — additional affected apartments
+
+**Status**: open (BUG-04 extension)  
+**Affected**: Multiple newly seeded apartments — confirmed on 2026-04-27 full re-scrape:
+- `Embark Apartments` (3 occurrences) — sibling of Reserve at Mountain View (id=218)
+- `The Verdant Apartments` — newly seeded apt with multi-property comparison page
+- `Stevens Creek Villas` — sibling property contamination
+- `Snow Park` (2 occurrences) — sibling of some Oakland/Bay Area multi-property page
+- `808 West Apartments` — sibling of another apt on same platform page
+- `Warburton Village Apartments` — sibling contamination
+- `High Ridge`, `Dry Creek` — sibling names from UDR-style comparison pages  
+**Sanitize status**: All of the above were correctly dropped by `_sanitize_floor_plans()` Filter A.
+However the affected apartments end up with 0 active plans — the real floor plan data is not being
+retrieved because the scraper keeps landing on multi-property comparison pages.  
+**Fix**: Same root fix as BUG-04 — these sites need platform-specific adapters (UDR, Equity, etc.)
+that target the per-property pricing widget directly. Until then, sanitize correctly prevents
+contamination but cannot recover the missing real data.
+
+---
+
+## BUG-10: The Cathay Lotus seeded with aggregator URL instead of apartment website
+
+**Status**: open  
+**Affected**: The Cathay Lotus (id=277)  
+**Evidence**: `source_url = http://www.vrent.com/` — this is a property management company /
+aggregator website, not the apartment's own website. DB plans include `2 Bedrooms $1,595`
+which is implausibly low for Bay Area 2BR (likely wrong data from aggregator context).  
+**Root cause**: At seed time the GMB listing pointed to `vrent.com` (the management company's
+site) rather than a dedicated apartment page. The LLM scraped vrent.com and extracted whatever
+it found there.  
+**Fix**:
+1. Find the actual apartment website for The Cathay Lotus (manual lookup)
+2. Update `source_url` in `apartments` table
+3. Re-scrape to get correct floor plan data  
+**File**: DB — `UPDATE apartments SET source_url='<real_url>' WHERE id=277`
+
+---
+
+## BUG-11: Valley Village Retirement Community incorrectly seeded as regular apartment
+
+**Status**: open  
+**Affected**: Valley Village Retirement Community (id=28)  
+**Evidence**: `source_url = http://www.valleyvillageretirement.com/` — this is a senior
+retirement community, not a regular apartment complex. Plans show "Mini Studio Deluxe",
+"High Rise" — retirement facility unit types.  
+**Root cause**: Google Maps import included senior/retirement communities when keywords
+matched "apartments near San Jose". CLAUDE.md notes senior housing was later removed from
+import keywords, but id=28 was already seeded before that change.  
+**Fix**: Archive the apartment — `UPDATE apartments SET is_available=false,
+data_source_type='unscrapeable', title='[ARCHIVED retirement] ' || title WHERE id=28`.  
+**File**: DB — manual archive SQL
+
+---
+
+## BUG-12: Metro Six55 — seed used unit numbers as plan names, CAPI plans merged by sqft fuzzy match
+
+**Status**: open  
+**Affected**: Metro Six55 (id=156)  
+**Evidence**:
+- DB has 3 plans with names "1306", "2105", "2202" (unit numbers, not floor plan codes)
+- CAPI returns 6 floor plans: 1x1A($1,969), 1X1B($2,169), 1x1C($2,420), 2x2C($2,597), 2x2A($2,610), 2x2B($2,787)
+- DB only shows $1,969 / $2,169 / $2,597 — 1x1C($2,420), 2x2A($2,610), 2x2B($2,787) missing  
+**Root cause** (two compounding issues):
+1. **Seed-time**: LLM seeded Metro Six55 using unit numbers (1306, 2105, 2202) as plan names instead of
+   CAPI floor plan codes. These names don't match "1x1A" etc. so strategy-1 (exact name) always fails.
+2. **sqft fuzzy collapse**: `_match_plan` strategy-2 maps 1x1A(711sqft) AND 1x1C(750sqft) both to
+   DB plan "1306"(711sqft) since |750-711|/711=5.5% < 10%. Similarly 2x2C/2x2A/2x2B all map to "2202"(965sqft).
+   `_persist_scraped_prices` then takes `min()` across merged fps, so 1x1C's $2,420 and 2x2A's $2,610 are
+   silently dropped.  
+**Fix**:
+1. Rename DB plans: "1306"→"1x1A", "2105"→"1X1B", "2202"→"2x2C" (manual SQL or normalization pass)
+2. Auto-create the 3 missing plans: 1x1C, 2x2A, 2x2B
+3. Sqft tolerance in strategy-2 for LeaseStar may need tightening (±5% instead of ±10%)  
+**Note**: CAPI adapter IS working correctly (`_fetch_leasingstar_plans` returns all 6 plans).
+`availableUnits=None` for all plans is a separate issue (BUG-02).  
+**File**: DB — manual plan rename SQL; `backend/app/worker.py` — `_match_plan` sqft tolerance
