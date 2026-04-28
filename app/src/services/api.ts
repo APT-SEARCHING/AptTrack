@@ -236,6 +236,7 @@ export interface CheapestItem {
 export type SortOption = 'price_asc' | 'price_desc' | 'updated_desc' | 'name_asc';
 
 export interface ListingsFilter {
+  search?: string;     // client-side apartment name search
   location?: string;   // legacy single-city (unused by API now)
   cities?: string[];   // multi-city client-side filter
   min_price?: number;

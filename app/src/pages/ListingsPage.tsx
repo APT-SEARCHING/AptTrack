@@ -145,6 +145,10 @@ const ListingsPage: React.FC = () => {
   // client-side filters
   const filtered = useMemo(() => {
     let result = apts;
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      result = result.filter(a => a.title.toLowerCase().includes(q));
+    }
     if (filters.cities && filters.cities.length > 0)
       result = result.filter(a => filters.cities!.includes(a.city));
     if (filters.min_price) result = result.filter(a => a.max_price != null && a.max_price >= filters.min_price!);

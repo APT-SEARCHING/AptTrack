@@ -63,6 +63,20 @@ const FilterPanel: React.FC<Props> = ({ filters, onFilterChange, totalCount }) =
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      {/* Search */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+          Search
+        </label>
+        <input
+          type="text"
+          placeholder="Apartment name…"
+          value={filters.search ?? ''}
+          onChange={e => onFilterChange({ ...filters, search: e.target.value || undefined })}
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 placeholder-slate-400"
+        />
+      </div>
+
       {/* City */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-1.5">
