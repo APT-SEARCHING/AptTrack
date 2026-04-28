@@ -837,52 +837,71 @@ def _match_plan(apt_id: int, fp, db):
     """Find the DB Plan that best matches a scraped FloorPlan, or create one.
 
     Strategy (in order):
-    1. Exact ``Plan.name`` match — zero risk.
-    2. Fuzzy: same bedroom count + area_sqft within 10% — handles site renames.
-    3. Weak fuzzy: same beds + baths, only when single unambiguous candidate.
-    4. Auto-create: new Plan row when fp.bedrooms is known.
+    1. Exact name match on active plans.
+    2. Exact name match on archived plans — reactivate instead of duplicating.
+    3. Exact beds + sqft match (±5 sqft tolerance for rounding only) on active
+       plans — handles the rare case where an adapter returns the same plan with
+       a sqft value rounded differently (e.g. 637 vs 638). Does NOT merge
+       distinct floor-plan types with similar sqft.
+    4. Auto-create a new Plan row.
+
+    Strategies 2 (beds+sqft ±10%) and 3 (beds+baths weak fuzzy) from the old
+    implementation are intentionally removed: they merged distinct floor-plan
+    types that happened to have similar sqft, causing prices from different
+    plans to collide and be silently dropped (see BUG-12, BUG-13).
     """
     from sqlalchemy import select
 
     from app.models.apartment import Plan
 
-    # 1. Exact name
+    # 1. Exact name — active plans
     plan = db.execute(
-        select(Plan).where(Plan.apartment_id == apt_id, Plan.name == fp.name)
+        select(Plan).where(
+            Plan.apartment_id == apt_id,
+            Plan.name == fp.name,
+            Plan.is_available.is_(True),
+        )
     ).scalar_one_or_none()
     if plan:
         return plan
 
-    # 2. Fuzzy by beds + sqft ±10%
-    if fp.bedrooms is not None and fp.size_sqft is not None:
-        candidates = db.execute(
-            select(Plan).where(Plan.apartment_id == apt_id, Plan.bedrooms == fp.bedrooms)
-        ).scalars().all()
-        for c in candidates:
-            if c.area_sqft and abs(c.area_sqft - fp.size_sqft) / c.area_sqft < 0.10:
-                logger.debug(
-                    "Fuzzy-matched (beds+sqft): %r → %r (apt %d)",
-                    fp.name, c.name, apt_id,
-                )
-                return c
+    # 2. Exact name — archived plans (reactivate rather than duplicate)
+    archived = db.execute(
+        select(Plan).where(
+            Plan.apartment_id == apt_id,
+            Plan.name == fp.name,
+            Plan.is_available.is_(False),
+        )
+    ).scalar_one_or_none()
+    if archived:
+        archived.is_available = True
+        logger.info(
+            "Reactivated archived Plan for apt %d: %r", apt_id, fp.name
+        )
+        return archived
 
-    # 3. Weak fuzzy by beds + baths — only when single unambiguous candidate
-    if fp.bedrooms is not None and fp.bathrooms is not None:
+    # 3. Exact sqft match (±5 sqft) — same bedroom count, single unambiguous candidate
+    if fp.bedrooms is not None and fp.size_sqft is not None:
         candidates = db.execute(
             select(Plan).where(
                 Plan.apartment_id == apt_id,
                 Plan.bedrooms == fp.bedrooms,
-                Plan.bathrooms == fp.bathrooms,
+                Plan.is_available.is_(True),
             )
         ).scalars().all()
-        if len(candidates) == 1:
+        sqft_matches = [
+            c for c in candidates
+            if c.area_sqft is not None and abs(c.area_sqft - fp.size_sqft) <= 5
+        ]
+        if len(sqft_matches) == 1:
             logger.debug(
-                "Weak-matched (beds+baths): %r → %r (apt %d)",
-                fp.name, candidates[0].name, apt_id,
+                "Sqft-matched: %r → %r (apt %d, sqft %.0f≈%.0f)",
+                fp.name, sqft_matches[0].name, apt_id,
+                fp.size_sqft, sqft_matches[0].area_sqft,
             )
-            return candidates[0]
+            return sqft_matches[0]
 
-    # 4. Auto-create when we have enough info
+    # 4. Auto-create
     if fp.bedrooms is not None:
         new_plan = Plan(
             apartment_id=apt_id,
@@ -895,7 +914,7 @@ def _match_plan(apt_id: int, fp, db):
             is_available=True,
         )
         db.add(new_plan)
-        db.flush()  # assign new_plan.id for downstream PlanPriceHistory write
+        db.flush()
         logger.info(
             "Auto-created Plan for apt %d: %r (%s BR, %s BA)",
             apt_id, fp.name, fp.bedrooms, fp.bathrooms,

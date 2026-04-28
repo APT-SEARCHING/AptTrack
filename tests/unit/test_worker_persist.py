@@ -294,18 +294,22 @@ def test_unmatched_plan_skipped_when_no_bedrooms(db):
 from app.worker import _match_plan  # noqa: E402
 
 
-def test_strategy3_returns_single_beds_baths_candidate(db):
-    """Strategy 3: exactly one candidate with matching beds+baths → returned."""
+def test_different_name_no_sqft_autocreates(db):
+    """Name mismatch + no sqft → cannot match existing plan → auto-create new one.
+
+    Old strategy 3 (weak beds+baths fuzzy) has been removed because it caused
+    false merges of distinct floor-plan types. A fp with a different name and no
+    sqft now falls through to strategy 4 and creates a new plan row.
+    """
     apt = _make_apt(db)
-    plan = _make_plan(db, apt.id, name="A1", bedrooms=1.0, bathrooms=1.0, area_sqft=650.0)
+    _make_plan(db, apt.id, name="A1", bedrooms=1.0, bathrooms=1.0, area_sqft=650.0)
     db.commit()
 
-    # fp has different name and no sqft (skips 1 and 2), but unique beds+baths
     fp = _make_fp(name="A1-Renamed", bedrooms=1.0, bathrooms=1.0, size_sqft=None)
     result = _match_plan(apt.id, fp, db)
 
     assert result is not None
-    assert result.id == plan.id
+    assert result.name == "A1-Renamed"  # auto-created, not merged with A1
 
 
 def test_strategy3_returns_none_when_ambiguous(db):
@@ -353,19 +357,19 @@ def test_strategy4_returns_none_when_bedrooms_missing(db):
     assert plan_count == 0
 
 
-def test_strategy2_fires_before_strategy3(db):
-    """Strategy 2 (beds+sqft) match prevents strategy 3 from firing on ambiguous set."""
+def test_strategy3_exact_sqft_matches_within_5(db):
+    """Strategy 3: sqft within ±5 of a single candidate → match (rounding tolerance)."""
     apt = _make_apt(db)
     plan_a = _make_plan(db, apt.id, name="A1", bedrooms=1.0, bathrooms=1.0, area_sqft=650.0)
     _make_plan(db, apt.id, name="A2", bedrooms=1.0, bathrooms=1.0, area_sqft=750.0)
     db.commit()
 
-    # sqft=655 matches A1 within 10% (655/650 ≈ 0.8% diff)
+    # sqft=655 is within ±5 of A1(650) only — unambiguous
     fp = _make_fp(name="A1-Renamed", bedrooms=1.0, bathrooms=1.0, size_sqft=655.0)
     result = _match_plan(apt.id, fp, db)
 
     assert result is not None
-    assert result.id == plan_a.id  # strategy 2 returned A1, not A2
+    assert result.id == plan_a.id  # matched A1, not A2
 
 
 # ---------------------------------------------------------------------------
