@@ -11,13 +11,19 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Floor Plans"
+        "text_or_href": "/floorplans/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.liveatmayfieldplace.com/floorplans/"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "specials"
+        "text_or_href": "/specials/"
       }
     },
     {
@@ -27,27 +33,25 @@
       }
     },
     {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
       "action": "click_link",
       "args": {
-        "text_or_href": "Amenities"
+        "text_or_href": "Availability"
       }
     },
     {
-      "action": "click_link",
+      "action": "navigate_to",
       "args": {
-        "text_or_href": "Floor Plans"
+        "url": "https://www.liveatmayfieldplace.com/#amenity_section"
       }
     },
     {
-      "action": "scroll_down",
-      "args": {}
+      "action": "navigate_to",
+      "args": {
+        "url": "https://mayfieldplace.apartmentapplication.info/"
+      }
     }
   ],
   "apartment_name": "Mayfield Place",
-  "last_success": "2026-04-24T22:21:17.595527+00:00",
+  "last_success": "2026-04-28T01:24:07.894140+00:00",
   "success_count": 1
 }

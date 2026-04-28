@@ -1,0 +1,59 @@
+{
+  "url": "https://www.rentmiro.com/floorplans",
+  "domain": "www_rentmiro_com__7afb181b",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentmiro.com/floorplans"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities + Services"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentmiro.com"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities + Services"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.rentmiro.com/amenities"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Miro",
+  "last_success": "2026-04-27T21:54:42.634420+00:00",
+  "success_count": 1
+}

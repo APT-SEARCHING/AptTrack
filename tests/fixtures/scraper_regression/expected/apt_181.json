@@ -1,11 +1,35 @@
 {
   "adapter": "avalonbay",
   "apt_id": 181,
-  "name": "Cahill Park Apartments",
+  "name": "Cahill Park",
   "plans": [
-    {"plan_name": "A2",  "bedrooms": 1, "bathrooms": 1, "size_sqft": 793,  "price": 2865.0},
-    {"plan_name": "A1L", "bedrooms": 1, "bathrooms": 1, "size_sqft": 712,  "price": 2930.0},
-    {"plan_name": "A3",  "bedrooms": 1, "bathrooms": 1, "size_sqft": 858,  "price": 3035.0},
-    {"plan_name": "B1",  "bedrooms": 2, "bathrooms": 2, "size_sqft": 1185, "price": 3635.0}
+    {
+      "plan_name": "A2",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 793,
+      "price": 2865.0
+    },
+    {
+      "plan_name": "A1L",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 712,
+      "price": 2930.0
+    },
+    {
+      "plan_name": "A3",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 858,
+      "price": 3035.0
+    },
+    {
+      "plan_name": "B1",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "size_sqft": 1185,
+      "price": 3635.0
+    }
   ]
 }

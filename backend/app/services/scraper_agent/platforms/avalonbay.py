@@ -48,8 +48,9 @@ _FUSION_CONTENT_RE = re.compile(
 def _parse_avalon_global_content(html: str) -> List[Dict]:
     """Parse Fusion.globalContent from AvalonBay page HTML.
 
-    Groups individual units by floorPlan.name and returns one dict per
-    distinct plan, carrying the minimum price across available units.
+    Returns one dict per individual unit (not per plan) so that per-unit
+    prices, unit numbers, and availability dates are preserved and can be
+    shown in the dropdown UI — matching the SightMap pattern.
     Returns [] if the blob is absent or contains no usable units.
     """
     m = _FUSION_CONTENT_RE.search(html)
@@ -66,13 +67,14 @@ def _parse_avalon_global_content(html: str) -> List[Dict]:
     if not raw_units:
         return []
 
-    # Group by plan name; track min price over available units
-    plans: Dict[str, Dict] = {}
+    result = []
     for unit in raw_units:
         fp = unit.get("floorPlan") or {}
         plan_name = (fp.get("name") or "").strip()
         if not plan_name:
             continue
+
+        unit_number = str(unit.get("unitName") or "").strip() or None
 
         beds_raw = unit.get("bedroomNumber", 0)
         try:
@@ -92,6 +94,12 @@ def _parse_avalon_global_content(html: str) -> List[Dict]:
         except (TypeError, ValueError):
             sqft = None
 
+        floor_raw = unit.get("floorNumber")
+        try:
+            floor = int(floor_raw) if floor_raw else None
+        except (TypeError, ValueError):
+            floor = None
+
         # Price: startingAtPricesUnfurnished.prices.netEffectivePrice
         price: Optional[float] = None
         pricing = unit.get("startingAtPricesUnfurnished") or {}
@@ -109,33 +117,36 @@ def _parse_avalon_global_content(html: str) -> List[Dict]:
                     except (TypeError, ValueError):
                         price = None
 
-        status = unit.get("unitStatus", "")
-        # NoticeAvailable = tenant has given notice, unit is listed for leasing with a price
-        is_available = status in ("VacantAvailable", "Available", "NoticeAvailable", "")
-
-        if plan_name not in plans:
-            plans[plan_name] = {
-                "plan_name": plan_name,
-                "bedrooms": beds,
-                "bathrooms": baths,
-                "size_sqft": sqft,
-                "price": price if is_available else None,
-                "availability": "available" if is_available else "unavailable",
-            }
+        # Availability date from unit or pricing block
+        avail_date = (
+            unit.get("availableDateUnfurnished")
+            or pricing.get("moveInDate")
+        )
+        if avail_date:
+            # ISO date string → "Available YYYY-MM-DD" for _parse_availability
+            avail_date = str(avail_date)[:10]  # keep YYYY-MM-DD only
+            availability = "Available {}".format(avail_date)
         else:
-            existing = plans[plan_name]
-            # Update sqft if we now have it
-            if existing["size_sqft"] is None and sqft is not None:
-                existing["size_sqft"] = sqft
-            # Keep the cheapest available price
-            if is_available and price is not None:
-                if existing["price"] is None or price < existing["price"]:
-                    existing["price"] = price
-                existing["availability"] = "available"
+            availability = "Available Now"
 
-    result = list(plans.values())
+        status = unit.get("unitStatus", "")
+        is_available = status in ("VacantAvailable", "Available", "NoticeAvailable", "")
+        if not is_available:
+            availability = "unavailable"
+
+        result.append({
+            "plan_name": plan_name,
+            "unit_number": unit_number,
+            "bedrooms": beds,
+            "bathrooms": baths,
+            "size_sqft": sqft,
+            "floor_level": floor,
+            "price": price if is_available else None,
+            "availability": availability,
+        })
+
     logger.debug(
-        "AvalonBayAdapter: parsed %d units → %d distinct plans", len(raw_units), len(result)
+        "AvalonBayAdapter: parsed %d raw units → %d unit entries", len(raw_units), len(result)
     )
     return result
 

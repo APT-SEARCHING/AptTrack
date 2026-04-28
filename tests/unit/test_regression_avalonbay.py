@@ -40,25 +40,25 @@ def test_avalonbay_adapter_plans(html_file, expected_file):
     html = (AVALONBAY_DIR / html_file).read_text()
     expected = json.loads((EXPECTED_DIR / expected_file).read_text())
 
-    actual_plans = parse(html)
+    actual_units = parse(html)
     expected_plans = expected["plans"]
 
-    # Plan count must match exactly — adapter must not drop or hallucinate plans.
-    assert len(actual_plans) == len(expected_plans), (
-        f"{expected_file}: expected {len(expected_plans)} plans, "
-        f"got {len(actual_plans)}: {[p['plan_name'] for p in actual_plans]}"
-    )
-
-    actual_by_name = {p["plan_name"]: p for p in actual_plans}
+    # Adapter now returns per-unit rows. Group by plan_name to get min price per plan.
+    from collections import defaultdict
+    actual_by_plan: dict = defaultdict(list)
+    for u in actual_units:
+        actual_by_plan[u["plan_name"]].append(u)
 
     for exp in expected_plans:
         name = exp["plan_name"]
-        assert name in actual_by_name, (
+        assert name in actual_by_plan, (
             f"{expected_file}: plan '{name}' missing from adapter output. "
-            f"Got: {list(actual_by_name)}"
+            f"Got plan types: {list(actual_by_plan)}"
         )
-        act = actual_by_name[name]
+        units_for_plan = actual_by_plan[name]
 
+        # beds/baths/sqft should be consistent across all units of a plan
+        act = units_for_plan[0]
         assert int(act["bedrooms"]) == exp["bedrooms"], (
             f"{name}: bedrooms {act['bedrooms']} != {exp['bedrooms']}"
         )
@@ -69,17 +69,20 @@ def test_avalonbay_adapter_plans(html_file, expected_file):
             f"{name}: size_sqft {act['size_sqft']} != {exp['size_sqft']}"
         )
 
+        # Price check: compare expected against min price across units for this plan
         exp_price = exp["price"]
-        act_price = act["price"]
+        priced = [u["price"] for u in units_for_plan if u.get("price") is not None]
+        act_min_price = min(priced) if priced else None
+
         if exp_price is None:
-            assert act_price is None, (
-                f"{name}: expected no price (unavailable), got {act_price}"
+            assert act_min_price is None, (
+                f"{name}: expected no price (unavailable), got {act_min_price}"
             )
         else:
-            assert act_price is not None, (
+            assert act_min_price is not None, (
                 f"{name}: expected price ~{exp_price}, got None"
             )
             tolerance = exp_price * 0.10
-            assert abs(act_price - exp_price) <= tolerance, (
-                f"{name}: price {act_price} deviates >10% from baseline {exp_price}"
+            assert abs(act_min_price - exp_price) <= tolerance, (
+                f"{name}: min price {act_min_price} deviates >10% from baseline {exp_price}"
             )

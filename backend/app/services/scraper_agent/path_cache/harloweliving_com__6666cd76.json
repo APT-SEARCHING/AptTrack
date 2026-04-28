@@ -1,0 +1,67 @@
+{
+  "url": "http://harloweliving.com/",
+  "domain": "harloweliving_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "http://harloweliving.com/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.harloweliving.com/apartments/ca/milpitas/floor-plans"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "View All Floor Plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.harloweliving.com/apartments/ca/milpitas/amenities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Specials"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.harloweliving.com/apartments/ca/milpitas"
+      }
+    }
+  ],
+  "apartment_name": "The Harlowe",
+  "last_success": "2026-04-28T01:36:52.827997+00:00",
+  "success_count": 1
+}

@@ -11,31 +11,35 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "/apartments/search-results"
+        "text_or_href": "Apartments"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Regency%20at%20Mountain%20View"
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?type=metroareas&query=South%20Bay%20Area"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view"
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?type=city&query=Mountain%20View"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "/apartments/mountain-view/regency-at-mountain-view"
+        "text_or_href": "Regency at Mountain View"
       }
     },
     {
-      "action": "click_link",
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
       "args": {
-        "text_or_href": "/apartments/mountain-view/regency-at-mountain-view/floor-plans-and-pricing"
+        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view"
       }
     },
     {
@@ -51,47 +55,7 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Features & Amenities"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/amenities"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "Leasing Info"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/floor-plans-and-pricing?move_in_date=2025-04-25"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "sightmap"
-      }
-    },
-    {
-      "action": "extract_all_units",
-      "args": {}
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view?availability=available"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/floor-plans"
+        "text_or_href": "Floor Plans & Pricing"
       }
     },
     {
@@ -101,41 +65,19 @@
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/leasing-info"
+        "text_or_href": "Features & Amenities"
       }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "View Property Map"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/search-results"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/regency-at-mountain-view/neighborhood"
+        "text_or_href": "Leasing Info"
       }
     }
   ],
   "apartment_name": "Regency at Mountain View",
-  "last_success": "2026-04-25T17:12:42.528653+00:00",
+  "last_success": "2026-04-28T00:43:22.783558+00:00",
   "success_count": 1
 }

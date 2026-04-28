@@ -1,0 +1,65 @@
+{
+  "url": "http://wildwoodmanorapts.com/",
+  "domain": "wildwoodmanorapts_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "http://wildwoodmanorapts.com/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features & Amenities"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://wildwoodmanorapts.com/floor-plans/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://wildwoodmanorapts.com/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Contact"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Location"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://wildwoodmanorapts.com/floor-plans/"
+      }
+    }
+  ],
+  "apartment_name": "Wildwood Manor",
+  "last_success": "2026-04-28T04:51:51.837484+00:00",
+  "success_count": 1
+}

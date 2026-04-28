@@ -9,43 +9,21 @@
       }
     },
     {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "Apartments"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=South%20Bay%20Area&type=metroareas"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "ARLO Mountain View"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
       "action": "navigate_to",
       "args": {
         "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view"
       }
     },
     {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "floor-plans-and-pricing"
-      }
-    },
-    {
       "action": "read_iframe",
       "args": {
         "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "List View"
       }
     },
     {
@@ -59,14 +37,24 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view/amenities"
+        "url": "https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Leasing Info"
+        "text_or_href": "Features & Amenities"
       }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
     },
     {
       "action": "navigate_to",
@@ -77,11 +65,23 @@
     {
       "action": "click_link",
       "args": {
+        "text_or_href": "Leasing Info"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
         "text_or_href": "Neighborhood"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features & Amenities"
       }
     }
   ],
   "apartment_name": "ARLO Mountain View",
-  "last_success": "2026-04-25T17:11:02.315294+00:00",
+  "last_success": "2026-04-28T00:46:37.869439+00:00",
   "success_count": 1
 }

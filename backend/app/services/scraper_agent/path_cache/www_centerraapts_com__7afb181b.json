@@ -9,9 +9,9 @@
       }
     },
     {
-      "action": "navigate_to",
+      "action": "click_link",
       "args": {
-        "url": "https://liveatcenterra.com/floorplans/"
+        "text_or_href": "/floorplans/"
       }
     },
     {
@@ -45,6 +45,100 @@
       "args": {}
     },
     {
+      "action": "click_button",
+      "args": {
+        "text": "2 Bedroom"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Filter Icon"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "availability"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/apartments/"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Allow All"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "×"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=1"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=2"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=3"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/amenities/"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Show more"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/specials/"
+      }
+    },
+    {
       "action": "navigate_to",
       "args": {
         "url": "https://liveatcenterra.com/"
@@ -53,11 +147,23 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://liveatcenterra.com/amenities/"
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=1"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=2"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://liveatcenterra.com/floorplans/?bedrooms=3"
       }
     }
   ],
   "apartment_name": "Centerra",
-  "last_success": "2026-04-25T17:09:05.783116+00:00",
+  "last_success": "2026-04-28T04:50:39.549213+00:00",
   "success_count": 1
 }

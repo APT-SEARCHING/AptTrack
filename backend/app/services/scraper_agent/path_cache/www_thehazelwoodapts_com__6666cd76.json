@@ -1,0 +1,79 @@
+{
+  "url": "http://www.thehazelwoodapts.com/",
+  "domain": "www_thehazelwoodapts_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "http://www.thehazelwoodapts.com/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/floorplans/"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://thehazelwoodapts.prospectportal.com/milpitas/1206-the-hazelwood/conventional/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/amenities/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.thehazelwoodapts.com/amenities/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.thehazelwoodapts.com/specials/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.thehazelwoodapts.com/floorplans/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "#availabilities/floorplan/39017/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "View Floor Plans"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "Studio"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "/contact_us/"
+      }
+    }
+  ],
+  "apartment_name": "The Hazelwood",
+  "last_success": "2026-04-28T01:41:13.692735+00:00",
+  "success_count": 1
+}

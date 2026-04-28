@@ -11,75 +11,111 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Properties"
+        "text_or_href": "https://www.urbanests.com/properties"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "524 Columbus Residences"
+        "text_or_href": "https://www.urbanests.com/properties/524-columbus-residences"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Properties"
+        "text_or_href": "https://www.urbanests.com/properties/hotel-epik-residences"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "HOT DEAL!"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Hotel Epik Residences"
+        "text_or_href": "https://www.urbanests.com/properties/upmarket-residences"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "251 9th Street Residences"
+        "text_or_href": "https://www.urbanests.com/properties"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Properties"
+        "text_or_href": "https://www.urbanests.com/properties/upmarket-residences"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "21% OFF"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "1080 Folsom Residences"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "1080 Folsom"
+        "text_or_href": "https://www.urbanests.com/properties/hotel-epik-residences"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.urbanests.com/properties"
+        "url": "https://www.urbanests.com/properties/hotel-epik-residences"
       }
     },
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "251 9th Street Residences"
+        "text_or_href": "https://www.urbanests.com/properties/1080-folsom-residences"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.urbanests.com/properties/1080-folsom-residences"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.urbanests.com/properties"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.urbanests.com/properties/2436-mission-residences"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.urbanests.com/properties/221-7th-street-residences"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.urbanests.com/properties/556-green-street-residences"
       }
     },
     {
       "action": "scroll_down",
       "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.urbanests.com"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "https://www.urbanests.com/process"
+      }
     }
   ],
-  "apartment_name": "UrbaNests Co-Living San Francisco",
-  "last_success": "2026-04-25T16:44:36.019494+00:00",
+  "apartment_name": "Urbanests Co-Living",
+  "last_success": "2026-04-27T23:39:35.827859+00:00",
   "success_count": 1
 }

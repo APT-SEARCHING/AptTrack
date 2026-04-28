@@ -11,7 +11,7 @@
     {
       "action": "click_link",
       "args": {
-        "text_or_href": "Floor Plans"
+        "text_or_href": "/apartments/ca/fremont/floor-plans"
       }
     },
     {
@@ -21,19 +21,13 @@
       }
     },
     {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "Amenities"
-      }
-    },
-    {
       "action": "navigate_to",
       "args": {
         "url": "https://www.pasatiempoapts.com/apartments/ca/fremont/amenities"
       }
     }
   ],
-  "apartment_name": "Pasatiempo",
-  "last_success": "2026-04-25T16:41:34.899028+00:00",
+  "apartment_name": "Pasatiempo Senior Apartments",
+  "last_success": "2026-04-27T23:40:34.631278+00:00",
   "success_count": 1
 }

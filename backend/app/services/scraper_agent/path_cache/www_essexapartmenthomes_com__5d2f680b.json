@@ -9,21 +9,15 @@
       }
     },
     {
-      "action": "click_link",
+      "action": "navigate_to",
       "args": {
-        "text_or_href": "Apartments"
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Sunnyvale&type=search"
       }
     },
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Sunnyvale"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Solstice"
+        "url": "https://www.essexapartmenthomes.com/apartments/search-results?query=Solstice&type=search"
       }
     },
     {
@@ -49,6 +43,24 @@
       "args": {}
     },
     {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Features & Amenities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "solstice/amenities"
+      }
+    },
+    {
+      "action": "click_button",
+      "args": {
+        "text": "List View"
+      }
+    },
+    {
       "action": "navigate_to",
       "args": {
         "url": "https://www.essexapartmenthomes.com/apartments/sunnyvale/solstice"
@@ -63,11 +75,17 @@
     {
       "action": "click_link",
       "args": {
+        "text_or_href": "Floor Plans & Pricing"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
         "text_or_href": "Specials"
       }
     }
   ],
   "apartment_name": "Solstice",
-  "last_success": "2026-04-25T17:12:51.155063+00:00",
+  "last_success": "2026-04-28T00:46:26.812914+00:00",
   "success_count": 1
 }

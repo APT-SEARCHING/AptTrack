@@ -3,12 +3,54 @@
   "apt_id": 179,
   "name": "eaves San Jose",
   "plans": [
-    {"plan_name": "A2",  "bedrooms": 1, "bathrooms": 1, "size_sqft": 610, "price": 2643.0},
-    {"plan_name": "A1",  "bedrooms": 1, "bathrooms": 1, "size_sqft": 667, "price": 2749.0},
-    {"plan_name": "281", "bedrooms": 0, "bathrooms": 1, "size_sqft": 281, "price": null},
-    {"plan_name": "B1",  "bedrooms": 2, "bathrooms": 2, "size_sqft": 983, "price": 3402.0},
-    {"plan_name": "B2T", "bedrooms": 2, "bathrooms": 2, "size_sqft": 1013, "price": 3410.0},
-    {"plan_name": "B4",  "bedrooms": 2, "bathrooms": 2, "size_sqft": 1035, "price": null},
-    {"plan_name": "B3",  "bedrooms": 2, "bathrooms": 2, "size_sqft": 923,  "price": null}
+    {
+      "plan_name": "281",
+      "bedrooms": 0,
+      "bathrooms": 1,
+      "size_sqft": 281,
+      "price": 2870.0
+    },
+    {
+      "plan_name": "A2",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 610,
+      "price": 2643.0
+    },
+    {
+      "plan_name": "A1",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 667,
+      "price": 2749.0
+    },
+    {
+      "plan_name": "B1",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "size_sqft": 983,
+      "price": 3402.0
+    },
+    {
+      "plan_name": "B2T",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "size_sqft": 1013,
+      "price": 3410.0
+    },
+    {
+      "plan_name": "B4",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "size_sqft": 1035,
+      "price": 3612.0
+    },
+    {
+      "plan_name": "B3",
+      "bedrooms": 2,
+      "bathrooms": 2,
+      "size_sqft": 923,
+      "price": 3657.0
+    }
   ]
 }

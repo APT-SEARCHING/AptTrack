@@ -1,0 +1,47 @@
+{
+  "url": "http://www.camdenvillageapts.com/",
+  "domain": "www_camdenvillageapts_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "http://www.camdenvillageapts.com/"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "View Available Units"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Amenities"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Specials"
+      }
+    },
+    {
+      "action": "scroll_down",
+      "args": {}
+    }
+  ],
+  "apartment_name": "Camden Village",
+  "last_success": "2026-04-28T01:05:00.008393+00:00",
+  "success_count": 1
+}

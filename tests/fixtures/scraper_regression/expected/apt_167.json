@@ -3,8 +3,26 @@
   "apt_id": 167,
   "name": "AVA Nob Hill",
   "plans": [
-    {"plan_name": "S1", "bedrooms": 0, "bathrooms": 1, "size_sqft": 371, "price": 2684.0},
-    {"plan_name": "S3", "bedrooms": 0, "bathrooms": 1, "size_sqft": 476, "price": 2749.0},
-    {"plan_name": "A2", "bedrooms": 1, "bathrooms": 1, "size_sqft": 556, "price": 3480.0}
+    {
+      "plan_name": "S1",
+      "bedrooms": 0,
+      "bathrooms": 1,
+      "size_sqft": 371,
+      "price": 2684.0
+    },
+    {
+      "plan_name": "S3",
+      "bedrooms": 0,
+      "bathrooms": 1,
+      "size_sqft": 476,
+      "price": 2749.0
+    },
+    {
+      "plan_name": "A2",
+      "bedrooms": 1,
+      "bathrooms": 1,
+      "size_sqft": 556,
+      "price": 3480.0
+    }
   ]
 }

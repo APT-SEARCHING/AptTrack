@@ -31,25 +31,9 @@
       }
     },
     {
-      "action": "click_button",
-      "args": {
-        "text": "View Apartments"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
-      "action": "click_button",
-      "args": {
-        "text": "arrow_back BACK"
-      }
-    },
-    {
       "action": "click_link",
       "args": {
-        "text_or_href": "/apartments/ca/mountain-view/amenities"
+        "text_or_href": "Amenities"
       }
     },
     {
@@ -61,21 +45,29 @@
     {
       "action": "navigate_to",
       "args": {
-        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/floor-plans#/"
+        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/specials"
       }
     },
     {
-      "action": "click_button",
+      "action": "navigate_to",
       "args": {
-        "text": "View All Floor Plans"
+        "url": "https://www.shadowsapartments.com/"
       }
     },
     {
-      "action": "scroll_down",
-      "args": {}
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/pet-policy"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.shadowsapartments.com/apartments/ca/mountain-view/residents"
+      }
     }
   ],
-  "apartment_name": "The Shadows",
-  "last_success": "2026-04-25T16:50:00.131496+00:00",
+  "apartment_name": "The Shadows Apartments",
+  "last_success": "2026-04-27T23:51:07.173362+00:00",
   "success_count": 1
 }

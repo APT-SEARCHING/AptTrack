@@ -35,13 +35,19 @@
       }
     },
     {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "A1 (1 Bed/1 Bath)"
+      }
+    },
+    {
       "action": "scroll_down",
       "args": {}
     },
     {
-      "action": "click_button",
+      "action": "click_link",
       "args": {
-        "text": "1 Bedroom"
+        "text_or_href": "Amenities"
       }
     },
     {
@@ -57,37 +63,13 @@
       }
     },
     {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
       "action": "navigate_to",
       "args": {
-        "url": "https://liveatsavoy.com/floorplans/"
-      }
-    },
-    {
-      "action": "read_iframe",
-      "args": {
-        "keyword": "sightmap"
-      }
-    },
-    {
-      "action": "extract_all_units",
-      "args": {}
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://liveatsavoy.com/floorplans/"
+        "url": "https://liveatsavoy.com/"
       }
     }
   ],
   "apartment_name": "Savoy",
-  "last_success": "2026-04-25T17:23:28.621039+00:00",
+  "last_success": "2026-04-28T01:10:37.159848+00:00",
   "success_count": 1
 }

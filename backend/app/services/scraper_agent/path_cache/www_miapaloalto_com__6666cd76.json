@@ -1,0 +1,73 @@
+{
+  "url": "https://www.miapaloalto.com/?utm_source=gbp",
+  "domain": "www_miapaloalto_com__6666cd76",
+  "steps": [
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/?utm_source=gbp"
+      }
+    },
+    {
+      "action": "click_link",
+      "args": {
+        "text_or_href": "Floor Plans"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/apartments/ca/palo-alto/floor-plans"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "extract_all_units",
+      "args": {}
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/apartments/ca/palo-alto/amenities"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/apartments/ca/palo-alto/specials"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/apartments/ca/palo-alto/floor-plans"
+      }
+    },
+    {
+      "action": "read_iframe",
+      "args": {
+        "keyword": "sightmap"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/"
+      }
+    },
+    {
+      "action": "navigate_to",
+      "args": {
+        "url": "https://www.miapaloalto.com/apartments/ca/palo-alto/amenities"
+      }
+    }
+  ],
+  "apartment_name": "Mia",
+  "last_success": "2026-04-28T01:13:44.740897+00:00",
+  "success_count": 1
+}

@@ -77,11 +77,12 @@ _SAMPLE_HTML = _make_html([
 # _parse_avalon_global_content
 # ---------------------------------------------------------------------------
 
-def test_parse_returns_distinct_plans():
+def test_parse_returns_all_units():
+    # _SAMPLE_HTML has 4 raw units: 796×1, 808×2, 1131×1
     units = _parse_avalon_global_content(_SAMPLE_HTML)
     names = {u["plan_name"] for u in units}
     assert names == {"796", "808", "1131"}
-    assert len(units) == 3
+    assert len(units) == 4
 
 
 def test_parse_correct_beds_baths_sqft():
@@ -92,11 +93,13 @@ def test_parse_correct_beds_baths_sqft():
     assert u808["size_sqft"] == 808
 
 
-def test_parse_keeps_minimum_price():
-    """Two units for plan '808' with prices 2864 and 2900 → adapter keeps 2864."""
+def test_parse_keeps_per_unit_prices():
+    """Two units for plan '808' appear as two separate entries with individual prices."""
     units = _parse_avalon_global_content(_SAMPLE_HTML)
-    u808 = next(u for u in units if u["plan_name"] == "808")
-    assert u808["price"] == 2864.0
+    u808_all = [u for u in units if u["plan_name"] == "808"]
+    assert len(u808_all) == 2
+    prices = sorted(u["price"] for u in u808_all)
+    assert prices == [2864.0, 2900.0]
 
 
 def test_parse_studio_zero_beds():
@@ -108,7 +111,7 @@ def test_parse_studio_zero_beds():
 def test_parse_availability_available():
     units = _parse_avalon_global_content(_SAMPLE_HTML)
     for u in units:
-        assert u["availability"] == "available"
+        assert u["availability"].startswith("Available")
 
 
 def test_parse_unavailable_unit_skips_price():
@@ -118,16 +121,20 @@ def test_parse_unavailable_unit_skips_price():
     assert units[0]["availability"] == "unavailable"
 
 
-def test_parse_available_wins_over_unavailable():
-    """If same plan has one occupied and one available unit, mark available and keep price."""
+def test_parse_occupied_and_available_both_returned():
+    """Per-unit: one occupied + one available unit of same plan → two separate entries."""
     html = _make_html([
         _unit("A1", status="Occupied", price=0),
         _unit("A1", status="VacantAvailable", price=2500),
     ])
     units = _parse_avalon_global_content(html)
-    assert len(units) == 1
-    assert units[0]["availability"] == "available"
-    assert units[0]["price"] == 2500.0
+    assert len(units) == 2
+    avail = [u for u in units if u["availability"] != "unavailable"]
+    unavail = [u for u in units if u["availability"] == "unavailable"]
+    assert len(avail) == 1
+    assert avail[0]["price"] == 2500.0
+    assert len(unavail) == 1
+    assert unavail[0]["price"] is None
 
 
 def test_parse_returns_empty_when_no_fusion_blob():
@@ -164,14 +171,16 @@ def test_parse_missing_sqft_stays_none():
     assert units[0]["size_sqft"] is None
 
 
-def test_parse_sqft_filled_from_second_unit():
-    """First unit missing sqft, second unit provides it → plan should have sqft."""
+def test_parse_sqft_per_unit():
+    """Per-unit: each unit keeps its own sqft; missing sqft stays None."""
     u1 = _unit("A1")
     u1["squareFeet"] = None
     u2 = _unit("A1", sqft=800, price=2600)
     html = _make_html([u1, u2])
     units = _parse_avalon_global_content(html)
-    assert units[0]["size_sqft"] == 800
+    assert len(units) == 2
+    sqfts = {u["size_sqft"] for u in units}
+    assert sqfts == {None, 800}
 
 
 def test_parse_malformed_json_returns_empty():
@@ -206,7 +215,7 @@ def test_detect_false_on_no_fusion_and_wrong_url():
 def test_detect_caches_units():
     adapter = AvalonBayAdapter()
     adapter.detect(_SAMPLE_HTML, "https://www.avaloncommunities.com/ca/test")
-    assert len(adapter._units) == 3  # 796, 808, 1131
+    assert len(adapter._units) == 4  # 796×1, 808×2, 1131×1
 
 
 def test_detect_false_when_fusion_blob_has_empty_units():
@@ -235,7 +244,7 @@ async def test_extract_returns_plans_no_browser_call():
 
     units = await adapter.extract(_SAMPLE_HTML, "https://www.avaloncommunities.com/ca/test", mock_browser)
 
-    assert len(units) == 3
+    assert len(units) == 4  # 796×1, 808×2, 1131×1
     mock_browser.navigate_to.assert_not_called()
 
 
@@ -253,7 +262,7 @@ async def test_extract_reparsed_when_detect_not_called():
     """extract() falls back to parsing html argument if detect() wasn't called."""
     adapter = AvalonBayAdapter()  # detect() NOT called
     units = await adapter.extract(_SAMPLE_HTML, "https://www.avaloncommunities.com/ca/test", MagicMock())
-    assert len(units) == 3
+    assert len(units) == 4  # 796×1, 808×2, 1131×1
 
 
 @pytest.mark.asyncio
