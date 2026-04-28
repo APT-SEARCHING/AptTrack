@@ -175,6 +175,92 @@ scrape_runs), so the universal_dom fix does not apply.
 
 <!-- Add new bugs below this line -->
 
+## BUG-14: The Tolman (apt 7) — Filter A false-positive drops real JD plan names; orphan legacy plans persist with stale prices
+
+**Status**: open  
+**Affected**: The Tolman (id=7)  
+**Evidence**:
+- JonahDigital adapter detects 8 named plans via detail pages:  
+  Dry Creek (Studio, 552 sqft), Vista Peak (1BR, 584 sqft, $3,489), Maguire Peak (1BR, 699 sqft, $3,816),
+  Monument Peak (1BR, 910 sqft), Peak Meadow (1BR, 702 sqft, $3,926), High Ridge (2BR, 1097 sqft, $4,576),
+  Mission Peak (2BR, 954 sqft, $4,761), Tolman Peak (2BR, 1202 sqft)
+- These are real floor plan names — Tolman is at the base of Mission Peak in Fremont; plan names are local trail names
+- DB nonetheless has: "Dry Creek (Studio)" — no price; "High Ridge" — no price. Both missing their correct values.
+- DB also has two orphan legacy plans from a pre-JD LLM scrape: "Studio" ($3,200) and "1 Bed / 1 Bath" ($3,252)
+  — neither name is produced by the JD adapter, so they are never updated. Live 1BR starts at $3,489 (Vista Peak).
+
+**Root causes** (two distinct issues):
+
+**A — Filter A false-positive**  
+`_sanitize_floor_plans()` Filter A drops any plan whose name contains a sibling-property keyword
+(`creek`, `ridge`, among others) AND is ≥2 words AND lacks a plan-code prefix. "Dry Creek" contains
+`creek`; "High Ridge" contains `ridge` → both are silently dropped on every JD scrape. Since the JD
+adapter sources plans from per-apartment detail pages (not multi-property comparison pages), Filter A's
+signal is irrelevant and incorrect here.  
+Impact: "Dry Creek" (only studio plan, no price currently) and "High Ridge" ($4,576) never reach the DB.
+
+**B — Orphan legacy plans from pre-JD era**  
+At initial seed time the LLM extracted generic plan names ("Studio", "1 Bed / 1 Bath"). Later, the JD
+adapter was added and correctly identifies named plans (Dry Creek, Vista Peak, etc.). But `_match_plan`
+strategy 1 (exact name) fails for "Studio" → "Dry Creek" (different names). Strategy 3 (sqft ±5) also
+fails because the legacy plans have NULL `area_sqft`. Strategy 4 auto-creates new DB plans for JD names,
+but the legacy plans persist indefinitely with their stale seed-time prices.  
+"Studio $3,200" and "1 Bed / 1 Bath $3,252" are visible to users as if they were current prices.
+
+**Fix**:
+1. **Filter A exemption for JD adapter**: skip Filter A when the plan was returned by the JonahDigital
+   adapter (or any adapter that fetches from per-apartment detail pages, not comparison pages).
+   Simplest implementation: add `adapter_name` argument to `_sanitize_floor_plans()` and skip Filter A
+   when `adapter_name == "jonah_digital"`.
+2. **Archive orphan legacy plans**: after a successful JD adapter run, archive DB plans that (a) have
+   NULL `area_sqft` and (b) use generic names (`_GENERIC_NAME_RE`) and (c) are not matched by any plan
+   in the adapter output. This is a targeted version of the broader B1+B2 fix.
+
+**Note**: BUG-09 incorrectly listed "High Ridge" and "Dry Creek" as sibling contamination examples.
+They are real Tolman plan names — Filter A is producing a false positive on them.  
+**File**: `backend/app/worker.py` — `_sanitize_floor_plans()`, `_SIBLING_PROPERTY_KEYWORDS`
+
+---
+
+## BUG-15: Astella (apt 6) — A/B/C-series plans stored with bedrooms=0 instead of 1/2/3; 8 of 9 plans unpriced
+
+**Status**: open  
+**Affected**: Astella Apartments (id=6), source_url=`https://astellaapts.com/floor-plans/`  
+**Evidence**:
+- DB has 9 plans. Only "A9 - 1 Bedroom" has a price ($3,912) and correct bedrooms=1.
+- 8 other plans (S3-Studio, A1, A6, A11, B1, B5, C1, C2) all stored as bedrooms=0 with no price.
+- Live page shows clearly: A-series = 1 BR, B-series = 2 BR, C-series = 3 BR, S-series = Studio.
+  E.g. "1 BEDROOM 1 BATH 571 SF" for A1, "2 BEDROOM 2 BATH 811 SF" for B1, "3 BEDROOM 2 BATH 1,050 SF" for C1.
+- Live 1BR base rent starts at $4,192 (DB shows $3,912 for A9, Δ+$280 stale).
+- Live 2BR base rent from $5,320; 3BR from $7,074 — all 8 plans in DB have NULL current_price.
+- Scrape history: only 2 runs recorded (both `skipped_negative_cache`); negative cache table is
+  currently empty (cleared in prior session), so next daily scrape will retry.
+- Astella site is NOT JonahDigital (1.6 MB HTML, custom CMS). Plans are rendered in plain text in the
+  DOM — LLM agent should be able to extract them if it can navigate the page.
+
+**Root cause**:
+1. **Bedrooms mis-classification at seed/initial-scrape time**: Plan names A1, A6, A11, B1, B5, C1, C2
+   are opaque codes with no bedroom count embedded. The scraper defaulted to 0 (studio) when it couldn't
+   infer from the plan name. Only "A9 - 1 Bedroom" was correctly classified because the name explicitly
+   contains "1 Bedroom". The B1 fix (B1 from CLAUDE.md Dogfood Blockers) would update bedrooms on each
+   scrape, but the scraper hasn't successfully run yet to apply that.
+2. **Stale price**: The $3,912 for A9 was from an old LLM scrape; live 1BR now starts at $4,192 (+$280).
+   All other plan prices are NULL — never successfully scraped.
+
+**Fix**:
+1. Manual SQL to correct bedrooms: A-series → 1, B-series → 2, C-series → 3, S-series → 0.
+   ```sql
+   UPDATE plans SET bedrooms=1 WHERE apartment_id=6 AND name ~ '^A\d';
+   UPDATE plans SET bedrooms=2 WHERE apartment_id=6 AND name ~ '^B\d';
+   UPDATE plans SET bedrooms=3 WHERE apartment_id=6 AND name ~ '^C\d';
+   ```
+2. Trigger a fresh scrape (negative cache is clear); monitor that the LLM agent successfully
+   navigates to per-plan prices and updates all 9 plans.
+3. If LLM scrape continues to fail, investigate whether the site blocks headless browsers
+   (1.6 MB page with heavy client-side JS may not fully render prices for Playwright).
+
+**File**: DB — manual bedrooms SQL; `backend/app/worker.py` — B1 fix (update bedrooms on scrape)
+
 ## BUG-07: RentCafe adapter blocked by HTTP 403
 
 **Status**: open  
