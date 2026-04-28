@@ -25,6 +25,7 @@ L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, 
 
 interface PlanGroup {
   key: string;
+  name: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
   area_sqft: number | null;
@@ -37,7 +38,7 @@ function groupPlans(plans: PlanResponse[]): PlanGroup[] {
     const sqftKey = plan.area_sqft != null ? Math.round(plan.area_sqft) : 'null';
     const key = `${plan.bedrooms ?? 'x'}|${plan.bathrooms ?? 'x'}|${sqftKey}`;
     if (!groups.has(key)) {
-      groups.set(key, { key, bedrooms: plan.bedrooms, bathrooms: plan.bathrooms, area_sqft: plan.area_sqft, options: [] });
+      groups.set(key, { key, name: plan.name ?? null, bedrooms: plan.bedrooms, bathrooms: plan.bathrooms, area_sqft: plan.area_sqft, options: [] });
     }
     groups.get(key)!.options.push(plan);
   }
@@ -53,7 +54,15 @@ function groupPlans(plans: PlanResponse[]): PlanGroup[] {
   });
 }
 
+// Generic name pattern: "1 Bed / 1 Bath" style auto-generated from beds/baths/sqft
+const _GENERIC_PLAN_NAME_RE = /^(Studio|\d+\s*Bed(room)?s?)\s*[/\-]\s*\d+(\.\d+)?\s*Bath/i;
+
 function planDisplayName(g: PlanGroup): string {
+  // Prefer the actual plan name (e.g. "Santa Cruz", "A1", "1x1A") unless it is
+  // a generic beds/baths description, in which case fall back to formatted label.
+  if (g.name && !_GENERIC_PLAN_NAME_RE.test(g.name)) {
+    return g.name;
+  }
   const bedLabel = g.bedrooms === 0 ? 'Studio' : g.bedrooms != null ? `${g.bedrooms} Bed` : '?';
   const bathLabel = g.bathrooms != null ? `${g.bathrooms} Bath` : null;
   const sqftLabel = g.area_sqft != null ? `${g.area_sqft.toLocaleString()} sqft` : null;
