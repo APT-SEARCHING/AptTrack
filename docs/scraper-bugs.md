@@ -234,6 +234,30 @@ contamination but cannot recover the missing real data.
 
 ---
 
+## BUG-13: Enclave — LLM name instability causes 28 duplicate plans (real count: 9)
+
+**Status**: open  
+**Affected**: The Enclave (id=21)  
+**Evidence**:
+- DB has 28 active plans with names like "1 Bed / 1 Bath - Range 1", "Studio - Unit 2",
+  "1 Bed / 1 Bath Plan A", "1 Bedroom 1 Bath" etc. — all referring to the same ~9 floor plans
+- Live LLM scrape (2026-04-27) returns 9 plans with clear codes: Studio, A1($3,002/637sqft),
+  A2($3,116/730sqft), A3($3,196/734sqft), A4($3,358/820sqft), B1($3,895/1003sqft),
+  B2($3,769/1008sqft), B3($3,874/1040sqft), B4($3,911/1091sqft)
+- DB prices are stale/wrong: "1 Bed / 1 Bath - Range 1" = $2,921 vs live A1 = $3,002  
+**Root cause**: Enclave's floor plan page is JS-heavy (no static prices). Each LLM run
+navigates differently and returns slightly different plan names. `_match_plan` strategy 1
+(exact name) always fails → strategy 2 (sqft ±10%) fails because sqft=NULL on first seed →
+strategy 4 auto-creates a new plan every run. Over many scrapes, 28 duplicates accumulated.  
+**Fix**:
+1. Archive all 28 existing plans (set is_available=false)
+2. Re-scrape once to create the correct 9 plans with CAPI-style codes (A1–A4, B1–B4)
+3. Fix `_match_plan`: for LLM path, when exact name fails but beds+sqft match exactly → match
+   instead of auto-create; tighten sqft tolerance to exact or ±2% (not ±10%)  
+**File**: DB — manual archive SQL; `backend/app/worker.py` — `_match_plan`
+
+---
+
 ## BUG-10: The Cathay Lotus seeded with aggregator URL instead of apartment website
 
 **Status**: open  
