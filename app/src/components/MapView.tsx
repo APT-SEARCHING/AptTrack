@@ -91,11 +91,13 @@ const MapView: React.FC<Props> = ({ apartments }) => {
                     {apt.city} · {bedLabel(apt.min_beds, apt.max_beds)}
                   </p>
                   <p className="text-base font-bold text-indigo-600 mb-3">
-                    {apt.min_price != null
-                      ? apt.min_price === apt.max_price
-                        ? `$${apt.min_price.toLocaleString()}/mo`
-                        : `$${apt.min_price.toLocaleString()} – $${apt.max_price!.toLocaleString()}/mo`
-                      : 'Contact for pricing'}
+                    {apt.data_source_type === 'legal_block'
+                      ? '🔒 Data restricted'
+                      : apt.min_price != null
+                        ? apt.min_price === apt.max_price
+                          ? `$${apt.min_price.toLocaleString()}/mo`
+                          : `$${apt.min_price.toLocaleString()} – $${apt.max_price!.toLocaleString()}/mo`
+                        : 'Contact for pricing'}
                   </p>
                   <div className="flex items-center justify-between text-xs text-slate-400 mb-3">
                     <span>{apt.plan_count} plans</span>

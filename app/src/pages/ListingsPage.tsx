@@ -71,16 +71,30 @@ export const ApartmentCard: React.FC<ApartmentCardProps> = ({ apt, favorited = f
 
           {/* Price */}
           <div className="mb-4">
-            <span className="text-2xl font-bold text-slate-900">{priceRange}</span>
-            {apt.min_price != null && <span className="text-slate-400 text-sm">/mo</span>}
+            {apt.data_source_type === 'legal_block' ? (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                🔒 Price data restricted
+              </span>
+            ) : (
+              <>
+                <span className="text-2xl font-bold text-slate-900">{priceRange}</span>
+                {apt.min_price != null && <span className="text-slate-400 text-sm">/mo</span>}
+              </>
+            )}
           </div>
 
           {/* Footer: specs + cta */}
           <div className="flex items-center justify-between pt-3 border-t border-slate-50">
             <div className="flex items-center gap-3 text-sm text-slate-500">
-              <span>🛏 {bedLabel(apt.min_beds, apt.max_beds)}</span>
-              <span className="text-slate-200">|</span>
-              <span>📋 {apt.plan_count} plans</span>
+              {apt.data_source_type === 'legal_block' ? (
+                <span className="text-xs text-amber-600">Terms of service restrict data collection</span>
+              ) : (
+                <>
+                  <span>🛏 {bedLabel(apt.min_beds, apt.max_beds)}</span>
+                  <span className="text-slate-200">|</span>
+                  <span>📋 {apt.plan_count} plans</span>
+                </>
+              )}
             </div>
             <span className="text-xs font-medium text-indigo-500 group-hover:text-indigo-700 transition-colors">
               View plans →
