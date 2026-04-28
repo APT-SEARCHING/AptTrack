@@ -26,7 +26,10 @@ def get_apartment_plans(
     ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
-    return db_apartment.plans
+    from app.models.apartment import Plan
+    return db.execute(
+        select(Plan).where(Plan.apartment_id == apartment_id, Plan.is_available.is_(True))
+    ).scalars().all()
 
 
 @router.post("/apartments/{apartment_id}/plans", response_model=PlanResponse, status_code=201)
