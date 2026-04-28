@@ -124,7 +124,13 @@ class Plan(Base):
     # Relationships
     apartment = relationship("Apartment", back_populates="plans")
     price_history = relationship("PlanPriceHistory", back_populates="plan", cascade="all, delete-orphan")
-    units = relationship("Unit", back_populates="plan", cascade="all, delete-orphan", order_by="Unit.price")
+    units = relationship(
+        "Unit",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="Unit.price",
+        primaryjoin="and_(Plan.id==Unit.plan_id, Unit.is_available==True)",
+    )
 
 
 class Unit(Base):

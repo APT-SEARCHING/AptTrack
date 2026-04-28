@@ -1054,6 +1054,7 @@ def _match_or_create_unit(plan_id: int, fp, db):
     )
 
     if fp.unit_number:
+        # Specific unit: match by unit_number and update in place
         unit = db.execute(
             select(Unit).where(Unit.plan_id == plan_id, Unit.unit_number == fp.unit_number)
         ).scalar_one_or_none()
@@ -1065,6 +1066,31 @@ def _match_or_create_unit(plan_id: int, fp, db):
             unit.floor_level = fp.floor_level
             unit.facing = fp.facing
             return unit
+    else:
+        # No unit number (e.g. AvalonBay plan-level aggregates): reuse the
+        # single anonymous unit for this plan rather than accumulating stale rows.
+        existing = db.execute(
+            select(Unit).where(Unit.plan_id == plan_id, Unit.unit_number.is_(None))
+            .limit(1)
+        ).scalar_one_or_none()
+        if existing:
+            existing.price = fp.min_price
+            existing.is_available = is_available
+            existing.available_from = available_from
+            existing.area_sqft = fp.size_sqft
+            existing.floor_level = fp.floor_level
+            existing.facing = fp.facing
+            # Archive any extra anonymous units for this plan (duplicates from old runs)
+            extras = db.execute(
+                select(Unit).where(
+                    Unit.plan_id == plan_id,
+                    Unit.unit_number.is_(None),
+                    Unit.id != existing.id,
+                )
+            ).scalars().all()
+            for extra in extras:
+                extra.is_available = False
+            return existing
 
     unit = Unit(
         plan_id=plan_id,
