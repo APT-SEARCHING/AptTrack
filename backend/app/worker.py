@@ -973,16 +973,69 @@ def _carry_forward_prices(apt_id: int, db) -> None:
     db.commit()
 
 
+_AVAIL_DATE_RE = _re.compile(
+    r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})"   # MM/DD/YYYY or MM-DD-YY
+    r"|(\d{4})-(\d{2})-(\d{2})",               # YYYY-MM-DD
+)
+
+
+def _parse_availability(availability: str):
+    """Parse a raw availability string into (is_available, available_from).
+
+    Examples:
+        "Available Now" / "Available" / None → (True, None)
+        "Available 06/04/2026"               → (False, date(2026, 6, 4))
+        "Waitlist"                           → (False, None)
+    """
+    from datetime import date, datetime
+
+    if not availability:
+        return True, None
+
+    low = availability.lower().strip()
+
+    if "waitlist" in low:
+        return False, None
+
+    m = _AVAIL_DATE_RE.search(availability)
+    if m:
+        try:
+            if m.group(1):  # MM/DD/YYYY
+                mo, dy, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                if yr < 100:
+                    yr += 2000
+            else:            # YYYY-MM-DD
+                yr, mo, dy = int(m.group(4)), int(m.group(5)), int(m.group(6))
+            avail_date = datetime(yr, mo, dy)
+            is_now = avail_date.date() <= date.today()
+            return is_now, None if is_now else avail_date
+        except ValueError:
+            pass
+
+    # "now" / "available" / unknown → treat as available now
+    return True, None
+
+
 def _match_or_create_unit(plan_id: int, fp, db):
-    """Find an existing Unit by unit_number (if available) or create one."""
+    """Find an existing Unit by unit_number and update it, or create a new one."""
     from sqlalchemy import select
     from app.models.apartment import Unit
+
+    is_available, available_from = _parse_availability(
+        getattr(fp, "availability", None)
+    )
 
     if fp.unit_number:
         unit = db.execute(
             select(Unit).where(Unit.plan_id == plan_id, Unit.unit_number == fp.unit_number)
         ).scalar_one_or_none()
         if unit:
+            unit.price = fp.min_price
+            unit.is_available = is_available
+            unit.available_from = available_from
+            unit.area_sqft = fp.size_sqft
+            unit.floor_level = fp.floor_level
+            unit.facing = fp.facing
             return unit
 
     unit = Unit(
@@ -992,7 +1045,8 @@ def _match_or_create_unit(plan_id: int, fp, db):
         area_sqft=fp.size_sqft,
         floor_level=fp.floor_level,
         facing=fp.facing,
-        is_available=True,
+        is_available=is_available,
+        available_from=available_from,
     )
     db.add(unit)
     db.flush()
