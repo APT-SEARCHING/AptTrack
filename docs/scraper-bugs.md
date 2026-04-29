@@ -301,27 +301,41 @@ pre-check for domains known to have this issue, or suppress the warning and let 
 
 ## BUG-09: Sibling property contamination — additional affected apartments
 
-**Status**: open (BUG-04 extension)  
-**Affected**: Multiple newly seeded apartments — confirmed on 2026-04-27 full re-scrape:
-- `Embark Apartments` (3 occurrences) — sibling of Reserve at Mountain View (id=218)
-- `The Verdant Apartments` — newly seeded apt with multi-property comparison page
-- `Stevens Creek Villas` — sibling property contamination
-- `Snow Park` (2 occurrences) — sibling of some Oakland/Bay Area multi-property page
-- `808 West Apartments` — sibling of another apt on same platform page
-- `Warburton Village Apartments` — sibling contamination
-- `High Ridge`, `Dry Creek` — **correction**: real Tolman plan names (BUG-14); Filter A now skipped for JD adapter (fixed 2026-04-29)  
-**Sanitize status**: All of the above were correctly dropped by `_sanitize_floor_plans()` Filter A.
-However the affected apartments end up with 0 active plans — the real floor plan data is not being
-retrieved because the scraper keeps landing on multi-property comparison pages.  
-**Fix**: Same root fix as BUG-04 — these sites need platform-specific adapters (UDR, Equity, etc.)
-that target the per-property pricing widget directly. Until then, sanitize correctly prevents
-contamination but cannot recover the missing real data.
+**Status**: RESOLVED — Phase C enumeration complete 2026-04-29  
+
+**Original list (unreliable)**: "Embark Apartments, The Verdant, Stevens Creek Villas,
+Snow Park, 808 West Apartments, Warburton Village" — these were plan-name symptoms, not
+apartment identifiers. "High Ridge" and "Dry Creek" on this list were false positives:
+real Tolman plan names now fixed by BUG-14 (Filter A skip for JD adapter).
+
+**Phase C enumeration** — examined all apartments with ≤1 active plan. Three root causes
+found; BUG-09 applies only to the multi-property platform cases:
+
+**Type 1 — Multi-property platform (BUG-09 proper, marked unscrapeable 2026-04-29):**
+- Verve (id=194, udr.com): 4 active plans were all sibling UDR properties (Marina Playa,
+  Birch Creek, Almaden Lake Village, River Terrace). All archived + apt marked unscrapeable.
+- Reserve at Mountain View (id=218, equityapartments.com): 4 active plans were all sibling
+  Equity apartments (Arbor Terrace, Briarwood, Lorien, The Arches). All archived + marked.
+- Mill Creek (id=196, equityapartments.com): 1 generic "Unit" plan — marked unscrapeable.
+- Verve MV (id=220, udr.com, dup of 194): 1 generic "Unit" plan — marked unscrapeable.
+- Monte Vista Senior (id=26): senior housing — archived (same as BUG-11 pattern).
+
+**Type 2 — Technical blockers (NOT BUG-09, separate bugs):**
+- RentCafe 403 (BUG-07): Verdant #67, Turnleaf #247, Ilara #251, Atrium Garden #270, Murphy Station #274
+- Essex SSL/SightMap (BUG-08): 1250 Lakeside #231
+- Hard Cloudflare block: Tan Plaza #171, Telegraph Gardens #172, Hanover FC #175, Shadowbrook #223
+- Camden Northpark #177: accessible but scraper not reaching price section
+
+**Fix applied**: `dev/bug9_unscrapeable.sql` archived contaminated plans + marked
+Type 1 apartments as `data_source_type='unscrapeable'`. These remain visible in the
+UI as "Data restricted" via the legal_block display (until UDR/Equity adapters exist).
+The sanitize Filter A continues to prevent future contamination for any remaining scrapes.
 
 ---
 
 ## BUG-13: Enclave — LLM name instability causes 28 duplicate plans (real count: 9)
 
-**Status**: PARTIALLY RESOLVED — data fix applied 2026-04-28  
+**Status**: PARTIALLY RESOLVED — archive done; path-cache stable but name instability risk remains  
 **Affected**: The Enclave (id=21)  
 **Evidence**:
 - DB has 28 active plans with names like "1 Bed / 1 Bath - Range 1", "Studio - Unit 2",
@@ -336,11 +350,19 @@ navigates differently and returns slightly different plan names. `_match_plan` s
 strategy 4 auto-creates a new plan every run. Over many scrapes, 28 duplicates accumulated.  
 **Fix**:
 1. ✅ Archived all 28 existing plans — 2026-04-28 via round1_data_fixes.sql
-2. ✅ Re-scraped 2026-04-29: LLM produced 4 plans with sqft in names: "1 Bed / 1 Bath - 637 sqft" ($3,002),
-   "1 Bed / 1 Bath - 820 sqft" ($3,358), "2 Bed / 2 Bath - 1003 sqft" ($3,895), "2 Bed / 2 Bath - 1040 sqft" ($3,874).
-   Plans include `area_sqft` → strategy-3 (sqft ±5) will match on next scrape, preventing re-accumulation.
-3. Pending code fix: `_match_plan` sqft tolerance tightening to ±2% as extra safeguard  
-**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` (pending)
+2. ✅ Three consecutive re-scrapes run 2026-04-29 (Phase B):
+   - Scrape 1 (LLM, 11 iter): 4 plans with sqft-in-names format
+   - Scrape 2 (old path cache failed → LLM fresh, 18 iter): 6→9 plans. 3 auto-created
+     (Studio, 1 Bedroom, 2 Bedroom) because old cache step timed out and LLM produced
+     mixed generic+sqft naming in one batch. **Name instability confirmed.**
+   - Scrape 3 (new path cache HIT, 17 steps): count held at 9 — all 8 submitted plans
+     matched existing DB rows by exact name or sqft ±5. Zero auto-creates. **Cache stable.**
+3. Current state: 9 active plans — 6 with area_sqft (strategy-3 protected), 3 with
+   area_sqft=0 (Studio, 1 Bedroom, 2 Bedroom — only protected by exact name match).
+4. Latent risk: if path cache is invalidated again and LLM produces different names
+   for the 3 no-sqft plans, accumulation will resume. Longer-term fix: anchor plan names
+   in path cache or use sqft+beds as primary `_match_plan` key when name varies.  
+**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` sqft tolerance (pending)
 
 ---
 
