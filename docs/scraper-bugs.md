@@ -495,3 +495,100 @@ so multi-word phrases slipped through. "E303" passed `_PLAN_NAME_REGEX` (starts 
 - `backend/app/services/scraper_agent/browser_tools.py` — `_NOT_A_PLAN_NAME_RE`, `_UNIT_NUMBER_RE`, `_UI_VERB_BLACKLIST` + filter chain
 - `tests/integration/agentic_scraper/browser_tools.py` — mirror
 - `tests/unit/test_sightmap_plan_name_validation.py` (new, 33 tests)
+
+---
+
+## BUG-17: equityapartments.com — Angular SPA causes consistent validated_fail
+
+**Status**: open — Phase 4 deferred  
+**Affected**: Archstone Fremont Center (id=170), 360 Residences (id=173)  
+**Evidence**:
+- Both source_urls are on equityapartments.com (Equity Residential's property portal)
+- Outcome is `validated_fail` on every scrape — LLM runs but returns no usable data
+- Stale DB plans from old LLM scrapes:
+  - apt 170: "1 Bed / 1 Bath" $3,116 / "2 Bed / 1 Bath" $3,453 / "2 Bed / 2 Bath" $3,744 / "3 Bed / Floor 4" $4,471
+  - apt 173: 9× "1 Bed / 1 Bath - 740 sq ft" at prices $3,225–$3,358 (LLM extracted per-unit pricing as separate plan rows)
+
+**Root cause**: equityapartments.com is an Angular SPA (`ng-app`). Static HTML contains embedded price data (verified: $3,015, $3,433, $4,469 visible in raw HTML for apt 170), but floor plan detail is rendered by JavaScript. The `universal_dom` adapter on static HTML extracts partial data with wrong bedroom counts (all 2BR for a 1/2/3BR property). Playwright-rendered fetch should work but the LLM agent currently fails to navigate the Angular app correctly.
+
+**Not a compliance block**: pages are publicly accessible (HTTP 200), no anti-bot system detected. Equity Residential has not restricted automated access to these public pages.
+
+**Fix options**:
+1. Write an Equity Residential adapter that parses the embedded Angular JSON data blob in the static HTML
+2. Use Playwright rendered fetch + `universal_dom` with post-rendering (currently fails for these pages)
+3. Find individual brand-site URLs for these apartments instead of using the equityapartments.com aggregator page
+
+**Deferred**: Phase 4. Stale prices remain visible in the UI (marked as old via scrape timestamp). Do not mark these apartments `unscrapeable` — data is technically accessible.
+
+---
+
+## BUG-18: ARLO Mountain View (id=190) — broken source_url returns 404
+
+**Status**: RESOLVED — source_url fixed 2026-04-29  
+**Affected**: ARLO Mountain View (id=190)  
+**Evidence**:
+- DB source_url: `https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view/floor-plans`
+- This URL returns HTTP 200 with title "404 Page Not Found | Essex Property Trust"
+- LLM agent scrapes the 404 page: inconsistently extracts plan data (10 plans, only 3 priced)
+- Correct URL: `https://www.essexapartmenthomes.com/apartments/mountain-view/arlo-mountain-view` — returns live page with SightMap embed `sightmap.com/embed/dqw98y10po9`
+
+**Root cause**: At seed time, `/floor-plans` was appended to the Essex apartment URL. Essex's URL structure does not use a `/floor-plans` sub-path (unlike some other chains). The page at that URL returns a 404 with a full HTML shell, giving the LLM enough content to "succeed" without real data.
+
+**Fix applied**: Updated source_url in DB (see SQL below), cleared `last_content_hash` to force re-scrape.
+
+---
+
+## BUG-19: Centerra (id=176) — home page starting-from contamination + duplicate plan names
+
+**Status**: open  
+**Affected**: Centerra (id=176, centerraapts.com)  
+**Evidence**:
+- DB has "1 Bedroom (Starting) = $2,800" alongside real "1 Bedroom = $4,889" (1,552 sqft, 1.5 ba)
+- "1 Bedroom" and "1 Bed / 1.5 Bath" both at $4,889/1,552 sqft — same plan, two rows
+- "2 Bedroom" and "2 Bed / 2 Bath" both at $5,291/1,735 sqft — same plan, two rows
+
+**Root cause**: centerraapts.com/floorplans/ returns empty HTML (0 bytes) on static fetch — the floor plan page is a blank shell. The LLM agent scrapes the home page instead, which has:
+1. A hero/overview section showing "Starting from $2,800" for 1BR → extracted as a plan
+2. Individual floor plan cards with real prices → extracted with inconsistent names across LLM iterations ("1 Bedroom" in one run, "1 Bed / 1.5 Bath" in another)
+
+Platform: JonahDigital CMS (confirmed: `jonahdigital.com` in home page HTML). The JD adapter needs to detect and target the correct floor plan detail pages. Source URL should point to centerraapts.com/floorplans/ — investigate whether JD adapter can extract from that page via rendered fetch.
+
+**Fix options**:
+1. Re-run scrape after clearing content hash — JD adapter should detect from home page and follow hrefs to floor plan detail pages
+2. Archive "1 Bedroom (Starting)" and "2 Bedroom (Starting)" contamination rows manually
+3. Filter D threshold may need tuning for small plan sets
+
+---
+
+## BUG-20: Sofia Apartments (id=69) — LLM name instability on Entrata platform
+
+**Status**: open  
+**Affected**: Sofia Apartments (id=69, sofiaaptliving.com)  
+**Evidence**:
+- 13 active plans, 5 priced. Three rows for the same 813 sqft 1BR at $3,630:
+  - "1 Bed/1 Bath" (813 sqft, $3,630)
+  - "One Bedroom | 1 Bath" (813 sqft, $3,630)
+  - "1 Bed/1 Bath 1x1-813" (813 sqft, unpriced)
+- Outcome: `validated_fail` — scraper cannot currently re-scrape to consolidate
+- Real plan names from a previous successful scrape: "Natalia Den" (1BR den, 1,032 sqft), "Isabela" (2BR, 1,153 sqft), "Studio" — these are the correct Entrata floor plan names
+
+**Root cause**: sofiaaptliving.com uses Entrata as its property management backend. Different LLM scrape runs extracted the same floor plan with different name formats depending on which DOM element the LLM read from (card header, plan code, or full label). The `_match_plan` strategy 3 (sqft ±5) creates a new plan instead of merging because there are already 3 candidates at the same sqft. `validated_fail` means the scraper can no longer update or consolidate these rows.
+
+**Fix**: Not an anti-bot block (Entrata is just the backend, sofiaaptliving.com is public). Need to investigate why scrape is failing and restore ability to re-scrape. Once re-scrape works, stale duplicate rows will be auto-archived by Pass 3 (stale plan cleanup added 2026-04-29).
+
+---
+
+## BUG-21: Parkmerced (id=166) — inconsistent plan names and bath counts from LLM
+
+**Status**: open (low severity)  
+**Affected**: Parkmerced Apartments (id=166, parkmerced.com)  
+**Evidence**:
+- "1 BD | 1 BA Tower Home" = $2,490 (712 sqft) and "1 Bed - Tower Home" = $2,695 — different prices, likely different units/floors
+- "2 Bed - Tower Home" bathrooms=1 vs "2 BD | 2 BA Tower Home" bathrooms=2 — same plan type, inconsistent bath count
+- Mix of "X Bed - Type" and "X BD | X BA Type" naming formats from different LLM runs
+
+**Root cause**: Parkmerced is a large SF complex with Tower Home and Townhome building types (genuinely different unit types, not contamination). The LLM extracts plan names from different DOM elements across scrape iterations, producing both "1 Bed - Tower Home" and "1 BD | 1 BA Tower Home" as separate plans. Bath count inconsistency: LLM reads "1 BA" from some cards and infers 1 bath, while others show "2 BA" explicitly.
+
+**Impact**: Low — the price range shown is real (Tower Home 1BR: $2,490–$2,695). Main UX harm is duplicate plan rows confusing the user.
+
+**Fix**: Low priority. `_match_plan` sqft-based dedup could merge these if sqft is populated. Currently these plans have area_sqft=0 (LLM didn't extract sqft from Parkmerced cards), so strategy 3 can't match.
