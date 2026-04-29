@@ -340,42 +340,61 @@ The sanitize Filter A continues to prevent future contamination for any remainin
 
 ## BUG-13: Enclave — LLM name instability causes 28 duplicate plans (real count: 9)
 
-**Status**: PARTIALLY RESOLVED — archive done; path-cache stable but name instability risk remains  
+**Status**: RESOLVED — archive done; structural path-cache replay bug fixed (commit 3c707e01)  
 **Affected**: The Enclave (id=21)  
 **Evidence**:
-- DB has 28 active plans with names like "1 Bed / 1 Bath - Range 1", "Studio - Unit 2",
+- DB had 28 active plans with names like "1 Bed / 1 Bath - Range 1", "Studio - Unit 2",
   "1 Bed / 1 Bath Plan A", "1 Bedroom 1 Bath" etc. — all referring to the same ~9 floor plans
-- Live LLM scrape (2026-04-27) returns 9 plans with clear codes: Studio, A1($3,002/637sqft),
-  A2($3,116/730sqft), A3($3,196/734sqft), A4($3,358/820sqft), B1($3,895/1003sqft),
-  B2($3,769/1008sqft), B3($3,874/1040sqft), B4($3,911/1091sqft)
-- DB prices are stale/wrong: "1 Bed / 1 Bath - Range 1" = $2,921 vs live A1 = $3,002  
-**Root cause**: Enclave's floor plan page is JS-heavy (no static prices). Each LLM run
-navigates differently and returns slightly different plan names. `_match_plan` strategy 1
-(exact name) always fails → strategy 2 (sqft ±10%) fails because sqft=NULL on first seed →
-strategy 4 auto-creates a new plan every run. Over many scrapes, 28 duplicates accumulated.  
+- Live LLM scrape (2026-04-27) returns 9 plans: Studio, A1($3,002/637sqft), A2, A3, A4, B1–B4
+
+**Root cause** (two-layer):
+
+1. **`_replay_cached_path` only checked `last_result` for a "units" key** (structural bug).
+   The Enclave path cache had 15 steps: `extract_all_units` was step 5 but 10 post-extraction
+   navigation steps followed it. The final step (`scroll_down`) returned page-state HTML, not a
+   `{"units": [...]}` dict — so the "units" check always failed and `_replay_cached_path` always
+   returned `None`. Then `invalidate_path(url)` deleted the cache file before the full LLM loop
+   ran. The LLM rebuilt the cache with the same structure (navigating past extract_all_units),
+   so the self-defeating loop repeated every scrape. Every scrape hit the full LLM path, which
+   produced variable plan names, which auto-created orphan plans via `_match_plan` strategy 4.
+
+2. **Sqft-less plans unprotected by strategy 3**: Studio/1BR/2BR plans scraped with area_sqft=0
+   (LLM failed to read sqft from JS-heavy page). Strategy 3 in `_match_plan` guards on
+   `fp.size_sqft is not None` so it's skipped entirely, leaving only exact-name match (strategy 1)
+   as protection. With name variation between LLM runs, strategy 1 also fails → auto-create.
+
 **Fix**:
 1. ✅ Archived all 28 existing plans — 2026-04-28 via round1_data_fixes.sql
-2. ✅ Three consecutive re-scrapes run 2026-04-29 (Phase B):
-   - Scrape 1 (LLM, 11 iter): 4 plans with sqft-in-names format
-   - Scrape 2 (old path cache failed → LLM fresh, 18 iter): 6→9 plans. 3 auto-created
-     (Studio, 1 Bedroom, 2 Bedroom) because old cache step timed out and LLM produced
-     mixed generic+sqft naming in one batch. **Name instability confirmed.**
-   - Scrape 3 (new path cache HIT, 17 steps): count held at 9 — all 8 submitted plans
-     matched existing DB rows by exact name or sqft ±5. Zero auto-creates. **Cache stable.**
-3. Current state (2026-04-28): 9 active plans — 6 with area_sqft (strategy-3 protected), 3 with
-   area_sqft=0 (Studio, 1 Bedroom, 2 Bedroom — only protected by exact name match).
-4. **Phase 2 idempotency re-check (2026-04-29)**: plan count was 6 before re-scrape → 8 after.
-   Path cache NOT hit (16 LLM iterations, path_cache_hit=false despite file existing). LLM produced
-   different names again; `_match_plan` auto-created "Studio" (area_sqft=0) and "1 Bedroom"
-   (area_sqft=0) as new rows. Root cause: path cache replay is failing (SightMap iframe load timing
-   or structure change) → falls back to full LLM → names diverge → orphan accumulation resumes.
-5. Latent risk confirmed active: the no-sqft plans (Studio, 1 Bedroom, 2 Bedroom) are only
-   protected by exact-name match, but LLM name instability means they won't always exact-match.
-   Longer-term fix options: (a) use sqft+beds as primary key in `_match_plan` regardless of name,
-   or (b) store a canonical name in path cache and enforce it at persist time.
-**Open**: accumulation will continue on every LLM-path scrape until path cache stabilizes or
-_match_plan is made name-tolerant. Do not archive manually — investigate path cache replay failure.  
-**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` sqft tolerance (pending)
+2. ✅ **Structural path-cache replay fix** (2026-04-29, commit 3c707e01):
+   `_replay_cached_path` now tracks `units_result` separately — updated on every
+   `extract_all_units` call (only when non-empty). After all steps run, uses `units_result`
+   if found, falling back to `last_result` only if no extraction occurred. This allows cache
+   hits even when subsequent navigation steps follow the extraction step.
+   Applied to both `backend/` and `tests/integration/` copies.
+3. ✅ **Enclave path cache trimmed** (2026-04-29): removed 10 post-extraction steps from
+   `path_cache/enclaveapartmenthomes_com__6666cd76.json`. Cache now ends at `extract_all_units`
+   — clean even for code that doesn't have the fix yet.
+4. ✅ 6 regression tests in `tests/unit/test_replay_cached_path_units_result.py`:
+   - mid-path extraction with trailing navigation → returns data ✓
+   - terminal extraction → returns data ✓  
+   - no extraction step → None ✓
+   - empty units → None ✓
+   - error before extraction → None ✓
+   - error after extraction → None (safe, caller runs LLM) ✓
+
+**Remaining latent risk (low, not a blocker)**:
+With path cache now working, the LLM loop won't fire on subsequent scrapes, so name instability
+is suppressed. However if the path cache is ever invalidated (site HTML changes, iframe URL
+shifts), the LLM will run again. The Studio/1BR/2BR plans (area_sqft=0) are still only protected
+by exact-name match — if the LLM returns a slightly different name variant, strategy 3 can't
+fall back to sqft match and strategy 4 auto-creates another orphan. Long-term fix: store
+canonical names in path cache and enforce them at persist time (Phase 4 deferred).
+
+**File**: `backend/app/services/scraper_agent/agent.py` — `_replay_cached_path`;
+`tests/integration/agentic_scraper/agent.py` — mirror;
+`backend/app/services/scraper_agent/path_cache/enclaveapartmenthomes_com__6666cd76.json`;
+`tests/unit/test_replay_cached_path_units_result.py` (6 tests);
+`dev/round1_data_fixes.sql`
 
 ---
 
