@@ -538,7 +538,7 @@ so multi-word phrases slipped through. "E303" passed `_PLAN_NAME_REGEX` (starts 
 
 ---
 
-## BUG-19: Centerra (id=176) — home page starting-from contamination + duplicate plan names
+## BUG-19: Centerra (id=176) — JD SPA requires JS render; scraper falls back to home page, extracts starting-from price + duplicate plan names
 
 **Status**: open  
 **Affected**: Centerra (id=176, centerraapts.com)  
@@ -547,34 +547,79 @@ so multi-word phrases slipped through. "E303" passed `_PLAN_NAME_REGEX` (starts 
 - "1 Bedroom" and "1 Bed / 1.5 Bath" both at $4,889/1,552 sqft — same plan, two rows
 - "2 Bedroom" and "2 Bed / 2 Bath" both at $5,291/1,735 sqft — same plan, two rows
 
-**Root cause**: centerraapts.com/floorplans/ returns empty HTML (0 bytes) on static fetch — the floor plan page is a blank shell. The LLM agent scrapes the home page instead, which has:
-1. A hero/overview section showing "Starting from $2,800" for 1BR → extracted as a plan
-2. Individual floor plan cards with real prices → extracted with inconsistent names across LLM iterations ("1 Bedroom" in one run, "1 Bed / 1.5 Bath" in another)
+**Root cause (deep diagnosis 2026-04-29)**:
 
-Platform: JonahDigital CMS (confirmed: `jonahdigital.com` in home page HTML). The JD adapter needs to detect and target the correct floor plan detail pages. Source URL should point to centerraapts.com/floorplans/ — investigate whether JD adapter can extract from that page via rendered fetch.
+1. **Source URL 404**: `centerraapts.com/floorplans/` (trailing slash) returns HTTP 404.
+   `centerraapts.com/floorplans` (no slash) returns the SPA shell — same 109KB HTML as the
+   home page. JonahDigital CMS serves a client-side SPA; all routes return the same HTML shell.
+
+2. **JD adapter cannot fire on static fetch**: The adapter's signal is `jd-fp-floorplan-card`,
+   a CSS class that only appears after JS renders the React/JD component tree. Static fetch
+   never has these elements → `_is_jonah_digital()` returns False → adapter skips.
+
+3. **LLM fallback on home page**: When JD adapter misses, the LLM agent runs with Playwright
+   rendered fetch on the home page (which does render some floor plan summary cards). The home
+   page shows a "Starting from $2,800" hero section — LLM extracts this as a plan. In different
+   iteration runs, the same 1BR plan is named "1 Bedroom" or "1 Bed / 1.5 Bath" depending on
+   which DOM element the LLM reads first → two separate plan rows accumulate.
+
+4. **Why validated_fail now**: Unknown — the LLM has access to a rendered page but is returning
+   no data. Possible: Playwright render timing (JD widget loads slowly), or the scraper's
+   22-iteration no-data early-stop fires before the LLM finds the floor plan section.
 
 **Fix options**:
-1. Re-run scrape after clearing content hash — JD adapter should detect from home page and follow hrefs to floor plan detail pages
-2. Archive "1 Bedroom (Starting)" and "2 Bedroom (Starting)" contamination rows manually
-3. Filter D threshold may need tuning for small plan sets
+1. Correct source URL to `centerraapts.com/floorplans` (no trailing slash) and force rendered
+   fetch — the JD framework should render `jd-fp-floorplan-card` elements after JS execution,
+   allowing the JD adapter to fire and follow detail-page hrefs
+2. Archive "1 Bedroom (Starting)" and "2 Bedroom (Starting)" stale contamination rows via SQL
+3. Investigate why Playwright render fails for this specific JD SPA (may be slow JS bundle)
 
 ---
 
-## BUG-20: Sofia Apartments (id=69) — LLM name instability on Entrata platform
+## BUG-20: Sofia Apartments (id=69) — DudaOne/Repli360 widget; JS-only floor plan data; LLM name instability
 
 **Status**: open  
-**Affected**: Sofia Apartments (id=69, sofiaaptliving.com)  
+**Affected**: Sofia Apartments (id=69, sofiaaptliving.com, Santa Clara)  
 **Evidence**:
 - 13 active plans, 5 priced. Three rows for the same 813 sqft 1BR at $3,630:
   - "1 Bed/1 Bath" (813 sqft, $3,630)
   - "One Bedroom | 1 Bath" (813 sqft, $3,630)
   - "1 Bed/1 Bath 1x1-813" (813 sqft, unpriced)
+- Real plan names from a previous successful scrape: "Natalia Den" (1BR den, 1,032 sqft),
+  "Isabela" (2BR, 1,153 sqft) — these are the real Entrata floor plan codes
 - Outcome: `validated_fail` — scraper cannot currently re-scrape to consolidate
-- Real plan names from a previous successful scrape: "Natalia Den" (1BR den, 1,032 sqft), "Isabela" (2BR, 1,153 sqft), "Studio" — these are the correct Entrata floor plan names
 
-**Root cause**: sofiaaptliving.com uses Entrata as its property management backend. Different LLM scrape runs extracted the same floor plan with different name formats depending on which DOM element the LLM read from (card header, plan code, or full label). The `_match_plan` strategy 3 (sqft ±5) creates a new plan instead of merging because there are already 3 candidates at the same sqft. `validated_fail` means the scraper can no longer update or consolidate these rows.
+**Root cause (deep diagnosis 2026-04-29)**:
 
-**Fix**: Not an anti-bot block (Entrata is just the backend, sofiaaptliving.com is public). Need to investigate why scrape is failing and restore ability to re-scrape. Once re-scrape works, stale duplicate rows will be auto-archived by Pass 3 (stale plan cleanup added 2026-04-29).
+1. **Platform stack**: sofiaaptliving.com is a **DudaOne CMS** site (`SiteType: DUDAONE`,
+   `SiteAlias: c20ff22a`). Floor plan data is loaded by a **Repli360 widget** (`app.repli360.com`)
+   embedded via a JWT-encoded script URL. Repli360 pulls live inventory from an Entrata backend
+   and renders it client-side. The `rrac_entrata_special_view` CSS class seen in the HTML is from
+   the Repli360/Entrata integration — it is NOT a direct Entrata API call.
+
+2. **No static data**: The `/floor-plans` page contains only a DudaOne SPA shell. Zero prices,
+   zero plan cards in static HTML. All floor plan content rendered by the Repli360 JS widget
+   after page load.
+
+3. **Compliance**: Fully public page, no login wall, no proprietary API being called directly.
+   sofiaaptliving.com is the apartment's own domain; Repli360 is their widget provider.
+   Scraping the rendered output is legitimate.
+
+4. **Name instability**: When Playwright successfully rendered the Repli360 widget in past scrapes,
+   the LLM read floor plan data from different DOM positions across iterations, producing three
+   name formats for the same 813 sqft plan. `_match_plan` strategy 3 (sqft ±5) can't resolve
+   because three candidates already exist at 813 sqft — strategy 4 auto-created a third row.
+
+5. **Why validated_fail now**: Likely Repli360 widget bot detection blocking Playwright's headless
+   Chromium. Repli360 is a paid marketing platform; they may fingerprint browser automation.
+
+**Fix**:
+1. Check if Repli360 exposes a public API endpoint that the widget calls — if so, write a
+   Repli360 adapter (similar to LeasingStar) that calls it directly
+2. Or: clear content hash and retry rendered fetch with a real browser UA — Repli360 may only
+   check UA, not full fingerprint
+3. Once re-scrape succeeds, Pass 3 (stale plan cleanup, added 2026-04-29) will auto-archive the
+   three duplicate 813 sqft rows after the next successful scrape
 
 ---
 
