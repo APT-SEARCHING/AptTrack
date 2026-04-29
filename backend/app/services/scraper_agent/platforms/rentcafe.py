@@ -63,7 +63,11 @@ def _floorplans_url(page_url: str) -> str:
 def _fetch_html(url: str) -> str:
     req = urllib.request.Request(url, headers=_HEADERS)
     with urllib.request.urlopen(req, timeout=15) as r:
-        return r.read(600_000).decode("utf-8", errors="ignore")
+        raw = r.read(600_000)
+        if r.headers.get("Content-Encoding", "") == "gzip":
+            import gzip as _gzip
+            raw = _gzip.decompress(raw)
+        return raw.decode("utf-8", errors="ignore")
 
 
 def _parse_rentcafe_floorplans(html: str) -> List[dict]:
