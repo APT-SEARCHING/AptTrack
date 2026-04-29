@@ -251,12 +251,17 @@ They are real Tolman plan names — Filter A is producing a false positive on th
    All other plan prices are NULL — never successfully scraped.
 
 **Fix**:
-1. ✅ Bedrooms corrected via round1_data_fixes.sql (2026-04-28). Re-scrape with `fatwin` adapter
-   expanded plan count to 29 (A1–A12, B1–B9, C1–C2, S1–S6). Bedrooms re-applied post-scrape:
-   A-series=1BR (12 plans), B-series=2BR (9 plans), C-series=3BR (2 plans), S-series=Studio (6 plans).
-   Note: bedrooms fix must be re-applied after every scrape until B1 (update bedrooms on each scrape) is deployed.
-2. Prices: all 29 plans currently show NULL price — `fatwin` adapter doesn't return pricing.
-   Root cause under investigation; may require a different adapter or LLM fallback.
+1. ✅ Bedrooms corrected via round1_data_fixes.sql (2026-04-28).
+   Note: bedrooms regress to 0 on every fatwin re-scrape until B1 (update bedrooms on each scrape)
+   is deployed. Each re-scrape re-creates plans with bedrooms=0; only "A9 - 1 Bedroom" survives
+   because its name embeds the bedroom count explicitly.
+2. **Prices: NULL is correct** (2026-04-29 investigation confirmed). `_parse_fatwin_detail` returns
+   `price=None` with comment "FatWin sites always say 'Contact Us'". Direct fetch of Astella plan
+   detail pages (e.g. `astellaapts.com/floorplan/a1/`) confirmed: "Please contact us for details"
+   — no prices available in static HTML. Main `astellaapts.com/floor-plans/` shows only an aggregate
+   "Price Range: $2,833–$7,074" with no per-plan breakdown. NULL DB prices accurately reflect reality.
+3. **BUG-15 RESOLVED** for pricing: fatwin is working correctly; Astella is a "contact us for pricing"
+   site. Bedrooms regression is tracked under B1 (Dogfood Blocker) — not a separate BUG-15 issue.
 
 **File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — B1 fix (update bedrooms on scrape, pending)
 
@@ -357,11 +362,19 @@ strategy 4 auto-creates a new plan every run. Over many scrapes, 28 duplicates a
      mixed generic+sqft naming in one batch. **Name instability confirmed.**
    - Scrape 3 (new path cache HIT, 17 steps): count held at 9 — all 8 submitted plans
      matched existing DB rows by exact name or sqft ±5. Zero auto-creates. **Cache stable.**
-3. Current state: 9 active plans — 6 with area_sqft (strategy-3 protected), 3 with
+3. Current state (2026-04-28): 9 active plans — 6 with area_sqft (strategy-3 protected), 3 with
    area_sqft=0 (Studio, 1 Bedroom, 2 Bedroom — only protected by exact name match).
-4. Latent risk: if path cache is invalidated again and LLM produces different names
-   for the 3 no-sqft plans, accumulation will resume. Longer-term fix: anchor plan names
-   in path cache or use sqft+beds as primary `_match_plan` key when name varies.  
+4. **Phase 2 idempotency re-check (2026-04-29)**: plan count was 6 before re-scrape → 8 after.
+   Path cache NOT hit (16 LLM iterations, path_cache_hit=false despite file existing). LLM produced
+   different names again; `_match_plan` auto-created "Studio" (area_sqft=0) and "1 Bedroom"
+   (area_sqft=0) as new rows. Root cause: path cache replay is failing (SightMap iframe load timing
+   or structure change) → falls back to full LLM → names diverge → orphan accumulation resumes.
+5. Latent risk confirmed active: the no-sqft plans (Studio, 1 Bedroom, 2 Bedroom) are only
+   protected by exact-name match, but LLM name instability means they won't always exact-match.
+   Longer-term fix options: (a) use sqft+beds as primary key in `_match_plan` regardless of name,
+   or (b) store a canonical name in path cache and enforce it at persist time.
+**Open**: accumulation will continue on every LLM-path scrape until path cache stabilizes or
+_match_plan is made name-tolerant. Do not archive manually — investigate path cache replay failure.  
 **File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` sqft tolerance (pending)
 
 ---
