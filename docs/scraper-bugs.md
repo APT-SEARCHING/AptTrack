@@ -422,3 +422,39 @@ title prefixed `[ARCHIVED retirement]`. No longer visible in UI or scrape queue.
 **Note**: CAPI adapter IS working correctly (`_fetch_leasingstar_plans` returns all 6 plans).
 `availableUnits=None` for all plans is a separate issue (BUG-02).  
 **File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` sqft tolerance (pending)
+
+---
+
+## BUG-16: Miro — SightMap extracts availability dates and unit numbers as plan names
+
+**Status**: open  
+**Affected**: Miro (id=11)  
+**Evidence** (discovered in verify-scraper audit 2026-04-29):
+- 6 of 27 active plans have garbage names from the SightMap embed:
+  - "Available May 7th" $5,359 (2BR/1210sqft)
+  - "Available May 6th" $5,394 (2BR/1210sqft)
+  - "Available Jul 7th" $5,779 (2BR/1352sqft)
+  - "Available Jun 5th" $5,799 (2BR/1476sqft)
+  - "Request a Tour" $6,014 (2BR/1400sqft)
+  - "E303" $6,020 (3BR/1457sqft)
+- The 21 legitimate plan names (S5, S7, A1–A18, B1–B8) are correct.
+
+**Root cause**: Same class as BUG-04 SightMap variant. The SightMap embed renders unit
+cards where some units show an availability date ("Available May 7th") or a button label
+("Request a Tour") in the position the plan-name extractor reads. "E303" is a unit number
+leaked into the plan name field. `extract_all_units` does not distinguish these UI strings
+from real plan names. Filter A does not catch them (no property-style keywords).
+
+**Impact**: 6 ghost rows visible to users with nonsensical names and misattributed prices.
+
+**Immediate data fix** (run on Railway):
+```sql
+UPDATE plans SET is_available=false, name='[BUG-16 ghost] '||name
+WHERE apartment_id=11
+  AND name IN ('Available May 7th','Available May 6th','Available Jul 7th',
+               'Available Jun 5th','Request a Tour','E303');
+```
+**Code fix**: Add plan-name validation in `extract_all_units` / `_parse_sightmap_units`:
+reject names matching `^Available\s`, `^Request\b`, `^Schedule\b`, or bare unit-number
+pattern `^[A-Z]\d{3}$`.  
+**File**: `backend/app/services/scraper_agent/browser_tools.py` — `extract_all_units`
