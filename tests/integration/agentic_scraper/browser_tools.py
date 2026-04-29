@@ -29,12 +29,25 @@ _UI_VERB_BLACKLIST = frozenset({
     "favorite", "available", "available now", "view details", "view detail",
     "tour", "tour now", "schedule tour", "select", "see details",
     "apply now", "contact", "share", "save", "compare", "hide", "show more",
-    "schedule", "inquire",
+    "schedule", "inquire", "unit",
 })
 
 # A valid plan name: starts with a letter, 2–41 chars total, only letters /
 # digits / spaces / hyphens / slashes / dots.  Rejects "1 Bath", "$2,950", etc.
 _PLAN_NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z0-9\s\-\/\.]{1,40}$")
+
+# UI verb phrases that appear where plan names should be in SightMap unit
+# cards (e.g. "Available May 7th", "Request a Tour", "Schedule Tour").
+# _UI_VERB_BLACKLIST catches exact-match words; this regex catches prefixes.
+_NOT_A_PLAN_NAME_RE = re.compile(
+    r"^(?:available|request|schedule|view|see|apply|contact|"
+    r"tour|select|inquire|share|save|compare|hide|show)\b",
+    re.I,
+)
+
+# Bare unit-number pattern: single uppercase letter + 3 or more digits
+# (E303, A1023, B205).  Real plan codes use 1–2 digit suffixes (A1, S5, B12).
+_UNIT_NUMBER_RE = re.compile(r"^[A-Z]\d{3,}$")
 
 
 # ---------------------------------------------------------------------------
@@ -790,6 +803,8 @@ class BrowserSession:
                     if not unit.get("plan_name"):
                         stripped = line.strip()
                         if (stripped
+                                and not _NOT_A_PLAN_NAME_RE.match(stripped)
+                                and not _UNIT_NUMBER_RE.match(stripped)
                                 and not re.search(r"\$|\d+\s*Bed|sq\.?\s*ft|waitlist", stripped, re.I)
                                 and stripped.lower() not in _UI_VERB_BLACKLIST
                                 and _PLAN_NAME_REGEX.match(stripped)
