@@ -614,10 +614,14 @@ so multi-word phrases slipped through. "E303" passed `_PLAN_NAME_REGEX` (starts 
    Chromium. Repli360 is a paid marketing platform; they may fingerprint browser automation.
 
 **Fix**:
-1. Check if Repli360 exposes a public API endpoint that the widget calls — if so, write a
-   Repli360 adapter (similar to LeasingStar) that calls it directly
-2. Or: clear content hash and retry rendered fetch with a real browser UA — Repli360 may only
-   check UA, not full fingerprint
+1. **Preferred**: Intercept the Repli360 widget's network calls (Chrome DevTools → Network while
+   loading sofiaaptliving.com/floor-plans) to find the API endpoint it calls for floor plan data.
+   If public (no auth header required), write a Repli360 adapter that calls it directly — cleaner
+   than Playwright and bot-detection-proof.
+2. **If API requires auth**: Use `playwright-stealth` (patches `navigator.webdriver=false`,
+   canvas fingerprint, etc.) to evade Repli360's bot detection during rendered fetch. Note: simply
+   changing the User-Agent string is insufficient — modern bot detection checks `navigator.webdriver`
+   and browser fingerprint properties that Playwright sets by default, not just the UA header.
 3. Once re-scrape succeeds, Pass 3 (stale plan cleanup, added 2026-04-29) will auto-archive the
    three duplicate 813 sqft rows after the next successful scrape
 
