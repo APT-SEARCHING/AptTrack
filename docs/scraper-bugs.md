@@ -177,7 +177,7 @@ scrape_runs), so the universal_dom fix does not apply.
 
 ## BUG-14: The Tolman (apt 7) — Filter A false-positive drops real JD plan names; orphan legacy plans persist with stale prices
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — Part B (orphan legacy plans) fixed 2026-04-28; Part A (Filter A) pending Round 2  
 **Affected**: The Tolman (id=7)  
 **Evidence**:
 - JonahDigital adapter detects 8 named plans via detail pages:  
@@ -208,13 +208,13 @@ but the legacy plans persist indefinitely with their stale seed-time prices.
 "Studio $3,200" and "1 Bed / 1 Bath $3,252" are visible to users as if they were current prices.
 
 **Fix**:
-1. **Filter A exemption for JD adapter**: skip Filter A when the plan was returned by the JonahDigital
-   adapter (or any adapter that fetches from per-apartment detail pages, not comparison pages).
-   Simplest implementation: add `adapter_name` argument to `_sanitize_floor_plans()` and skip Filter A
-   when `adapter_name == "jonah_digital"`.
-2. **Archive orphan legacy plans**: after a successful JD adapter run, archive DB plans that (a) have
-   NULL `area_sqft` and (b) use generic names (`_GENERIC_NAME_RE`) and (c) are not matched by any plan
-   in the adapter output. This is a targeted version of the broader B1+B2 fix.
+1. **Filter A exemption for JD adapter** (pending Round 2): skip Filter A when the plan was returned by
+   the JonahDigital adapter (or any adapter that fetches from per-apartment detail pages, not comparison
+   pages). Simplest implementation: add `adapter_name` argument to `_sanitize_floor_plans()` and skip
+   Filter A when `adapter_name == "jonah_digital"`.
+2. ✅ **Archive orphan legacy plans** (done 2026-04-28 via round1_data_fixes.sql): archived "Studio",
+   "1 Bed / 1 Bath", and "2 Bed / 2 Bath" (all NULL `area_sqft`, generic names, not in JD output).
+   Tolman now has 6 active plans: Dry Creek, High Ridge, Maguire Peak, Mission Peak, Monument Peak, Vista Peak.
 
 **Note**: BUG-09 incorrectly listed "High Ridge" and "Dry Creek" as sibling contamination examples.
 They are real Tolman plan names — Filter A is producing a false positive on them.  
@@ -224,7 +224,7 @@ They are real Tolman plan names — Filter A is producing a false positive on th
 
 ## BUG-15: Astella (apt 6) — A/B/C-series plans stored with bedrooms=0 instead of 1/2/3; 8 of 9 plans unpriced
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — bedrooms corrected 2026-04-28; prices still pending scrape success  
 **Affected**: Astella Apartments (id=6), source_url=`https://astellaapts.com/floor-plans/`  
 **Evidence**:
 - DB has 9 plans. Only "A9 - 1 Bedroom" has a price ($3,912) and correct bedrooms=1.
@@ -248,18 +248,14 @@ They are real Tolman plan names — Filter A is producing a false positive on th
    All other plan prices are NULL — never successfully scraped.
 
 **Fix**:
-1. Manual SQL to correct bedrooms: A-series → 1, B-series → 2, C-series → 3, S-series → 0.
-   ```sql
-   UPDATE plans SET bedrooms=1 WHERE apartment_id=6 AND name ~ '^A\d';
-   UPDATE plans SET bedrooms=2 WHERE apartment_id=6 AND name ~ '^B\d';
-   UPDATE plans SET bedrooms=3 WHERE apartment_id=6 AND name ~ '^C\d';
-   ```
-2. Trigger a fresh scrape (negative cache is clear); monitor that the LLM agent successfully
-   navigates to per-plan prices and updates all 9 plans.
-3. If LLM scrape continues to fail, investigate whether the site blocks headless browsers
-   (1.6 MB page with heavy client-side JS may not fully render prices for Playwright).
+1. ✅ Bedrooms corrected via round1_data_fixes.sql (2026-04-28). Re-scrape with `fatwin` adapter
+   expanded plan count to 29 (A1–A12, B1–B9, C1–C2, S1–S6). Bedrooms re-applied post-scrape:
+   A-series=1BR (12 plans), B-series=2BR (9 plans), C-series=3BR (2 plans), S-series=Studio (6 plans).
+   Note: bedrooms fix must be re-applied after every scrape until B1 (update bedrooms on each scrape) is deployed.
+2. Prices: all 29 plans currently show NULL price — `fatwin` adapter doesn't return pricing.
+   Root cause under investigation; may require a different adapter or LLM fallback.
 
-**File**: DB — manual bedrooms SQL; `backend/app/worker.py` — B1 fix (update bedrooms on scrape)
+**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — B1 fix (update bedrooms on scrape, pending)
 
 ## BUG-07: RentCafe adapter blocked by HTTP 403
 
@@ -310,7 +306,7 @@ pre-check for domains known to have this issue, or suppress the warning and let 
 - `Snow Park` (2 occurrences) — sibling of some Oakland/Bay Area multi-property page
 - `808 West Apartments` — sibling of another apt on same platform page
 - `Warburton Village Apartments` — sibling contamination
-- `High Ridge`, `Dry Creek` — sibling names from UDR-style comparison pages  
+- `High Ridge`, `Dry Creek` — **correction**: these are real Tolman plan names (see BUG-14); NOT sibling contamination  
 **Sanitize status**: All of the above were correctly dropped by `_sanitize_floor_plans()` Filter A.
 However the affected apartments end up with 0 active plans — the real floor plan data is not being
 retrieved because the scraper keeps landing on multi-property comparison pages.  
@@ -322,7 +318,7 @@ contamination but cannot recover the missing real data.
 
 ## BUG-13: Enclave — LLM name instability causes 28 duplicate plans (real count: 9)
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — data fix applied 2026-04-28  
 **Affected**: The Enclave (id=21)  
 **Evidence**:
 - DB has 28 active plans with names like "1 Bed / 1 Bath - Range 1", "Studio - Unit 2",
@@ -336,17 +332,18 @@ navigates differently and returns slightly different plan names. `_match_plan` s
 (exact name) always fails → strategy 2 (sqft ±10%) fails because sqft=NULL on first seed →
 strategy 4 auto-creates a new plan every run. Over many scrapes, 28 duplicates accumulated.  
 **Fix**:
-1. Archive all 28 existing plans (set is_available=false)
-2. Re-scrape once to create the correct 9 plans with CAPI-style codes (A1–A4, B1–B4)
-3. Fix `_match_plan`: for LLM path, when exact name fails but beds+sqft match exactly → match
-   instead of auto-create; tighten sqft tolerance to exact or ±2% (not ±10%)  
-**File**: DB — manual archive SQL; `backend/app/worker.py` — `_match_plan`
+1. ✅ Archived all 28 existing plans — 2026-04-28 via round1_data_fixes.sql
+2. ✅ Re-scraped 2026-04-29: LLM produced 4 plans with sqft in names: "1 Bed / 1 Bath - 637 sqft" ($3,002),
+   "1 Bed / 1 Bath - 820 sqft" ($3,358), "2 Bed / 2 Bath - 1003 sqft" ($3,895), "2 Bed / 2 Bath - 1040 sqft" ($3,874).
+   Plans include `area_sqft` → strategy-3 (sqft ±5) will match on next scrape, preventing re-accumulation.
+3. Pending code fix: `_match_plan` sqft tolerance tightening to ±2% as extra safeguard  
+**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` (pending)
 
 ---
 
 ## BUG-10: The Cathay Lotus seeded with aggregator URL instead of apartment website
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — data fix applied 2026-04-28  
 **Affected**: The Cathay Lotus (id=277)  
 **Evidence**: `source_url = http://www.vrent.com/` — this is a property management company /
 aggregator website, not the apartment's own website. DB plans include `2 Bedrooms $1,595`
@@ -355,16 +352,16 @@ which is implausibly low for Bay Area 2BR (likely wrong data from aggregator con
 site) rather than a dedicated apartment page. The LLM scraped vrent.com and extracted whatever
 it found there.  
 **Fix**:
-1. Find the actual apartment website for The Cathay Lotus (manual lookup)
-2. Update `source_url` in `apartments` table
-3. Re-scrape to get correct floor plan data  
-**File**: DB — `UPDATE apartments SET source_url='<real_url>' WHERE id=277`
+1. ✅ Real apartment site found: `https://www.cathaylotus.com/` (Google confirmed: "415-425 S Bernardo Ave | Apartments in Sunnyvale, CA")
+2. ✅ `source_url` updated; `city` corrected Palo Alto→Sunnyvale; `zipcode` corrected 94306→94086 — done 2026-04-28
+3. ✅ Re-scrape triggered 2026-04-28 to clear vrent.com plan data and rebuild from cathaylotus.com  
+**File**: DB — `dev/round1_data_fixes.sql`
 
 ---
 
 ## BUG-11: Valley Village Retirement Community incorrectly seeded as regular apartment
 
-**Status**: open  
+**Status**: RESOLVED — archived 2026-04-28  
 **Affected**: Valley Village Retirement Community (id=28)  
 **Evidence**: `source_url = http://www.valleyvillageretirement.com/` — this is a senior
 retirement community, not a regular apartment complex. Plans show "Mini Studio Deluxe",
@@ -372,15 +369,15 @@ retirement community, not a regular apartment complex. Plans show "Mini Studio D
 **Root cause**: Google Maps import included senior/retirement communities when keywords
 matched "apartments near San Jose". CLAUDE.md notes senior housing was later removed from
 import keywords, but id=28 was already seeded before that change.  
-**Fix**: Archive the apartment — `UPDATE apartments SET is_available=false,
-data_source_type='unscrapeable', title='[ARCHIVED retirement] ' || title WHERE id=28`.  
-**File**: DB — manual archive SQL
+**Fix applied 2026-04-28**: `is_available=false`, `data_source_type='unscrapeable'`,
+title prefixed `[ARCHIVED retirement]`. No longer visible in UI or scrape queue.  
+**File**: `dev/round1_data_fixes.sql`
 
 ---
 
 ## BUG-12: Metro Six55 — seed used unit numbers as plan names, CAPI plans merged by sqft fuzzy match
 
-**Status**: open  
+**Status**: PARTIALLY RESOLVED — data fix applied 2026-04-28  
 **Affected**: Metro Six55 (id=156)  
 **Evidence**:
 - DB has 3 plans with names "1306", "2105", "2202" (unit numbers, not floor plan codes)
@@ -394,9 +391,9 @@ data_source_type='unscrapeable', title='[ARCHIVED retirement] ' || title WHERE i
    `_persist_scraped_prices` then takes `min()` across merged fps, so 1x1C's $2,420 and 2x2A's $2,610 are
    silently dropped.  
 **Fix**:
-1. Rename DB plans: "1306"→"1x1A", "2105"→"1X1B", "2202"→"2x2C" (manual SQL or normalization pass)
-2. Auto-create the 3 missing plans: 1x1C, 2x2A, 2x2B
-3. Sqft tolerance in strategy-2 for LeaseStar may need tightening (±5% instead of ±10%)  
+1. ✅ Renamed DB plans: "1306"→"1x1A", "2105"→"1X1B", "2202"→"2x2C" — done 2026-04-28
+2. ✅ Re-scrape triggered; CAPI will now match by exact name and auto-create 1x1C, 2x2A, 2x2B
+3. Pending code fix: sqft tolerance tightening (±5% instead of ±10%) to prevent future collapse  
 **Note**: CAPI adapter IS working correctly (`_fetch_leasingstar_plans` returns all 6 plans).
 `availableUnits=None` for all plans is a separate issue (BUG-02).  
-**File**: DB — manual plan rename SQL; `backend/app/worker.py` — `_match_plan` sqft tolerance
+**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — `_match_plan` sqft tolerance (pending)
