@@ -717,10 +717,12 @@ class ApartmentAgent:
         Returns :class:`ApartmentData` if replay produced pricing data,
         ``None`` if any step failed (caller falls back to full agent loop).
 
-        When the final step is ``extract_all_units`` the result is parsed
-        directly into :class:`ApartmentData` with no LLM involvement.
+        Uses the last ``extract_all_units`` result found anywhere in the
+        replay, not just the final step — some paths navigate further after
+        extraction (e.g. amenities, contact) and would otherwise always miss.
         """
         last_result: Optional[Dict[str, Any]] = None
+        units_result: Optional[Dict[str, Any]] = None  # best extract_all_units hit
         for step in steps:
             action = step.get("action")
             args: Dict[str, Any] = step.get("args", {})
@@ -737,6 +739,8 @@ class ApartmentAgent:
                     last_result = await browser.read_iframe(args.get("keyword", ""))
                 elif action == "extract_all_units":
                     last_result = await browser.extract_all_units()
+                    if isinstance(last_result, dict) and last_result.get("units"):
+                        units_result = last_result
                 else:
                     logger.warning("Replay: unknown action %r, skipping", action)
                     continue
@@ -748,16 +752,16 @@ class ApartmentAgent:
                 logger.info("Replay step %r raised: %s", action, exc)
                 return None
 
-        # If final step was extract_all_units, convert directly — 0 LLM calls.
-        if isinstance(last_result, dict) and "units" in last_result:
+        # Prefer the extract_all_units result even if later steps followed it.
+        check = units_result if units_result is not None else last_result
+        if isinstance(check, dict) and "units" in check:
             data = _parse_units_to_apartment_data(
-                last_result["units"], apartment_name, url
+                check["units"], apartment_name, url
             )
             if data and data.floor_plans:
                 return data
 
-        # Other terminal steps: we have browser state but need LLM to interpret.
-        # Return None so the full loop handles it.
+        # No usable units extracted — caller falls back to full LLM loop.
         return None
 
     # ── Main scrape loop ─────────────────────────────────────────────────────

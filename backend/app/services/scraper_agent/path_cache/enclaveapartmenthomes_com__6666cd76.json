@@ -21,10 +21,6 @@
       }
     },
     {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
       "action": "read_iframe",
       "args": {
         "keyword": "sightmap"
@@ -33,85 +29,9 @@
     {
       "action": "extract_all_units",
       "args": {}
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://enclaveapartmenthomes.com/floorplans/"
-      }
-    },
-    {
-      "action": "click_button",
-      "args": {
-        "text": "Studio"
-      }
-    },
-    {
-      "action": "click_button",
-      "args": {
-        "text": "Floor Plans"
-      }
-    },
-    {
-      "action": "scroll_down",
-      "args": {}
-    },
-    {
-      "action": "click_button",
-      "args": {
-        "text": "Studio"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "studio"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://enclaveapartmenthomes.com/floorplans/?bedrooms=Studio"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://enclaveapartmenthomes.com/"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "/amenities/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://enclaveapartmenthomes.com/amenities/"
-      }
-    },
-    {
-      "action": "navigate_to",
-      "args": {
-        "url": "https://enclaveapartmenthomes.com/floorplans/"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "/specials/"
-      }
-    },
-    {
-      "action": "click_link",
-      "args": {
-        "text_or_href": "Special"
-      }
     }
   ],
-  "apartment_name": "Enclave Apartments",
-  "last_success": "2026-04-29T00:51:53.925970+00:00",
+  "apartment_name": "The Enclave Apartment Homes",
+  "last_success": "2026-04-29T03:01:01.836963+00:00",
   "success_count": 1
 }
