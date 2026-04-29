@@ -373,15 +373,37 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
             # ------------------------------------------------------------------
             new_hash: Optional[str] = None
             _corporate_get_ok: bool = True
+            _ch_timeout = aiohttp.ClientTimeout(total=10)
             try:
-                timeout = aiohttp.ClientTimeout(total=10)
-                async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with aiohttp.ClientSession(timeout=_ch_timeout) as session:
                     async with session.get(url) as resp:
                         if resp.status == 200:
                             html = await resp.text(errors="replace")
                             new_hash = compute_content_hash(html)
                         elif effective_url:
                             _corporate_get_ok = False
+            except aiohttp.ClientSSLError as exc:
+                # SSL cert chain rejected by Python ssl (e.g. Essex self-signed chain).
+                # Retry without cert verification — Playwright will re-validate via Chromium.
+                logger.debug(
+                    "Content-hash GET SSL error for apt %d (%s): %s — retrying ssl=False",
+                    apt_id, url, exc,
+                )
+                try:
+                    async with aiohttp.ClientSession(timeout=_ch_timeout) as session:
+                        async with session.get(url, ssl=False) as resp:
+                            if resp.status == 200:
+                                html = await resp.text(errors="replace")
+                                new_hash = compute_content_hash(html)
+                            elif effective_url:
+                                _corporate_get_ok = False
+                except Exception as exc2:
+                    logger.warning(
+                        "Content-hash GET failed (ssl=False retry) for apt %d (%s): %s",
+                        apt_id, url, exc2,
+                    )
+                    if effective_url:
+                        _corporate_get_ok = False
             except Exception as exc:
                 logger.warning(
                     "Content-hash GET failed for apt %d (%s): %s — proceeding to scrape",

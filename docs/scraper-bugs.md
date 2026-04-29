@@ -282,21 +282,22 @@ Applied to both `backend/` and `tests/integration/` copies.
 
 ## BUG-08: Essex (essexapartmenthomes.com) SSL certificate error
 
-**Status**: open  
+**Status**: RESOLVED — ssl=False retry added 2026-04-29  
 **Affected**: ~10 Essex apartments — Windsor Ridge (id=232), 1250 Lakeside (id=231), Bridgeport (id=237),
 Mission Peaks (id=235), Stevenson Place (id=241), Briarwood at Central Park (id=242),
-Boulevard (id=236), Paragon (id=240), The Rexford (id=239), plus Essex Sunnyvale/MV properties.  
-**Evidence**: `SSLCertVerificationError: certificate verify failed: self signed certificate in certificate chain`
-on all `www.essexapartmenthomes.com` requests during 2026-04-27 full re-scrape.  
-**Root cause**: Essex's CDN presents a certificate chain that Python 3.8's `ssl` module rejects as
-self-signed. The SightMap adapter (which successfully extracted prices in earlier sessions) went through
-Playwright which uses Chromium's more permissive cert validation. The content-hash pre-check uses
-`httpx` which respects Python's SSL context and fails.  
-**Impact**: Content-hash check fails → proceeds to scrape → SightMap adapter (via Playwright) still
-works. So price extraction succeeds but generates excessive SSL warning noise in logs.  
-**Fix**: Add `verify=False` (or custom SSL context) to the `httpx` client used in the content-hash
-pre-check for domains known to have this issue, or suppress the warning and let Playwright handle it.  
-**File**: `backend/app/worker.py` — content-hash GET request, `backend/app/services/scraper_agent/fetch.py`
+Boulevard (id=236), Paragon (id=240), The Rexford (id=239).  
+**Root cause**: Essex's CDN presented a cert chain Python's `ssl` module rejected as self-signed.
+The content-hash pre-check used `aiohttp` (respects Python ssl) and threw `ClientSSLError`.
+The exception was caught, logged as WARNING, and `new_hash` stayed None — meaning Essex always
+went through the full Playwright scrape path even when content was unchanged (no short-circuit
+possible). Data was correct; the cost was wasted Playwright cycles and WARNING log noise.  
+**Fix applied**: In `worker.py` Phase 1 content-hash block, catch `aiohttp.ClientSSLError`
+separately before the generic `except Exception`. On SSL error: log at DEBUG, retry the GET
+with `ssl=False`. If retry succeeds, `new_hash` is populated and the content-hash short-circuit
+works normally on subsequent scrapes. If retry also fails, fall through to scrape as before.
+Note: Essex's CDN cert appears to be intermittently fixed — smoke test now returns 200 without
+SSL error. The retry path is defensive and handles any future recurrence.  
+**File**: `backend/app/worker.py` — Phase 1 content-hash GET block
 
 ---
 

@@ -36,7 +36,7 @@ Open issues blocking dogfood resume. Run `/verify-scraper` to see live counts. S
 | BUG-04 | Low | Sibling-property contamination on multi-property pages | PARTIALLY RESOLVED — sanitize guard catches contamination; affected sites marked `unscrapeable` per BUG-09 |
 | BUG-05 | Low | "Starting from $X" overview-price contamination | PARTIALLY RESOLVED — sanitize Filter D triggers; some sites self-correct |
 | BUG-07 | Med | RentCafe HTTP 403 on httpx UA (6 apts) | RESOLVED — browser UA + Accept headers; all 6 sites return 200 |
-| BUG-08 | Low | Essex SSL cert chain rejected by Python ssl (~10 apts) | Open — log noise only; SightMap via Playwright still extracts |
+| BUG-08 | Low | Essex SSL cert chain rejected by Python ssl (~10 apts) | RESOLVED — ssl=False retry in content-hash GET; logs downgraded to DEBUG |
 | BUG-13 | Low | Enclave LLM name instability / path-cache replay failure | RESOLVED — path-cache structural fix (commit `3c707e01`); orphan plans archived |
 | BUG-15 | Low | Astella prices NULL | RESOLVED — fatwin correctly returns NULL for "contact us" site; bedrooms corrected via SQL |
 | BUG-16 | Med | SightMap extracts "Available May 7th" / "E303" as plan names (Miro affected) | RESOLVED — code fix commit `ebc0fb7a`; data fix commit `901b680c`; 33 tests |
