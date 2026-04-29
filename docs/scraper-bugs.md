@@ -546,7 +546,7 @@ blob was never parsed. No Playwright or API calls needed — the data is already
 
 ## BUG-19: Centerra (id=176) — JD SPA requires JS render; scraper falls back to home page, extracts starting-from price + duplicate plan names
 
-**Status**: open  
+**Status**: RESOLVED — URL fix + dedup 2026-04-29  
 **Affected**: Centerra (id=176, centerraapts.com)  
 **Evidence**:
 - DB has "1 Bedroom (Starting) = $2,800" alongside real "1 Bedroom = $4,889" (1,552 sqft, 1.5 ba)
@@ -573,12 +573,16 @@ blob was never parsed. No Playwright or API calls needed — the data is already
    no data. Possible: Playwright render timing (JD widget loads slowly), or the scraper's
    22-iteration no-data early-stop fires before the LLM finds the floor plan section.
 
-**Fix options**:
-1. Correct source URL to `centerraapts.com/floorplans` (no trailing slash) and force rendered
-   fetch — the JD framework should render `jd-fp-floorplan-card` elements after JS execution,
-   allowing the JD adapter to fire and follow detail-page hrefs
-2. Archive "1 Bedroom (Starting)" and "2 Bedroom (Starting)" stale contamination rows via SQL
-3. Investigate why Playwright render fails for this specific JD SPA (may be slow JS bundle)
+**Fix applied 2026-04-29**:
+- Root cause was a domain change: `centerraapts.com` → `liveatcenterra.com`. The old domain
+  SPA shell was empty; `liveatcenterra.com/floorplans/` (trailing slash) has full JD content
+  in static HTML — 95 `jd-fp-floorplan-card` elements, no Playwright needed.
+- `UPDATE apartments SET source_url='https://liveatcenterra.com/floorplans/', last_content_hash=NULL WHERE id=176`
+- `dev/centerra_dedup.sql`: archived 6 stale plans (2 starting-from contamination, 2 sqft dups,
+  2 generic-name dups). Kept plan 424 (1BR/1552sqft → JD renames to T2 via strategy 3) and
+  plan 1252 "L/W T8" (JD exact-name match → corrects beds to 2).
+- JD adapter live-tested: 95 plans extracted, prices from $2,859 (1BR) to $5,291 (L/W T8).
+- Pass 3 (stale-plan auto-unavailable) fires on next re-scrape as safety net.
 
 ---
 
