@@ -72,8 +72,18 @@ function planDisplayName(g: PlanGroup): string {
 
 function availLabel(plan: PlanResponse): string {
   if (!plan.is_available) return 'Unavailable';
-  if (!plan.available_from) return 'Now';
-  const d = new Date(plan.available_from);
+  // plan.available_from is null for unit-level adapters (e.g. AvalonBay);
+  // derive the soonest available date from units instead.
+  let dateStr = plan.available_from;
+  if (!dateStr && (plan.units ?? []).length > 0) {
+    const soonest = (plan.units ?? [])
+      .filter(u => u.is_available && u.available_from)
+      .map(u => u.available_from!)
+      .sort()[0] ?? null;
+    dateStr = soonest;
+  }
+  if (!dateStr) return 'Now';
+  const d = new Date(dateStr);
   if (d <= new Date()) return 'Now';
   return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
