@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 def _build_registry() -> List[PlatformAdapter]:
     # Deferred imports so that adapter modules are only loaded when first used.
     from .avalonbay import AvalonBayAdapter
+    from .equity import EquityAdapter
     from .fatwin import FatWinAdapter
     from .generic_detail import GenericDetailPageAdapter
     from .greystar import GreystarAdapter
@@ -34,6 +35,7 @@ def _build_registry() -> List[PlatformAdapter]:
         JonahDigitalAdapter(),
         FatWinAdapter(),
         AvalonBayAdapter(),       # before SightMap: Avalon pages embed SightMap iframes but data is in Fusion.globalContent
+        EquityAdapter(),          # Equity Residential: ea5.unitAvailability JSON blob in static HTML
         WindsorAdapter(),         # Spaces/Nestio; 2 Windsor properties
         LeasingStarAdapter(),     # before SightMap: RealPage/LeaseStar sites may also embed SightMap widgets
         SightMapAdapter(),

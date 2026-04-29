@@ -500,25 +500,31 @@ so multi-word phrases slipped through. "E303" passed `_PLAN_NAME_REGEX` (starts 
 
 ## BUG-17: equityapartments.com — Angular SPA causes consistent validated_fail
 
-**Status**: open — Phase 4 deferred  
-**Affected**: Archstone Fremont Center (id=170), 360 Residences (id=173)  
-**Evidence**:
-- Both source_urls are on equityapartments.com (Equity Residential's property portal)
-- Outcome is `validated_fail` on every scrape — LLM runs but returns no usable data
-- Stale DB plans from old LLM scrapes:
-  - apt 170: "1 Bed / 1 Bath" $3,116 / "2 Bed / 1 Bath" $3,453 / "2 Bed / 2 Bath" $3,744 / "3 Bed / Floor 4" $4,471
-  - apt 173: 9× "1 Bed / 1 Bath - 740 sq ft" at prices $3,225–$3,358 (LLM extracted per-unit pricing as separate plan rows)
+**Status**: RESOLVED for apt 170 (Archstone); apt 173 (360 Residences) URL broken — deferred  
+**Affected**: Archstone Fremont Center (id=170), 360 Residences (id=173)
 
-**Root cause**: equityapartments.com is an Angular SPA (`ng-app`). Static HTML contains embedded price data (verified: $3,015, $3,433, $4,469 visible in raw HTML for apt 170), but floor plan detail is rendered by JavaScript. The `universal_dom` adapter on static HTML extracts partial data with wrong bedroom counts (all 2BR for a 1/2/3BR property). Playwright-rendered fetch should work but the LLM agent currently fails to navigate the Angular app correctly.
+**Root cause**: equityapartments.com is an Angular SPA. The `ea5.unitAvailability` JavaScript
+variable is embedded in the **static HTML** and contains the full floor plan + unit data as JSON:
+```javascript
+ea5.unitAvailability = {"BedroomTypes":[{"Id":1,"DisplayName":"1 Bed","BedroomCount":1,
+  "AvailableUnits":[{"FloorplanName":"1 Bedroom A","SqFt":723,"Bed":1,"Bath":1,
+    "BestTerm":{"Price":3015},"AvailableDate":"6/12/2026",...}]},...]}
+```
+The LLM failed because it tried to navigate the Angular app (which requires JS); the static JSON
+blob was never parsed. No Playwright or API calls needed — the data is already in the HTML.
 
-**Not a compliance block**: pages are publicly accessible (HTTP 200), no anti-bot system detected. Equity Residential has not restricted automated access to these public pages.
+**Fix applied 2026-04-29**:
+- New `EquityAdapter` in `backend/app/services/scraper_agent/platforms/equity.py`
+- Detects: `ea5.unitAvailability` in HTML AND `equityapartments.com` in URL
+- Extracts: groups `AvailableUnits` by `FloorplanId`, takes min `BestTerm.Price` per plan type,
+  converts `AvailableDate` (M/D/YYYY) to ISO-8601
+- Registered in `registry.py` after AvalonBay, before Windsor
+- 13 unit tests: `tests/unit/test_platforms/test_equity.py` — all pass
+- Live verify on Archstone: 5 plans extracted — "1 Bedroom A" $3,015, "1 Bedroom F" $3,243,
+  "2 Bedrooms A" $3,433, "2 Bedrooms D" $3,736, "3+ Bedrooms B" $4,469 — all correct
+- Mirrored to `tests/integration/agentic_scraper/platforms/`
 
-**Fix options**:
-1. Write an Equity Residential adapter that parses the embedded Angular JSON data blob in the static HTML
-2. Use Playwright rendered fetch + `universal_dom` with post-rendering (currently fails for these pages)
-3. Find individual brand-site URLs for these apartments instead of using the equityapartments.com aggregator page
-
-**Deferred**: Phase 4. Stale prices remain visible in the UI (marked as old via scrape timestamp). Do not mark these apartments `unscrapeable` — data is technically accessible.
+**apt 173 (360 Residences)**: source_url `equityapartments.com/san-francisco-bay/san-jose/360-residences-apartments/floorplans` redirects to the equityapartments.com home page — the property appears to have been removed or renamed on the portal. The Equity adapter correctly returns 0 plans (detect fires but `ea5.unitAvailability` absent). Needs source_url research to find the current page. Deferred.
 
 ---
 
