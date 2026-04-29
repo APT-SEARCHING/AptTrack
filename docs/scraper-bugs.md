@@ -267,20 +267,16 @@ They are real Tolman plan names — Filter A is producing a false positive on th
 
 ## BUG-07: RentCafe adapter blocked by HTTP 403
 
-**Status**: open  
+**Status**: RESOLVED — browser UA fix 2026-04-29  
 **Affected**: venue-apts.com (id=253), 808west-apts.com (id=259), ilaraapartments.com (id=251),
-turnleaf-apts.com (id=247), liveatorchardglen.com (id=281), atriumgardenapartments.com (id=270)
-— all newly seeded apartments using the RentCafe platform.  
-**Evidence**: `RentCafe: failed to fetch https://www.venue-apts.com/floorplans: HTTP Error 403: Forbidden`
-observed on all 6 sites during 2026-04-27 full re-scrape.  
-**Root cause**: RentCafe's CDN (Cloudflare) blocks the scraper's default `httpx` User-Agent on the
-`/floorplans` endpoint. The adapter fetches a JSON API endpoint that requires a browser-like UA or
-session cookie to pass the bot check.  
-**Fix options**:
-1. Add a browser-like `User-Agent` header to the RentCafe adapter's HTTP client
-2. Route the RentCafe fetch through Playwright (rendered fetch) instead of `httpx`
-3. Find RentCafe's public API endpoint (separate from the /floorplans page) that doesn't require a session  
-**File**: `backend/app/services/scraper_agent/platforms/rentcafe.py`
+turnleaf-apts.com (id=247), liveatorchardglen.com (id=281), atriumgardenapartments.com (id=270)  
+**Root cause**: `_HEADERS` in `rentcafe.py` used `AptTrack/1.0 (...)` as User-Agent — Cloudflare CDN
+returns 403 on any non-browser UA string. Not a legal block (no JS challenge / anti-bot system);
+just a UA filter on a public page.  
+**Fix applied**: Replaced custom UA with a standard Chrome browser UA + Accept/Accept-Language/
+Accept-Encoding headers. Smoke tested all 6 domains — all return HTTP 200.  
+Applied to both `backend/` and `tests/integration/` copies.  
+**File**: `backend/app/services/scraper_agent/platforms/rentcafe.py` — `_HEADERS`
 
 ---
 

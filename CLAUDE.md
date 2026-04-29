@@ -35,7 +35,7 @@ Open issues blocking dogfood resume. Run `/verify-scraper` to see live counts. S
 | BUG-02 | Low | LeaseStar CAPI returns stale prices (2 apts) | Open — defer to post-dogfood (compliance edge: live API requires reverse-engineering) |
 | BUG-04 | Low | Sibling-property contamination on multi-property pages | PARTIALLY RESOLVED — sanitize guard catches contamination; affected sites marked `unscrapeable` per BUG-09 |
 | BUG-05 | Low | "Starting from $X" overview-price contamination | PARTIALLY RESOLVED — sanitize Filter D triggers; some sites self-correct |
-| BUG-07 | Med | RentCafe HTTP 403 on httpx UA (6 apts) | Open — fix: add browser-like UA header |
+| BUG-07 | Med | RentCafe HTTP 403 on httpx UA (6 apts) | RESOLVED — browser UA + Accept headers; all 6 sites return 200 |
 | BUG-08 | Low | Essex SSL cert chain rejected by Python ssl (~10 apts) | Open — log noise only; SightMap via Playwright still extracts |
 | BUG-13 | Low | Enclave LLM name instability / path-cache replay failure | RESOLVED — path-cache structural fix (commit `3c707e01`); orphan plans archived |
 | BUG-15 | Low | Astella prices NULL | RESOLVED — fatwin correctly returns NULL for "contact us" site; bedrooms corrected via SQL |
