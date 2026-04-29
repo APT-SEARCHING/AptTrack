@@ -359,10 +359,12 @@ def _parse_fatwin_detail(html: str, detail_url: str) -> Optional[Dict]:
         name = raw_title.split("|")[0].strip() or name
 
     # Key line: "N Bedroom | N Bath | NNN[-NNN] SF"
+    # Require pipe separators to avoid matching marketing prose like
+    # "studio, one-, and two-bedroom floor plans" which precedes the spec line.
     beds: float = 0.0
     sqft: Optional[float] = None
     m_line = re.search(
-        r"(Studio|\d+\s*Bedroom).*?(\d+)\s*Bath.*?([\d,]+)(?:\s*-\s*([\d,]+))?\s*SF",
+        r"(Studio|\d+\s*Bedroom)\s*\|\s*(\d+(?:\.\d+)?)\s*Bath.*?([\d,]+)(?:\s*-\s*([\d,]+))?\s*SF",
         text,
         re.I | re.S,
     )
@@ -374,11 +376,29 @@ def _parse_fatwin_detail(html: str, detail_url: str) -> Optional[Dict]:
             beds = float(re.search(r"\d+", bed_token).group())
         sqft = float(m_line.group(3).replace(",", ""))
 
+    # Price — some FatWin plans show "Base Rent" explicitly; others say
+    # "Contact Us" (price absent). Try "Base Rent" pattern first.
+    price: Optional[float] = None
+    base_rent_m = re.search(
+        r"\$\s*([\d,]+)\s*\n?\s*Base\s+Rent"
+        r"|Base\s+Rent\s*\n?\s*\$\s*([\d,]+)",
+        text,
+        re.I,
+    )
+    if base_rent_m:
+        raw = (base_rent_m.group(1) or base_rent_m.group(2) or "").replace(",", "")
+        try:
+            candidate = float(raw)
+            if 1_500 <= candidate <= 20_000:  # Bay Area rent sanity bounds
+                price = candidate
+        except (ValueError, AttributeError):
+            pass
+
     return {
         "plan_name": name,
         "bedrooms": beds,
         "size_sqft": sqft,
-        "price": None,  # FatWin sites always say "Contact Us"
+        "price": price,
         "availability": "available",
     }
 

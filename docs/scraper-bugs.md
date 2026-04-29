@@ -227,7 +227,7 @@ They are real Tolman plan names — Filter A is producing a false positive on th
 
 ## BUG-15: Astella (apt 6) — A/B/C-series plans stored with bedrooms=0 instead of 1/2/3; 8 of 9 plans unpriced
 
-**Status**: PARTIALLY RESOLVED — bedrooms corrected 2026-04-28; prices still pending scrape success  
+**Status**: RESOLVED — 2026-04-29  
 **Affected**: Astella Apartments (id=6), source_url=`https://astellaapts.com/floor-plans/`  
 **Evidence**:
 - DB has 9 plans. Only "A9 - 1 Bedroom" has a price ($3,912) and correct bedrooms=1.
@@ -252,18 +252,19 @@ They are real Tolman plan names — Filter A is producing a false positive on th
 
 **Fix**:
 1. ✅ Bedrooms corrected via round1_data_fixes.sql (2026-04-28).
-   Note: bedrooms regress to 0 on every fatwin re-scrape until B1 (update bedrooms on each scrape)
-   is deployed. Each re-scrape re-creates plans with bedrooms=0; only "A9 - 1 Bedroom" survives
-   because its name embeds the bedroom count explicitly.
-2. **Prices: NULL is correct** (2026-04-29 investigation confirmed). `_parse_fatwin_detail` returns
-   `price=None` with comment "FatWin sites always say 'Contact Us'". Direct fetch of Astella plan
-   detail pages (e.g. `astellaapts.com/floorplan/a1/`) confirmed: "Please contact us for details"
-   — no prices available in static HTML. Main `astellaapts.com/floor-plans/` shows only an aggregate
-   "Price Range: $2,833–$7,074" with no per-plan breakdown. NULL DB prices accurately reflect reality.
-3. **BUG-15 RESOLVED** for pricing: fatwin is working correctly; Astella is a "contact us for pricing"
-   site. Bedrooms regression is tracked under B1 (Dogfood Blocker) — not a separate BUG-15 issue.
+2. ✅ **Prices + beds fix 2026-04-29**: Astella is a mixed site — 26/30 plans say "Contact Us",
+   4 plans expose "Base Rent" publicly (S3=$3,556 / A9=$4,267 / B8=$5,320 / C2=$7,074).
+   Two bugs fixed in `_parse_fatwin_detail`:
+   - **Price**: hardcoded `None` replaced with "Base Rent" pattern extraction. 26 plans remain
+     correctly NULL; 4 plans now extract live prices.
+   - **Beds regex**: pipe-separator added to avoid matching marketing prose "studio, one-, and
+     two-bedroom floor plans" before the real spec line "1 Bedroom | 1 Bath | 675 SF".
+     A9=1BR, B8=2BR, C2=3BR now correct on every scrape without manual SQL fix.
+   Stale plan "A9 - 1 Bedroom" (id=22, $3,912) archived — replaced by "A9" with live price.
+   Next daily scrape will write 4 prices to DB and auto-correct all bedroom counts.
 
-**File**: `dev/round1_data_fixes.sql`; `backend/app/worker.py` — B1 fix (update bedrooms on scrape, pending)
+**File**: `backend/app/services/scraper_agent/browser_tools.py` — `_parse_fatwin_detail`;
+`tests/integration/agentic_scraper/browser_tools.py` — mirror
 
 ## BUG-07: RentCafe adapter blocked by HTTP 403
 
