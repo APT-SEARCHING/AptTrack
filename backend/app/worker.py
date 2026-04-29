@@ -1332,6 +1332,31 @@ def _persist_scraped_prices(
                 .values(is_available=False)
             )
 
+    # Pass 3: mark active plans not seen in this scrape as unavailable.
+    # Symmetric with the Unit-level stale-marking above (lines 1322-1333).
+    # Guard: only runs when scrape returned ≥1 plan so a total extraction
+    # failure doesn't wipe all plans.
+    if scraped_plan_ids:
+        from sqlalchemy import update as sa_update
+        from app.models.apartment import Plan as _Plan
+        stale = db.execute(
+            sa_update(_Plan)
+            .where(
+                _Plan.apartment_id == apt_id,
+                _Plan.is_available.is_(True),
+                _Plan.id.notin_(scraped_plan_ids),
+            )
+            .values(is_available=False)
+            .returning(_Plan.id, _Plan.name)
+        ).fetchall()
+        if stale:
+            logger.info(
+                "apt %d: marked %d stale plan(s) unavailable: %s",
+                apt_id,
+                len(stale),
+                [row.name for row in stale],
+            )
+
     db.commit()
 
     # D1: auto-pause unit subscriptions whose unit is now unavailable + notify

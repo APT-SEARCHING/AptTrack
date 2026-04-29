@@ -486,3 +486,72 @@ def test_autocreated_plan_gets_price_history(db):
     history = db.query(PlanPriceHistory).filter_by(plan_id=new_plan.id).all()
     assert len(history) == 1
     assert history[0].price == 2200.0
+
+
+# ---------------------------------------------------------------------------
+# Tests: stale plan auto-unavailable (Pass 3)
+# ---------------------------------------------------------------------------
+
+def test_stale_plan_marked_unavailable(db):
+    """Plan present in DB but absent from scrape → is_available=False."""
+    apt = _make_apt(db)
+    active = _make_plan(db, apt.id, name="A1", area_sqft=700.0, current_price=3000.0)
+    ghost = _make_plan(db, apt.id, name="Unit", area_sqft=880.0, current_price=2877.0)
+    db.commit()
+
+    # Scrape only returns A1 — "Unit" is gone
+    fp = _make_fp(name="A1", bedrooms=1.0, size_sqft=700.0, min_price=3050.0)
+    _persist_scraped_prices(apt.id, _make_result([fp]), db)
+
+    db.refresh(active)
+    db.refresh(ghost)
+    assert active.is_available is True
+    assert ghost.is_available is False
+
+
+def test_stale_plan_not_wiped_on_empty_scrape(db):
+    """If scrape returns 0 plans (extraction failure), no plans are marked unavailable."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="A1", area_sqft=700.0, current_price=3000.0)
+    db.commit()
+
+    # Empty scrape result — don't wipe everything
+    _persist_scraped_prices(apt.id, _make_result([]), db)
+
+    db.refresh(plan)
+    assert plan.is_available is True  # safe — guard prevents false unavailability
+
+
+def test_stale_plan_reactivates_on_return(db):
+    """Plan previously archived → reactivated when it reappears in scrape."""
+    apt = _make_apt(db)
+    plan = _make_plan(db, apt.id, name="A1", area_sqft=700.0,
+                      current_price=None, is_available=False)
+    db.commit()
+
+    # Plan reappears in scrape → _match_plan strategy 2 reactivates it
+    fp = _make_fp(name="A1", bedrooms=1.0, size_sqft=700.0, min_price=3100.0)
+    _persist_scraped_prices(apt.id, _make_result([fp]), db)
+
+    db.refresh(plan)
+    assert plan.is_available is True
+    assert plan.current_price == 3100.0
+
+
+def test_multiple_stale_plans_all_marked(db):
+    """All absent plans are marked unavailable in one scrape cycle."""
+    apt = _make_apt(db)
+    kept = _make_plan(db, apt.id, name="B1", bedrooms=2.0, area_sqft=1000.0)
+    stale1 = _make_plan(db, apt.id, name="Ghost1", area_sqft=0.0)
+    stale2 = _make_plan(db, apt.id, name="Ghost2", area_sqft=0.0)
+    db.commit()
+
+    fp = _make_fp(name="B1", bedrooms=2.0, size_sqft=1000.0, min_price=4000.0)
+    _persist_scraped_prices(apt.id, _make_result([fp]), db)
+
+    db.refresh(kept)
+    db.refresh(stale1)
+    db.refresh(stale2)
+    assert kept.is_available is True
+    assert stale1.is_available is False
+    assert stale2.is_available is False
