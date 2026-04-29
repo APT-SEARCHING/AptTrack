@@ -32,6 +32,17 @@ const ListingCard: React.FC<Props> = ({ listing }) => {
     : null;
   const priceDrop = prevPrice && price < prevPrice;
 
+  const latestRecordedAt = listing.price_history[listing.price_history.length - 1]?.recorded_at;
+  const updatedLabel = latestRecordedAt
+    ? (() => {
+        const d = new Date(latestRecordedAt);
+        const diffD = (Date.now() - d.getTime()) / 86_400_000;
+        if (diffD < 1) return 'Today';
+        if (diffD < 2) return 'Yesterday';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      })()
+    : null;
+
   return (
     <Link to={`/listings/${listing.id}`} className="block group">
       <div className="card group-hover:border-indigo-200 p-5 flex flex-col gap-3">
@@ -67,7 +78,7 @@ const ListingCard: React.FC<Props> = ({ listing }) => {
           )}
         </div>
 
-        {/* Specs */}
+        {/* Specs + updated date */}
         <div className="flex items-center gap-3 text-sm text-slate-500 border-t border-slate-50 pt-3">
           <span className="flex items-center gap-1">
             <span>🛏</span> {bedLabel(listing.bedrooms)}
@@ -81,6 +92,9 @@ const ListingCard: React.FC<Props> = ({ listing }) => {
               <span className="text-slate-300">|</span>
               <span>{listing.area_sqft.toLocaleString()} sqft</span>
             </>
+          )}
+          {updatedLabel && (
+            <span className="ml-auto text-xs text-slate-400">{updatedLabel}</span>
           )}
         </div>
       </div>

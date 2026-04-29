@@ -155,6 +155,7 @@ class ApartmentInDB(ApartmentBase):
 class ApartmentResponse(ApartmentInDB):
     plans: list[PlanResponse] = []
     images: list[ApartmentImageBase] = []
+    last_scraped_at: Optional[datetime] = None
 
 
 class ApartmentImageCreate(BaseModel):

@@ -88,6 +88,34 @@ function availLabel(plan: PlanResponse): string {
   return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
 }
 
+/** Return a human-readable "as of" label for the most recent scrape timestamp. */
+function scrapeLabel(apt: { last_scraped_at: string | null; plans: PlanResponse[] }): string | null {
+  // Prefer the latest price_history.recorded_at across all plans — it reflects
+  // when prices were last confirmed (either re-scraped or carry-forwarded).
+  let latest: Date | null = null;
+  for (const plan of apt.plans) {
+    for (const h of plan.price_history) {
+      const d = new Date(h.recorded_at);
+      if (!latest || d > latest) latest = d;
+    }
+  }
+  if (!latest && apt.last_scraped_at) latest = new Date(apt.last_scraped_at);
+  if (!latest) return null;
+
+  const now = new Date();
+  const diffMs = now.getTime() - latest.getTime();
+  const diffH = diffMs / 3_600_000;
+  const diffD = diffMs / 86_400_000;
+
+  const abs = latest.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    ' at ' + latest.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+
+  if (diffH < 1) return `Updated just now · ${abs}`;
+  if (diffH < 24) return `Updated ${Math.round(diffH)}h ago · ${abs}`;
+  if (diffD < 2) return `Updated yesterday · ${abs}`;
+  return `Updated ${Math.round(diffD)}d ago · ${abs}`;
+}
+
 interface PriceRow {
   key: string;
   plan: PlanResponse;
@@ -346,6 +374,9 @@ const ListingDetailPage: React.FC = () => {
             <p className="text-slate-500 flex items-center gap-1">
               <span>📍</span> {listing.location}
             </p>
+            {apt && scrapeLabel(apt) && (
+              <p className="text-xs text-slate-400 mt-1">{scrapeLabel(apt)}</p>
+            )}
           </div>
           <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
             <div className="sm:text-right">

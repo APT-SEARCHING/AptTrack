@@ -71,6 +71,7 @@ export interface ApartmentResponse {
   images: { url: string; caption: string | null; is_primary: boolean }[];
   created_at: string;
   updated_at: string;
+  last_scraped_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
