@@ -252,7 +252,7 @@ class TestComposedFilters:
         assert isinstance(summary, dict)
         expected_keys = {
             "sibling_dropped", "deposit_nulled",
-            "ceiling_nulled", "starting_from_triggered"
+            "ceiling_nulled", "starting_from_triggered", "filter_a_skipped",
         }
         assert set(summary.keys()) == expected_keys
 
@@ -260,3 +260,55 @@ class TestComposedFilters:
         cleaned, summary = _sanitize_floor_plans([])
         assert cleaned == []
         assert summary["sibling_dropped"] == 0
+
+
+# ─── Adapter-aware Filter A ───────────────────────────────────────────
+
+class TestAdapterAwareFilter:
+    def test_jd_adapter_keeps_dry_creek(self):
+        """BUG-14 regression: Tolman's real plan names must not be dropped."""
+        plans = [
+            fp(name="Dry Creek", beds=0, sqft=552),
+            fp(name="High Ridge", beds=2, sqft=1097, min_price=4576),
+            fp(name="Vista Peak", beds=1, sqft=584, min_price=3489),
+        ]
+        cleaned, summary = _sanitize_floor_plans(plans, adapter_name="jonah_digital")
+        assert len(cleaned) == 3
+        assert summary["sibling_dropped"] == 0
+        assert summary["filter_a_skipped"] is True
+
+    def test_unknown_adapter_default_filter_a_active(self):
+        """Default behavior: Filter A active when adapter_name not specified."""
+        plans = [fp(name="Marina Playa", min_price=2475)]
+        cleaned, summary = _sanitize_floor_plans(plans)
+        assert len(cleaned) == 0
+        assert summary["sibling_dropped"] == 1
+        assert summary["filter_a_skipped"] is False
+
+    def test_llm_path_filter_a_active(self):
+        """LLM path passes adapter_name=None → Filter A applies."""
+        plans = [fp(name="Marina Playa", min_price=2475)]
+        cleaned, summary = _sanitize_floor_plans(plans, adapter_name=None)
+        assert summary["sibling_dropped"] == 1
+        assert summary["filter_a_skipped"] is False
+
+    def test_universal_dom_keeps_filter_a(self):
+        """universal_dom can land on comparison pages — Filter A stays active."""
+        plans = [fp(name="Marina Playa", min_price=2475)]
+        cleaned, summary = _sanitize_floor_plans(plans, adapter_name="universal_dom")
+        assert summary["sibling_dropped"] == 1
+        assert summary["filter_a_skipped"] is False
+
+    def test_jd_adapter_filters_b_c_still_active(self):
+        """Filter A skip does NOT skip B (deposit floor) or C (ceiling)."""
+        plans = [
+            fp(name="Dry Creek", beds=0, sqft=552, min_price=800),   # below floor
+            fp(name="High Ridge", beds=2, sqft=1097, min_price=30000),  # above ceiling
+        ]
+        cleaned, summary = _sanitize_floor_plans(plans, adapter_name="jonah_digital")
+        assert len(cleaned) == 2
+        assert cleaned[0].min_price is None   # Filter B nulled it
+        assert cleaned[1].min_price is None   # Filter C nulled it
+        assert summary["deposit_nulled"] == 1
+        assert summary["ceiling_nulled"] == 1
+        assert summary["filter_a_skipped"] is True

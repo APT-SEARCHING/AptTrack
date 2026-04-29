@@ -453,7 +453,7 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
                     outcome = metrics.outcome if metrics.outcome in (
                         "platform_direct", "platform_direct_static", "platform_direct_rendered", "cache_hit",
                     ) else "success"
-                    _persist_scraped_prices(apt_id, result, db)
+                    _persist_scraped_prices(apt_id, result, db, adapter_name=metrics.adapter_name)
                     if new_hash is not None:
                         apt = db.execute(
                             sa_select(Apartment).where(Apartment.id == apt_id)
@@ -608,6 +608,17 @@ _BAY_AREA_RENT_FLOOR = 1500
 # stored as monthly).
 _BAY_AREA_RENT_CEILING = 25_000
 
+# Adapters that source plans exclusively from per-apartment detail pages
+# (never from multi-property comparison pages). Sibling-property contamination
+# cannot occur on their output by construction, so Filter A is skipped to
+# prevent false positives on legitimate plan names that contain keywords
+# (e.g. Tolman's "Dry Creek" and "High Ridge" — Mission Peak trail names).
+# Do NOT add universal_dom, generic_detail, or None (LLM path): those can
+# land on comparison pages.
+_DETAIL_PAGE_ADAPTERS: frozenset = frozenset({
+    "jonah_digital",
+})
+
 # Property-style keywords. If a "plan name" contains one AND has multiple
 # words AND doesn't look like a floor plan code, it's likely a sibling
 # property name extracted from a multi-property comparison page.
@@ -670,33 +681,48 @@ def _looks_like_starting_from_contamination(floor_plans) -> bool:
     return (same_count / len(priced)) > 0.5
 
 
-def _sanitize_floor_plans(floor_plans: List) -> tuple:
-    """Apply three contamination filters to LLM-extracted floor plans
-    before they enter _persist_scraped_prices.
+def _sanitize_floor_plans(
+    floor_plans: List,
+    adapter_name: Optional[str] = None,
+) -> tuple:
+    """Apply contamination filters to scraped floor plans.
 
     Filter A (BUG-04): drop FloorPlans whose name looks like a sibling
-        property (multi-property comparison contamination)
+        property (multi-property comparison contamination).
+        SKIPPED when adapter_name is in _DETAIL_PAGE_ADAPTERS — those
+        adapters fetch from per-apartment pages where sibling contamination
+        is impossible (e.g. JonahDigital plan detail pages).
     Filter B (BUG-06): null min_price/max_price below Bay Area rent floor
         (deposit/fee values misread as rent)
     Filter C (BUG-06): null min_price/max_price above ceiling (typos)
     Filter D (BUG-05): if >50% of priced plans share the same price,
         null all prices (overview "Starting From" contamination)
 
-    Returns a tuple of (cleaned_floor_plans, summary_dict) where
-    summary_dict has counts:
-        sibling_dropped, deposit_nulled, ceiling_nulled, starting_from_triggered
+    Returns (cleaned_floor_plans, summary_dict).
+    summary_dict keys: sibling_dropped, deposit_nulled, ceiling_nulled,
+                       starting_from_triggered, filter_a_skipped.
     """
     summary = {
         "sibling_dropped": 0,
         "deposit_nulled": 0,
         "ceiling_nulled": 0,
         "starting_from_triggered": False,
+        "filter_a_skipped": False,
     }
+
+    skip_filter_a = adapter_name in _DETAIL_PAGE_ADAPTERS
+    if skip_filter_a:
+        summary["filter_a_skipped"] = True
+        logger.info(
+            "_sanitize: skipping Filter A (sibling property) for "
+            "detail-page adapter %r",
+            adapter_name,
+        )
 
     cleaned = []
     for fp in floor_plans:
-        # Filter A: sibling property
-        if _looks_like_sibling_property(fp.name):
+        # Filter A: sibling property — skipped for detail-page adapters
+        if not skip_filter_a and _looks_like_sibling_property(fp.name):
             logger.warning(
                 "_sanitize: dropping suspected sibling-property name='%s' "
                 "(min_price=%s, max_price=%s)",
@@ -1141,7 +1167,12 @@ def _pause_stale_unit_subscriptions(apt_id: int, db) -> None:
         db.commit()
 
 
-def _persist_scraped_prices(apt_id: int, result, db) -> None:
+def _persist_scraped_prices(
+    apt_id: int,
+    result,
+    db,
+    adapter_name: Optional[str] = None,
+) -> None:
     """Write scraped plan prices back to PlanPriceHistory."""
     from datetime import datetime, timezone
 
@@ -1177,7 +1208,10 @@ def _persist_scraped_prices(apt_id: int, result, db) -> None:
     # Sanitize floor plans: filter contamination from LLM extraction
     # (sibling properties, deposit/fee floor, "starting from" overview).
     # See docs/scraper-bugs.md BUG-04, BUG-05, BUG-06.
-    result.floor_plans, _sanitize_summary = _sanitize_floor_plans(result.floor_plans)
+    result.floor_plans, _sanitize_summary = _sanitize_floor_plans(
+        result.floor_plans,
+        adapter_name=adapter_name,
+    )
 
     # Avalon name normalization pre-pass: rename generic DB plan names (e.g.
     # "1 Bed / 1 Bath") to specific adapter codes (e.g. "A2G") so that

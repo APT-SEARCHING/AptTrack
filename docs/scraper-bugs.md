@@ -177,7 +177,7 @@ scrape_runs), so the universal_dom fix does not apply.
 
 ## BUG-14: The Tolman (apt 7) — Filter A false-positive drops real JD plan names; orphan legacy plans persist with stale prices
 
-**Status**: PARTIALLY RESOLVED — Part B (orphan legacy plans) fixed 2026-04-28; Part A (Filter A) pending Round 2  
+**Status**: RESOLVED — Part B (orphan legacy plans) fixed 2026-04-28; Part A (Filter A) fixed 2026-04-29  
 **Affected**: The Tolman (id=7)  
 **Evidence**:
 - JonahDigital adapter detects 8 named plans via detail pages:  
@@ -208,13 +208,16 @@ but the legacy plans persist indefinitely with their stale seed-time prices.
 "Studio $3,200" and "1 Bed / 1 Bath $3,252" are visible to users as if they were current prices.
 
 **Fix**:
-1. **Filter A exemption for JD adapter** (pending Round 2): skip Filter A when the plan was returned by
-   the JonahDigital adapter (or any adapter that fetches from per-apartment detail pages, not comparison
-   pages). Simplest implementation: add `adapter_name` argument to `_sanitize_floor_plans()` and skip
-   Filter A when `adapter_name == "jonah_digital"`.
+1. ✅ **Filter A exemption for JD adapter** (2026-04-29): added `_DETAIL_PAGE_ADAPTERS` frozenset and
+   `adapter_name` parameter to `_sanitize_floor_plans()`. When `adapter_name="jonah_digital"`, Filter A
+   is skipped (summary["filter_a_skipped"]=True); Filters B/C/D still apply.
+   Tolman re-scrape confirmed: "Dry Creek" and "High Ridge" now persist; no false-positive warnings.
+   Canonical regression (Miro #11, Avalon Cahill #181): zero false positives, plan counts unchanged.
+   5 new tests in `TestAdapterAwareFilter`. `_persist_scraped_prices` now accepts `adapter_name` and
+   threads it from `metrics.adapter_name` at the call site.
 2. ✅ **Archive orphan legacy plans** (done 2026-04-28 via round1_data_fixes.sql): archived "Studio",
    "1 Bed / 1 Bath", and "2 Bed / 2 Bath" (all NULL `area_sqft`, generic names, not in JD output).
-   Tolman now has 6 active plans: Dry Creek, High Ridge, Maguire Peak, Mission Peak, Monument Peak, Vista Peak.
+   Tolman active plans: Dry Creek (Studio), High Ridge ($4,575), Maguire Peak ($3,801), Mission Peak ($4,760), Monument Peak, Vista Peak ($3,489).
 
 **Note**: BUG-09 incorrectly listed "High Ridge" and "Dry Creek" as sibling contamination examples.
 They are real Tolman plan names — Filter A is producing a false positive on them.  
@@ -306,7 +309,7 @@ pre-check for domains known to have this issue, or suppress the warning and let 
 - `Snow Park` (2 occurrences) — sibling of some Oakland/Bay Area multi-property page
 - `808 West Apartments` — sibling of another apt on same platform page
 - `Warburton Village Apartments` — sibling contamination
-- `High Ridge`, `Dry Creek` — **correction**: these are real Tolman plan names (see BUG-14); NOT sibling contamination  
+- `High Ridge`, `Dry Creek` — **correction**: real Tolman plan names (BUG-14); Filter A now skipped for JD adapter (fixed 2026-04-29)  
 **Sanitize status**: All of the above were correctly dropped by `_sanitize_floor_plans()` Filter A.
 However the affected apartments end up with 0 active plans — the real floor plan data is not being
 retrieved because the scraper keeps landing on multi-property comparison pages.  
