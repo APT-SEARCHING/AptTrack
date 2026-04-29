@@ -302,17 +302,32 @@ def _parse_jonah_digital_detail(html: str, detail_url: str) -> Optional[Dict]:
     if not name:
         name = slug
 
-    beds: float = 0.0
-    m = re.search(r"(\d+)\s*(?:bed(?:room)?s?)", text, re.I)
-    if m:
-        beds = float(m.group(1))
-    elif re.search(r"\bstudio\b", text, re.I):
-        beds = 0.0
-
     sqft: Optional[float] = None
-    m = re.search(r"([\d,]+)\s*(?:sq\.?\s*ft|square\s*feet)", text, re.I)
-    if m:
-        sqft = float(m.group(1).replace(",", ""))
+    sqft_m = re.search(r"([\d,]+)\s*(?:sq\.?\s*ft|square\s*feet)", text, re.I)
+    if sqft_m:
+        sqft = float(sqft_m.group(1).replace(",", ""))
+
+    beds: float = 0.0
+    if sqft_m:
+        _near60 = text[max(0, sqft_m.start() - 60):sqft_m.start() + 20]
+        if re.search(r"\bstudio\b", _near60, re.I):
+            beds = 0.0
+        else:
+            best_bed_m = None
+            best_dist = float("inf")
+            for _bm in re.finditer(r"(\d+)\s*(?:bed(?:room)?s?)", text, re.I):
+                dist = abs(sqft_m.start() - _bm.end())
+                if dist < best_dist:
+                    best_dist = dist
+                    best_bed_m = _bm
+            if best_bed_m:
+                beds = float(best_bed_m.group(1))
+    else:
+        m = re.search(r"(\d+)\s*(?:bed(?:room)?s?)", text, re.I)
+        if m:
+            beds = float(m.group(1))
+        elif re.search(r"\bstudio\b", text, re.I):
+            beds = 0.0
 
     price: Optional[float] = None
     price_matches = re.findall(r"\$([\d,]+)(?:\s*[-\u2013]\s*\$([\d,]+))?", text)
