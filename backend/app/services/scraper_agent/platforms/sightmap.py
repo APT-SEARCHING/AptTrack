@@ -44,6 +44,6 @@ class SightMapAdapter(PlatformAdapter):
         state = await browser.navigate_to(embed_url)
         if state.get("error"):
             return []
-        await asyncio.sleep(3)
+        await asyncio.sleep(8)
         result = await browser.extract_all_units()
         return result.get("units", [])
