@@ -120,9 +120,10 @@ def get_apartments(
     elif sort == "name_asc":
         stmt = stmt.order_by(asc(Apartment.title))
 
+    active_plans = Apartment.plans.and_(Plan.is_available.is_(True))
     stmt = stmt.options(
-        selectinload(Apartment.plans).selectinload(Plan.units),
-        selectinload(Apartment.plans).selectinload(Plan.price_history),
+        selectinload(active_plans).selectinload(Plan.units),
+        selectinload(active_plans).selectinload(Plan.price_history),
     )
     return db.execute(stmt.offset(skip).limit(limit)).scalars().all()
 
@@ -160,8 +161,14 @@ def get_apartment(
     apartment_id: int,
     db: Session = Depends(get_db),
 ):
+    active_plans = Apartment.plans.and_(Plan.is_available.is_(True))
     db_apartment = db.execute(
-        select(Apartment).where(Apartment.id == apartment_id)
+        select(Apartment)
+        .where(Apartment.id == apartment_id)
+        .options(
+            selectinload(active_plans).selectinload(Plan.units),
+            selectinload(active_plans).selectinload(Plan.price_history),
+        )
     ).scalar_one_or_none()
     if db_apartment is None:
         raise HTTPException(status_code=404, detail="Apartment not found")
