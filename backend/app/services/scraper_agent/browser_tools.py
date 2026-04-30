@@ -212,13 +212,26 @@ def _parse_jonah_digital_detail(html: str, detail_url: str) -> Optional[Dict]:
 
     # Plan name: last segment of URL path (e.g. /floorplans/a01/ → "a01")
     slug = urlparse(detail_url).path.rstrip("/").rsplit("/", 1)[-1]
-    # Try to find a more human-readable name in the page (h1/h2)
+    # Try to find a more human-readable name in the page (h1/h2).
+    # Prefer headings that match the URL slug (plan code). Fall back to the
+    # first heading that isn't a site-wide element (pet policy, tour CTA, etc.)
+    _HEADING_EXCLUDE_RE = re.compile(
+        r"floor\s*plans?|available|contact|schedule|pet\s*policy|book\s*a\s*tour"
+        r"|leasing|spaces\s*created|now\s*leasing|our\s*amenities",
+        re.I,
+    )
     name: Optional[str] = None
+    slug_upper = slug.upper()
     for tag in soup.find_all(["h1", "h2", "h3"]):
         t = tag.get_text(strip=True)
-        if t and len(t) < 80 and not re.search(r"floor plan|available|contact|schedule", t, re.I):
+        if not t or len(t) >= 80 or _HEADING_EXCLUDE_RE.search(t):
+            continue
+        # Prefer headings that match the slug exactly (e.g. "A2" for /floorplans/a2/)
+        if t.upper() == slug_upper:
             name = t
             break
+        if name is None:
+            name = t  # first non-excluded heading as fallback
     if not name:
         name = slug
 
