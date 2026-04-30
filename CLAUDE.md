@@ -4,7 +4,7 @@ Bay Area apartment **rental price transparency** system. Collects publicly avail
 
 **Live**: https://apttrack-production-6c87.up.railway.app/
 
-> **Current phase (2026-04 end)**: Pre-dogfood polish ongoing. Original 5 dogfood blockers (B1-B5) all resolved. Two-week strict dogfood **paused** while we close out scraper data-quality bugs surfaced by `/verify-scraper` audits. Resume dogfood once `/verify-scraper` shows ≥70% CORRECT category. Track open issues in `docs/scraper-bugs.md`.
+> **Current phase (2026-04-29)**: Dogfood **RESUMED**. `/verify-scraper` audit scored 72% CORRECT (21/29 active apts), clearing the ≥70% gate. Comprehensive pre-dogfood cleanup completed 2026-04-29: 11 new platform adapters/fixes, 3 URL corrections, 6 legal_block reclassifications, 1 senior-living archive, subscription health verified. Week 0 smoke-test underway — next daily scrape (02:00 PT) will apply all queued fixes.
 
 > **Positioning**: transparency + snapshot today; history chart story activates ~Q3 2026 when ≥3 months of data accumulates. Don't lean on `Recharts` price history in UI until then.
 
@@ -26,22 +26,30 @@ These are listed for historical reference. **Active scraper-quality issues are t
 
 ---
 
-## 🔴 Active Pre-Dogfood Cleanup
+## ✅ Pre-Dogfood Cleanup — Complete (2026-04-29)
 
-Open issues blocking dogfood resume. Run `/verify-scraper` to see live counts. See `docs/scraper-bugs.md` for full details on each.
+Gate cleared: `/verify-scraper` scored **72% CORRECT** (21/29). All blocking bugs resolved.
 
-| ID | Severity | Summary | Status |
-|----|----------|---------|--------|
-| BUG-02 | Low | LeaseStar CAPI returns stale prices (2 apts) | Open — defer to post-dogfood (compliance edge: live API requires reverse-engineering) |
-| BUG-04 | Low | Sibling-property contamination on multi-property pages | PARTIALLY RESOLVED — sanitize guard catches contamination; affected sites marked `unscrapeable` per BUG-09 |
-| BUG-05 | Low | "Starting from $X" overview-price contamination | PARTIALLY RESOLVED — sanitize Filter D triggers; some sites self-correct |
-| BUG-07 | Med | RentCafe HTTP 403 on httpx UA (6 apts) | RESOLVED — browser UA + Accept headers; all 6 sites return 200 |
-| BUG-08 | Low | Essex SSL cert chain rejected by Python ssl (~10 apts) | RESOLVED — ssl=False retry in content-hash GET; logs downgraded to DEBUG |
-| BUG-13 | Low | Enclave LLM name instability / path-cache replay failure | RESOLVED — path-cache structural fix (commit `3c707e01`); orphan plans archived |
-| BUG-15 | Low | Astella prices NULL | RESOLVED — fatwin correctly returns NULL for "contact us" site; bedrooms corrected via SQL |
-| BUG-16 | Med | SightMap extracts "Available May 7th" / "E303" as plan names (Miro affected) | RESOLVED — code fix commit `ebc0fb7a`; data fix commit `901b680c`; 33 tests |
+| ID | Summary | Status |
+|----|---------|--------|
+| BUG-02 | LeaseStar CAPI stale prices | Deferred post-dogfood |
+| BUG-04 | Sibling-property contamination | RESOLVED — sanitize Filter A + BUG-09 cleanup |
+| BUG-05 | "Starting from $X" contamination | RESOLVED — Filter D + Centerra URL fix (BUG-19) |
+| BUG-07 | RentCafe HTTP 403 | RESOLVED — browser UA headers (commit `2d7d89c8`) |
+| BUG-08 | Essex SSL cert noise | RESOLVED — ssl=False retry (commit `6aa84b0b`) |
+| BUG-13 | Enclave path-cache replay | RESOLVED — units_result fix (commit `3c707e01`) |
+| BUG-15 | Astella prices/beds wrong | RESOLVED — fatwin Base Rent + pipe-regex fix (commit `7458e04e`) |
+| BUG-16 | SightMap ghost plan names | RESOLVED — `_NOT_A_PLAN_NAME_RE` + `_UNIT_NUMBER_RE` (commit `ebc0fb7a`) |
+| BUG-17 | equityapartments.com Angular SPA | RESOLVED — EquityAdapter ea5.unitAvailability (commit `81bcec8a`) |
+| BUG-18 | ARLO MV broken source_url | RESOLVED — URL corrected 2026-04-29 |
+| BUG-19 | Centerra domain change | RESOLVED — liveatcenterra.com/floorplans/ (commit `1f2b36aa`) |
+| BUG-20 | Sofia DudaOne/Repli360 | Deferred — Repli360 bot detection, stealth tools not in scope |
+| BUG-21 | Parkmerced bath-count noise | Low severity, deferred |
 
-**Dogfood resume gate**: BUG-16 code fix ✅ landed + `/verify-scraper` CORRECT category ≥ 70% (run to measure current state).
+**Open engineering backlog (not dogfood blockers)**:
+- RentCafe phantom parse on 247/253/259 ("Floor Plans" card mis-extracted)
+- 225 Regency MV "Unit" ghost — Pass 3 auto-cleans next scrape
+- 196/218/173/15/216 awaiting tonight's re-scrape
 
 ---
 
@@ -56,6 +64,38 @@ AptTrack scrapes **only** sites that meet all three:
 Apartments that fall in the first two exclusion categories are stored with `data_source_type='legal_block'` and displayed in listings with a "🔒 Price data restricted" badge linking to the source site. They remain searchable; we don't pretend they don't exist. This produces honest UX while preserving a defensible commercialization posture.
 
 **Coverage tradeoff**: ~14% of seeded apartments end up `legal_block` or `unscrapeable`. Real coverage on scrapeable apartments is the meaningful metric.
+
+### Three-bucket classification decision tree
+
+Use this when adding new apartments or reclassifying existing ones. **Verify before classifying — never guess based on company name.**
+
+```
+Q1: Does the URL return valid apartment content? (HTTP 200, not parked/redirected)
+    No  → unscrapeable  (broken URL, parked domain, aggregator page)
+    Yes → Q2
+
+Q2: Does the site use active anti-bot or proprietary fingerprint protection?
+    Active anti-bot: Cloudflare Under Attack Mode, Distil, PerimeterX,
+                     Akamai Bot Manager, Repli360 widget fingerprinting
+    Proprietary:     Hanover internal API, Entrata behind login
+    Yes → legal_block  (POLICY: honor operator signal; display with 🔒 badge)
+    No  → Q3
+
+Q3: Does AptTrack have a working adapter for this platform?
+    Yes → brand_site  (active, scrapes on daily cron)
+    No  → unscrapeable  (BACKLOG: adapter pending or data not publicly available)
+```
+
+**Verification required** — hands-on test before classifying:
+- HTTP response code and final URL (detect redirects/parking)
+- Playwright behavior (CF challenge page? JS challenge? Normal content?)
+- Rendered HTML inspection (`ea5.unitAvailability`, `jd-fp-floorplan-card`, SightMap embed, etc.)
+- `robots.txt` check via `ScrapeSiteRegistry.robots_txt_allows`
+
+Common mistakes to avoid:
+- "Prometheus" = the real estate company (prometheusapartments.com), which deploys Cloudflare Under Attack → `legal_block`
+- equityapartments.com = Angular SPA with `ea5.unitAvailability` JSON → `brand_site` via EquityAdapter
+- Parked/sold domains → `unscrapeable`, NOT `legal_block` (operator isn't blocking, website is gone)
 
 ---
 
@@ -80,7 +120,7 @@ FastAPI (Pydantic v2, SQLAlchemy 2.0, slowapi rate limit)
                         ▼
                 Agentic scraper (MiniMax-M2.5 + Playwright + path cache + content hash)
                         │
-                        ├── Platform adapters: avalonbay, sightmap, rentcafe,
+                        ├── Platform adapters: avalonbay, equity, sightmap, rentcafe,
                         │   leasingstar, generic_detail, jonah_digital, universal_dom,
                         │   greystar, windsor
                         ├── _sanitize_floor_plans (BUG-04/05/06 deterministic guards)
@@ -136,6 +176,14 @@ After Phase 1+2 dogfood data cleanup (Round 1 + Round 2 SQL fixes, Phase A/B/C a
 - Round 1 SQL: BUG-10/11/12/13/14B/15 manual cleanups (commit `33b24cbc`).
 - Round 2 Phase A: BUG-14 Filter A adapter-aware skip (commit `49655a97`).
 - Round 2 Phase C: BUG-09 multi-property pages marked unscrapeable (commit `41438464`).
+
+### 2026-04-29 pre-dogfood cleanup (dev/reclassify_data_source_type.sql)
+- **3 URL fixes → brand_site**: Mill Creek (196) and Reserve at MV (218) both equityapartments.com URLs corrected to HTTPS + ea5 confirmed; 360 Residences (173) property transferred Equity→Essex, now SightMap on essexapartmenthomes.com.
+- **6 → legal_block**: Mode (153) and Viewpoint (164) — Cloudflare Under Attack; The Benton (68), Shadowbrook (223), The Dean (234) — prometheusapartments.com + Cloudflare; Sofia (69) — Repli360 widget fingerprinting.
+- **1 → unscrapeable**: Hanover FC (175) — hanoverfc.com domain parked/sold, operator website gone.
+- **1 archived**: Coterie Cathedral Hill (59) — senior retirement community, wrong property type (source URL literally `coterieseniorliving.com/luxury-retirement-communities/`).
+- **1 URL fix**: LINQ (15) — source_url had `??` double query-string; corrected to `liveatlinq.com/floorplans/` (SightMap embed confirmed).
+- Result: 6 legal_block, 130 brand_site scrapeable, 3 unscrapeable visible.
 
 ### Scraper architecture
 - **Multi-stage pipeline**: negative cache → corporate parent redirect → content-hash short-circuit → static fetch + try_platforms → rendered fetch + try_platforms → path cache replay → LLM agent ReAct loop fallback.
@@ -211,12 +259,12 @@ After Phase 1+2 dogfood data cleanup (Round 1 + Round 2 SQL fixes, Phase A/B/C a
 
 ---
 
-## Roadmap (post pre-dogfood cleanup)
+## Roadmap (dogfood active as of 2026-04-29)
 
-### Resume dogfood when
-- BUG-16 code fix landed
-- `/verify-scraper` shows ≥70% CORRECT category
-- Subscription health check confirms 5-7 user subs all on healthy plans (no NULL prices, baseline within 5% of current)
+### Gate cleared ✅
+- BUG-16 code fix landed ✅
+- `/verify-scraper` 72% CORRECT ✅ (gate was ≥70%)
+- Subscription health: 1 active sub (Miro A17+Den), health OK ✅
 
 ### Week 0 (smoke test + confirm data health)
 - Trigger full re-scrape with cleared path cache.
@@ -246,9 +294,8 @@ After Phase 1+2 dogfood data cleanup (Round 1 + Round 2 SQL fixes, Phase A/B/C a
 ## Phase 4 Deferred (DO NOT START — wait for dogfood evidence)
 
 - **BUG-02 LeaseStar live endpoint** — reverse-engineering required; compliance edge if endpoint requires auth/signature.
-- **BUG-07 RentCafe UA fix** — 6 apts unblocked; defer until dogfood signals these specific apts matter.
-- **BUG-08 Essex SSL** — log noise only; suppress in scrape pipeline.
-- **Equity Residential / Irvine / Brookfield platform adapters** — 5 apts marked `legal_block`; build adapters only if Bay Area dogfood evidence shows demand.
+- **RentCafe phantom parse** — apts 247/253/259 extract "Floor Plans" nav card; GA4Cookie absent on these layouts. Fix requires alternate card-detection strategy.
+- **Equity Residential / Irvine / Brookfield platform adapters** — Equity EquityAdapter shipped (BUG-17). Irvine/Brookfield have anti-bot; defer until dogfood evidence shows demand.
 - **Path cache plan-name locking** — fixes BUG-13 LLM name instability fundamentally; architectural change.
 - **`alternate_url` schema field** — Apex Milpitas case noted in dedup forensics.
 - **Google Places Photos** — Pro tier FieldMask + carousel UI.
@@ -277,7 +324,7 @@ After Phase 1+2 dogfood data cleanup (Round 1 + Round 2 SQL fixes, Phase A/B/C a
 | `backend/app/models/api_cost_log.py` | Every LLM/Google Maps cost event |
 | `backend/app/models/password_reset_token.py` | Token-based password reset (B5) |
 | `backend/app/services/scraper_agent/` | Agent + browser tools + path cache + compliance + content_hash |
-| `backend/app/services/scraper_agent/platforms/` | 10 adapters: avalonbay, sightmap, rentcafe, leasingstar, jonah_digital, universal_dom, generic_detail, greystar, windsor, fatwin |
+| `backend/app/services/scraper_agent/platforms/` | 11 adapters: avalonbay, equity, sightmap, rentcafe, leasingstar, jonah_digital, universal_dom, generic_detail, greystar, windsor, fatwin |
 | `backend/app/services/scraper_agent/content_hash.py` | SHA256 of stripped HTML for scrape short-circuit |
 | `backend/app/services/google_maps.py` | Places API (New) with GooglePlaceRaw dedup |
 | `backend/app/services/price_checker.py` | Price-drop detection (Phase A semantics) |
@@ -472,14 +519,15 @@ print('OK' if result.successful() else result.traceback)
 
 ## Active Tech Debt
 
-1. **BUG-16 code fix outstanding** — SightMap plan-name validation needs regex pattern reject (UI verb prefix + unit-number pattern), beyond current exact-match blacklist. Data fix shipped on Miro production but recurrence prevention pending.
-2. **BUG-13 idempotency unverified** — Enclave plan name instability mitigated by archive + re-scrape; needs second-scrape verification to confirm `_match_plan` strategy 3 catches name variation via sqft.
-3. **Scraper code duplication** between `scraper_agent/` and `tests/integration/agentic_scraper/`. Any change must be mirrored.
-4. **`Plan.price` deprecated** but still populated by seed script — remove after confirming no read paths use it.
-5. **`ApartmentImage` table unused** — added for future image support; will repurpose or drop.
-6. **Cost log JSONL fallback** (legacy path in `cost_log.py`) — remove after `api_cost_log` proven stable in production.
-7. **`extract_all_units` capped at 15 floors** — insufficient for high-rise SF (NEMA 23 floors, Austin 42). Bump to 30.
-8. **Subscription baseline reset semantics** — when an apartment moves from `unscrapeable` → `brand_site` (or vice versa), or after major data migrations (Round 1/2 SQL), baselines may drift > 5% from current price. Daily cron fires fake alerts. Manual SQL reset to `MIN(current_price)` after data migrations.
+1. **Scraper code duplication** between `scraper_agent/` and `tests/integration/agentic_scraper/`. Any change must be mirrored to both. Consolidation deferred.
+2. **`Plan.price` deprecated** but still populated by seed script — remove after confirming no read paths use it.
+3. **`ApartmentImage` table unused** — added for future image support; will repurpose or drop.
+4. **Cost log JSONL fallback** (legacy path in `cost_log.py`) — remove after `api_cost_log` proven stable in production.
+5. **`extract_all_units` capped at 15 floors** — insufficient for high-rise SF (NEMA 23 floors, Austin 42). Bump to 30.
+6. **Subscription baseline reset semantics** — after major data migrations or apt reclassification, baselines may drift >5% from current price. Manual SQL reset needed after migrations.
+7. **RentCafe phantom parse** on apts 247/253/259 — gzip fix enables HTML fetch but parser extracts a "Floor Plans" nav card instead of real plans. GA4Cookie pricing pattern absent on these sites. Investigate alternate RentCafe layout.
+8. **225 Regency MV source URL** — currently `universal_dom` adapter, but site has SightMap embed (`sightmap.com/embed/dgow3q6rp2m`). "Unit" ghost plan will auto-archive via Pass 3 on next scrape. Source URL fine — SightMap adapter will fire on rendered fetch.
+9. **Pass 3 stale-plan cleanup** only runs when `scraped_plan_ids` is non-empty — if an adapter returns 0 plans, stale plans are not archived. Intentional guard against extraction failures wiping all plans.
 
 ---
 
