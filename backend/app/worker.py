@@ -55,11 +55,11 @@ celery_app.conf.update(
         },
         "refresh-apartment-data": {
             "task": "app.worker.task_refresh_apartment_data",
-            "schedule": crontab(hour=2, minute=0),   # 02:00 PT daily
+            "schedule": crontab(hour=18, minute=0),  # 18:00 PT daily
         },
         "nightly-scrape-digest": {
             "task": "app.worker.task_nightly_scrape_digest",
-            "schedule": crontab(hour=9, minute=0),   # 09:00 PT daily
+            "schedule": crontab(hour=20, minute=0),  # 20:00 PT daily (after scrape)
         },
     },
 )
