@@ -100,11 +100,17 @@ def _parse_rentcafe_floorplans(html: str) -> List[dict]:
             continue
 
     # --- Step 2: find card containers ---
-    # Two strategies: data-floorplan-id spans (Mode/Viewpoint) or h2 in cards (Tan Plaza)
-    card_containers = []
+    # Three strategies tried in order:
+    # A) data-floorplan-id spans  (Mode/Viewpoint layout)
+    # B) div.fp-container         (RentCafe V2 layout — Turnleaf, Venue, 808West, Ilara, …)
+    # C) h2 in card divs          (Tan Plaza layout — last resort)
 
     fp_spans = soup.find_all("span", attrs={"data-floorplan-id": True})
+    fp_containers = soup.find_all("div", class_="fp-container")
+
     if fp_spans:
+        # Strategy A
+        card_containers = []
         for span in fp_spans:
             container = span.parent
             for _ in range(8):
@@ -115,8 +121,73 @@ def _parse_rentcafe_floorplans(html: str) -> List[dict]:
                 container = container.parent
             if container is not None:
                 card_containers.append(container)
+
+    elif fp_containers:
+        # Strategy B — each div.fp-container is one plan.
+        # Text format: "Guided Tour | for {SiteName} | {PlanName} | N Bed(s) | … | N Bath(s) | … | Sqft Sq. Ft. | …"
+        plans_b: List[dict] = []
+        seen_b: set = set()
+        # "for Metropolitan" is the site-name token; "for A1, Opens a dialog" is an
+        # accessibility label on 360° Tour links — distinguished by the comma.
+        _FOR_SITE_RE = re.compile(r"^for\s+\S", re.I)
+        for fc in fp_containers:
+            tokens = [t.strip() for t in fc.get_text(separator="|", strip=True).split("|") if t.strip()]
+            # Plan name = token immediately after the "for {SiteName}" token (no comma)
+            name: Optional[str] = None
+            for i, tok in enumerate(tokens):
+                if _FOR_SITE_RE.match(tok) and "," not in tok and i + 1 < len(tokens):
+                    name = tokens[i + 1]
+                    break
+            if not name or name in seen_b:
+                continue
+            seen_b.add(name)
+
+            text = "|".join(tokens)
+
+            ga = ga4.get(name, {})
+            beds: Optional[float] = ga.get("bedrooms")
+            sqft: Optional[float] = ga.get("size_sqft")
+            price: Optional[float] = ga.get("min_price")
+
+            if sqft is None:
+                m = re.search(r"([\d,]+)\s*Sq\.?\s*Ft\.", text, re.I)
+                if m:
+                    sqft = float(m.group(1).replace(",", ""))
+            if beds is None:
+                if re.search(r"\bstudio\b", text, re.I):
+                    beds = 0.0
+                else:
+                    m = re.search(r"(\d+)\s+Beds?", text, re.I)
+                    if m:
+                        beds = float(m.group(1))
+
+            baths: Optional[float] = None
+            m = re.search(r"(\d+(?:\.\d+)?)\s+Baths?", text, re.I)
+            if m:
+                baths = float(m.group(1))
+
+            if sqft is None and price is None:
+                continue
+
+            avail_m = re.search(
+                r"(\d+\s+Available|AVAILABLE|Inquire for details|Call for details|Waitlist)",
+                text, re.I,
+            )
+            availability: Optional[str] = avail_m.group(1) if avail_m else None
+
+            plans_b.append({
+                "plan_name": name,
+                "bedrooms": beds,
+                "bathrooms": baths,
+                "size_sqft": sqft,
+                "price": price,
+                "availability": availability,
+            })
+        return plans_b  # early return — no need for Step 3
+
     else:
-        # Fallback: h2 elements inside card divs (Tan Plaza layout)
+        # Strategy C — h2 elements inside card divs (Tan Plaza layout)
+        card_containers = []
         for h2 in soup.find_all("h2"):
             name_text = h2.get_text(strip=True)
             if not name_text or name_text.lower() in ("filters", "no matches"):
