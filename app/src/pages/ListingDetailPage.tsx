@@ -761,7 +761,7 @@ const ListingDetailPage: React.FC = () => {
         const pickerPlans = allPlans.filter(p => p.is_available && p.price != null);
         return (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowPlanPicker(false); }}
           >
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
