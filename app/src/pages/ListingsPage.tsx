@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import api, { ApartmentSummary, ListingsFilter, SortOption } from '../services/api';
 import { medianApartmentPrice } from '../utils/medianPrice';
@@ -20,19 +20,53 @@ const bedLabel = (min: number, max: number) => {
   return `${lo} – ${max} bd`;
 };
 
+// ── URL ↔ filter helpers ──────────────────────────────────────────────────────
+function filtersToParams(f: ListingsFilter): URLSearchParams {
+  const p = new URLSearchParams();
+  if (f.search) p.set('search', f.search);
+  if (f.cities?.length) p.set('cities', f.cities.join(','));
+  if (f.bedroom_counts?.length) p.set('beds', f.bedroom_counts.join(','));
+  if (f.min_price) p.set('minPrice', String(f.min_price));
+  if (f.max_price) p.set('maxPrice', String(f.max_price));
+  if (f.sort && f.sort !== 'price_asc') p.set('sort', f.sort);
+  if (f.include_unscrapeable) p.set('unlisted', '1');
+  return p;
+}
+
+function paramsToFilters(p: URLSearchParams): ListingsFilter {
+  const f: ListingsFilter = {};
+  const search = p.get('search'); if (search) f.search = search;
+  const cities = p.get('cities'); if (cities) f.cities = cities.split(',').filter(Boolean);
+  const beds = p.get('beds'); if (beds) f.bedroom_counts = beds.split(',').map(Number).filter(n => !isNaN(n));
+  const minP = p.get('minPrice'); if (minP) f.min_price = Number(minP);
+  const maxP = p.get('maxPrice'); if (maxP) f.max_price = Number(maxP);
+  const sort = p.get('sort'); if (sort) f.sort = sort as SortOption;
+  if (p.get('unlisted') === '1') f.include_unscrapeable = true;
+  return f;
+}
+
 export interface ApartmentCardProps {
   apt: ApartmentSummary;
   favorited?: boolean;
   onFavoriteClick?: (e: React.MouseEvent) => void;
+  filteredBeds?: number[];
 }
 
-export const ApartmentCard: React.FC<ApartmentCardProps> = ({ apt, favorited = false, onFavoriteClick }) => {
+export const ApartmentCard: React.FC<ApartmentCardProps> = ({ apt, favorited = false, onFavoriteClick, filteredBeds }) => {
   const c = cityStyle(apt.city);
-  const priceRange = apt.min_price == null
+
+  // When a bedroom filter is active, show price range for matching plans only.
+  const filteredPrices = filteredBeds?.length
+    ? apt._raw.plans.filter(p => p.is_available && filteredBeds.includes(p.bedrooms) && p.price != null).map(p => p.price as number)
+    : null;
+  const minPrice = filteredPrices?.length ? Math.min(...filteredPrices) : apt.min_price;
+  const maxPrice = filteredPrices?.length ? Math.max(...filteredPrices) : apt.max_price;
+
+  const priceRange = minPrice == null
     ? 'Contact for pricing'
-    : apt.min_price === apt.max_price
-      ? `$${apt.min_price.toLocaleString()}`
-      : `$${apt.min_price.toLocaleString()} – $${(apt.max_price ?? apt.min_price).toLocaleString()}`;
+    : minPrice === maxPrice
+      ? `$${minPrice.toLocaleString()}`
+      : `$${minPrice.toLocaleString()} – $${(maxPrice ?? minPrice).toLocaleString()}`;
 
   return (
     <Link to={`/listings/${apt.id}`} className="block group">
@@ -128,7 +162,13 @@ const ListingsPage: React.FC = () => {
   const [apts, setApts] = useState<ApartmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<ListingsFilter>({});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<ListingsFilter>(() => paramsToFilters(searchParams));
+
+  const handleFilterChange = useCallback((newFilters: ListingsFilter) => {
+    setFilters(newFilters);
+    setSearchParams(filtersToParams(newFilters), { replace: true });
+  }, [setSearchParams]);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showAuth, setShowAuth] = useState(false);
   const [page, setPage] = useState(1);
@@ -212,7 +252,7 @@ const ListingsPage: React.FC = () => {
         {/* Sidebar */}
         <aside className="w-60 shrink-0 hidden md:block">
           <div className="sticky top-20">
-            <FilterPanel filters={filters} onFilterChange={setFilters} totalCount={filtered.length} />
+            <FilterPanel filters={filters} onFilterChange={handleFilterChange} totalCount={filtered.length} />
           </div>
         </aside>
 
@@ -223,7 +263,7 @@ const ListingsPage: React.FC = () => {
               {loading ? 'Loading…' : `${filtered.length} apartment${filtered.length !== 1 ? 's' : ''}`}
               {!loading && (
                 <button
-                  onClick={() => setFilters(f => ({ ...f, include_unscrapeable: !f.include_unscrapeable }))}
+                  onClick={() => handleFilterChange({ ...filters, include_unscrapeable: !filters.include_unscrapeable })}
                   className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                     filters.include_unscrapeable
                       ? 'border-slate-400 bg-slate-100 text-slate-600'
@@ -238,7 +278,7 @@ const ListingsPage: React.FC = () => {
               {/* Sort */}
               <select
                 value={filters.sort ?? 'price_asc'}
-                onChange={e => setFilters(f => ({ ...f, sort: e.target.value as SortOption }))}
+                onChange={e => handleFilterChange({ ...filters, sort: e.target.value as SortOption })}
                 className="flex-1 sm:flex-none text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
               >
                 <option value="price_asc">Price: low to high</option>
@@ -270,7 +310,7 @@ const ListingsPage: React.FC = () => {
 
           {/* Mobile filters */}
           <div className="md:hidden mb-4">
-            <FilterPanel filters={filters} onFilterChange={setFilters} totalCount={filtered.length} />
+            <FilterPanel filters={filters} onFilterChange={handleFilterChange} totalCount={filtered.length} />
           </div>
 
           {loading ? (
@@ -304,6 +344,7 @@ const ListingsPage: React.FC = () => {
                   apt={apt}
                   favorited={isFavorite(apt.id)}
                   onFavoriteClick={e => handleFavorite(e, apt.id)}
+                  filteredBeds={filters.bedroom_counts?.length ? filters.bedroom_counts : undefined}
                 />
               ))}
             </div>
