@@ -4,6 +4,30 @@ Open issues found during dogfood. Fix together in a batch.
 
 ---
 
+## BUG-22: SightMap floor-plan combobox layout — only first plan extracted
+
+**Status**: open  
+**Affected**: 1250 Lakeside (id=231, essexapartmenthomes.com/apartments/sunnyvale/1250-lakeside)  
+**Evidence**:
+- SightMap embed `https://sightmap.com/embed/zlpor6zjpg4` renders a "Floor Plan" combobox dropdown (not per-floor buttons)
+- `extract_all_units` reads only the default/first visible unit → extracted 1 plan named "Unit" at $2,947
+- Real prices visible in DOM after JS render: $3,599–$4,629 (confirmed manually)
+- Bad plan archived 2026-04-30; apartment now shows no data
+
+**Root cause**: `extract_all_units` navigates SightMap floors via floor-level buttons (the standard layout). For properties where SightMap uses a "Floor Plan" combobox (`role="combobox"`, `aria-label="Floor Plan"`), it doesn't cycle through the options — only the default selection is read.
+
+**Fix**:
+After navigating to the SightMap embed, before calling `extract_all_units`:
+1. Detect `[role="combobox"][aria-label="Floor Plan"]` in the page
+2. Get all `<option>` values from the combobox
+3. For each option: select it, wait for render (~1s), run `extract_all_units`, collect units
+4. Deduplicate units by unit_number across all selections
+5. Return combined result
+
+**Files**: `backend/app/services/scraper_agent/platforms/sightmap.py` (and integration mirror)
+
+---
+
 ## BUG-01: universal_dom picks up deposit as rent price
 
 **Status**: RESOLVED  
