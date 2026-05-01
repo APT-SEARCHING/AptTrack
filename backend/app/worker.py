@@ -132,16 +132,24 @@ def task_nightly_scrape_digest(self):
         def pct(n: int) -> str:
             return f"{100 * n // total}%" if total else "0%"
 
+        n_success = (
+            by_outcome.get('success', 0)
+            + by_outcome.get('platform_direct_static', 0)
+            + by_outcome.get('platform_direct_rendered', 0)
+        )
+        n_unchanged = by_outcome.get('content_unchanged', 0)
+        n_skipped = by_outcome.get('skipped_negative_cache', 0) + by_outcome.get('cache_hit', 0)
+        n_failed = by_outcome.get('hard_fail', 0) + by_outcome.get('validated_fail', 0)
+
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         lines = [
             f"📊 *AptTrack Nightly Digest* — {date_str}",
             "",
             f"Scrapes last 24h: *{total}*",
-            f"✅ Success:    {by_outcome.get('success', 0):>4}  ({pct(by_outcome.get('success', 0))})",
-            f"💾 Cache hit:  {by_outcome.get('cache_hit', 0):>4}  ({pct(by_outcome.get('cache_hit', 0))})",
-            f"⚡ Unchanged:  {by_outcome.get('content_unchanged', 0):>4}  ({pct(by_outcome.get('content_unchanged', 0))})",
-            f"❌ Failed:     {by_outcome.get('hard_fail', 0) + by_outcome.get('validated_fail', 0):>4}  "
-            f"({pct(by_outcome.get('hard_fail', 0) + by_outcome.get('validated_fail', 0))})",
+            f"✅ Success:   {n_success:>4}  ({pct(n_success)})",
+            f"⚡ Unchanged: {n_unchanged:>4}  ({pct(n_unchanged)})",
+            f"⏭ Skipped:   {n_skipped:>4}  ({pct(n_skipped)})",
+            f"❌ Failed:    {n_failed:>4}  ({pct(n_failed)})",
             "",
             f"💰 Total cost: *${total_cost:.2f}*",
             f"   Median ${p50:.4f} · p95 ${p95:.4f}",
