@@ -354,7 +354,7 @@ const ListingDetailPage: React.FC = () => {
   const prices = allPlans.map(p => p.price).filter((p): p is number => p != null);
   const minP = prices.length ? Math.min(...prices) : null;
   const maxP = prices.length ? Math.max(...prices) : null;
-  const availCount = allPlans.filter(p => p.is_available).length;
+  const availCount = allPlans.filter(p => p.is_available && p.price != null).length;
   const hasFloor = allPlans.some(p => p.floor_level != null);
   const hasFacing = allPlans.some(p => p.facing != null);
   const planGroups = groupPlans(allPlans);
