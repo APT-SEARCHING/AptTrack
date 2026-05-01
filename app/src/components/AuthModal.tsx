@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -63,7 +64,7 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
 
   const titles = { login: 'Sign in', register: 'Create account', reset: 'Reset password' };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -169,7 +170,8 @@ const AuthModal: React.FC<Props> = ({ onClose, onSuccess, defaultMode = 'login' 
           )}
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

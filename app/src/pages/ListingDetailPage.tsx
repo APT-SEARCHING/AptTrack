@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -759,7 +760,7 @@ const ListingDetailPage: React.FC = () => {
 
       {showPlanPicker && apt && (() => {
         const pickerPlans = allPlans.filter(p => p.is_available && p.price != null);
-        return (
+        return createPortal(
           <div
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowPlanPicker(false); }}
@@ -788,7 +789,8 @@ const ListingDetailPage: React.FC = () => {
                 ))}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         );
       })()}
       {showAlert && apt && apt.data_source_type !== 'unscrapeable' && apt.data_source_type !== 'legal_block' && (

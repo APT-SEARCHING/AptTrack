@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import api, { SubscriptionCreate } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -53,7 +54,7 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -159,7 +160,8 @@ const AlertModal: React.FC<Props> = ({ apartmentId, apartmentTitle, currentPrice
             </button>
           </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
