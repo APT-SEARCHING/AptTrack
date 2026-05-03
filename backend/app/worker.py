@@ -200,7 +200,11 @@ def task_refresh_apartment_data(self):
     try:
         rows = db.execute(
             select(Apartment.id)
-            .where(Apartment.source_url.isnot(None), Apartment.is_available.is_(True))
+            .where(
+                Apartment.source_url.isnot(None),
+                Apartment.is_available.is_(True),
+                Apartment.data_source_type == "brand_site",
+            )
         ).scalars().all()
         apt_ids: List[int] = list(rows)
         logger.info(
