@@ -560,9 +560,18 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
     async def _run():
         from app.services.scraper_agent.browser_tools import BrowserSession
 
+        # Limit concurrent coroutines so at most 10 hold a DB connection at once.
+        # Without this, asyncio.gather launches all 50 coroutines simultaneously
+        # and each one immediately opens a SessionLocal(), exhausting the pool.
+        _sem = asyncio.Semaphore(10)
+
+        async def _scrape_one_bounded(apt_id: int, url: str, pool: asyncio.Queue) -> None:
+            async with _sem:
+                await _scrape_one(apt_id, url, pool)
+
         # Start exactly 2 browsers and put them in the pool.
-        # 50 coroutines are launched simultaneously but at most 2 run at a time
-        # because pool.get() blocks until a browser is returned.
+        # Coroutines are bounded to 10 concurrent by _sem; at most 2 run browser
+        # steps at a time because pool.get() blocks until a browser is returned.
         browsers = [BrowserSession(headless=True), BrowserSession(headless=True)]
         for b in browsers:
             await b.__aenter__()
@@ -572,7 +581,7 @@ def task_refresh_apartment_chunk(self, apartment_ids: List[int]):
             await pool.put(b)
 
         try:
-            await asyncio.gather(*[_scrape_one(apt_id, url, pool) for apt_id, url in apt_rows])
+            await asyncio.gather(*[_scrape_one_bounded(apt_id, url, pool) for apt_id, url in apt_rows])
         finally:
             # Drain the pool and close both browsers.
             closed: list = []

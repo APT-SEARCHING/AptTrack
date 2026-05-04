@@ -9,7 +9,13 @@ def _make_engine():
     # not at module load time (which breaks tests that override settings).
     from app.core.config import settings  # noqa: PLC0415
 
-    return create_engine(settings.DATABASE_URL)
+    return create_engine(
+        settings.DATABASE_URL,
+        pool_size=15,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_pre_ping=True,
+    )
 
 
 class _LazySessionFactory:
