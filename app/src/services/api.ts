@@ -631,6 +631,33 @@ const api = {
     };
     return apiFetch<PriceTrend[]>('/stats/price-trends', params);
   },
+
+  // ── Telegram linking ────────────────────────────────────────────────────
+
+  async getTelegramStatus(token: string): Promise<{ linked: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/telegram/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to get Telegram status');
+    return res.json();
+  },
+
+  async generateTelegramLinkToken(token: string): Promise<{ deep_link: string; expires_in: number }> {
+    const res = await fetch(`${API_BASE_URL}/telegram/link-token`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to generate Telegram link');
+    return res.json();
+  },
+
+  async unlinkTelegram(token: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/telegram/unlink`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error('Failed to unlink Telegram');
+  },
 };
 
 export default api;

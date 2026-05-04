@@ -53,6 +53,11 @@ def create_subscription(
     baseline_recorded_at = datetime.now(timezone.utc) if baseline_price is not None else None
 
     sub_data = payload.model_dump(exclude={"baseline_price"})
+    # Inherit Telegram binding from the user account if the user has linked Telegram
+    # and the caller didn't explicitly provide a chat_id.
+    if current_user.telegram_chat_id and not sub_data.get("telegram_chat_id"):
+        sub_data["notify_telegram"] = True
+        sub_data["telegram_chat_id"] = current_user.telegram_chat_id
     sub = PriceSubscription(
         **sub_data,
         user_id=current_user.id,

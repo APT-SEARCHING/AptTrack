@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api, { SubscriptionResponse } from '../services/api';
@@ -10,6 +10,12 @@ const AlertsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Telegram linking state
+  const [tgLinked, setTgLinked] = useState<boolean | null>(null);
+  const [tgLinking, setTgLinking] = useState(false);
+  const [tgUnlinking, setTgUnlinking] = useState(false);
+  const tgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const load = () => {
     if (!token) return;
     setLoading(true);
@@ -20,6 +26,65 @@ const AlertsPage: React.FC = () => {
   };
 
   useEffect(load, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getTelegramStatus(token)
+      .then(r => setTgLinked(r.linked))
+      .catch(() => setTgLinked(false));
+  }, [token]);
+
+  // Stop polling when component unmounts
+  useEffect(() => () => { if (tgPollRef.current) clearInterval(tgPollRef.current); }, []);
+
+  const connectTelegram = async () => {
+    if (!token) return;
+    setTgLinking(true);
+    try {
+      const { deep_link, expires_in } = await api.generateTelegramLinkToken(token);
+      window.open(deep_link, '_blank', 'noopener,noreferrer');
+      toast.info('Tap "Start" in the Telegram chat to finish connecting.');
+
+      // Poll for up to expires_in seconds
+      const deadline = Date.now() + expires_in * 1000;
+      tgPollRef.current = setInterval(async () => {
+        try {
+          const status = await api.getTelegramStatus(token);
+          if (status.linked) {
+            setTgLinked(true);
+            setTgLinking(false);
+            clearInterval(tgPollRef.current!);
+            tgPollRef.current = null;
+            toast.success('Telegram connected! Future alerts will also go to Telegram.');
+          } else if (Date.now() > deadline) {
+            setTgLinking(false);
+            clearInterval(tgPollRef.current!);
+            tgPollRef.current = null;
+            toast.error('Link expired — please try again.');
+          }
+        } catch {
+          // ignore transient errors while polling
+        }
+      }, 3000);
+    } catch {
+      setTgLinking(false);
+      toast.error('Could not generate Telegram link. Try again.');
+    }
+  };
+
+  const disconnectTelegram = async () => {
+    if (!token) return;
+    setTgUnlinking(true);
+    try {
+      await api.unlinkTelegram(token);
+      setTgLinked(false);
+      toast.success('Telegram disconnected.');
+    } catch {
+      toast.error('Could not disconnect Telegram.');
+    } finally {
+      setTgUnlinking(false);
+    }
+  };
 
   const remove = async (id: number) => {
     if (!token) return;
@@ -85,6 +150,38 @@ const AlertsPage: React.FC = () => {
         </div>
         <span className="text-sm text-slate-400">{subs.filter(s => s.is_active).length} active</span>
       </div>
+
+      {/* Telegram connect banner */}
+      {tgLinked === false && (
+        <div className="flex items-center justify-between bg-sky-50 border border-sky-200 rounded-2xl px-4 py-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-sky-800">
+            <span className="text-base">✈️</span>
+            <span>Get price drop alerts on <strong>Telegram</strong> in addition to email</span>
+          </div>
+          <button
+            onClick={connectTelegram}
+            disabled={tgLinking}
+            className="shrink-0 ml-4 text-sm font-medium text-sky-700 border border-sky-300 rounded-lg px-3 py-1 hover:bg-sky-100 disabled:opacity-50 transition-colors"
+          >
+            {tgLinking ? 'Waiting…' : 'Connect'}
+          </button>
+        </div>
+      )}
+      {tgLinked === true && (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-emerald-800">
+            <span className="text-base">✅</span>
+            <span>Telegram connected — alerts go to email and Telegram</span>
+          </div>
+          <button
+            onClick={disconnectTelegram}
+            disabled={tgUnlinking}
+            className="shrink-0 ml-4 text-sm text-slate-500 hover:text-red-600 disabled:opacity-50 transition-colors"
+          >
+            {tgUnlinking ? '…' : 'Disconnect'}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">

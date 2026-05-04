@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     SENDGRID_WEBHOOK_VERIFICATION_KEY: str = ""
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_ADMIN_CHAT_ID: str = ""  # chat_id for nightly scrape-digest messages
+    TELEGRAM_WEBHOOK_SECRET: str = ""  # random string sent as X-Telegram-Bot-Api-Secret-Token header
 
     # API
     API_BASE_URL: str = "http://localhost:8000/api/v1"

@@ -25,6 +25,11 @@ class User(Base):
     # Stable token for one-click "unsubscribe from all alerts" link in emails
     unsubscribe_all_token = Column(String, unique=True, nullable=True, index=True)
 
+    # Telegram linking
+    telegram_chat_id = Column(String, nullable=True)
+    telegram_link_token = Column(String, nullable=True, unique=True, index=True)
+    telegram_link_expires_at = Column(DateTime(timezone=True), nullable=True)
+
     subscriptions = relationship(
         "PriceSubscription",
         back_populates="user",

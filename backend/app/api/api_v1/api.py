@@ -10,6 +10,7 @@ from app.api.api_v1.endpoints.admin import router as admin_router
 from app.api.api_v1.endpoints.auth import router as auth_router
 from app.api.api_v1.endpoints.favorites import router as favorites_router
 from app.api.api_v1.endpoints.subscriptions import router as subscriptions_router
+from app.api.api_v1.endpoints.telegram import router as telegram_router
 from app.api.api_v1.endpoints.webhooks import router as webhooks_router
 
 api_router = APIRouter()
@@ -29,6 +30,9 @@ api_router.include_router(favorites_router)
 
 # Admin endpoints
 api_router.include_router(admin_router)
+
+# Telegram bot endpoints (link-token + webhook receiver + admin set-webhook)
+api_router.include_router(telegram_router)
 
 # Webhook receivers (public, signature-verified)
 api_router.include_router(webhooks_router)
